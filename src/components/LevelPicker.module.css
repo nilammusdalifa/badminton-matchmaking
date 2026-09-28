@@ -1,0 +1,27 @@
+.group {
+  display: flex;
+  gap: 4px;
+}
+
+.option {
+  border-radius: 50%;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text-2);
+  font-weight: 700;
+  font-family: var(--font-body), sans-serif;
+  cursor: pointer;
+  width: 34px;
+  height: 34px;
+  font-size: 12px;
+}
+.option.sm {
+  width: 27px;
+  height: 27px;
+  font-size: 11px;
+}
+
+.option.active {
+  border-color: var(--sm-accent);
+  color: var(--sm-accent);
+}

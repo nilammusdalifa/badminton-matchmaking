@@ -1,0 +1,71 @@
+import { BottomNav } from "./components/BottomNav";
+import { Header } from "./components/Header";
+import { RemoteGate } from "./components/RemoteGate";
+import { ReviewScreen } from "./components/ReviewScreen";
+import { Toast } from "./components/Toast";
+import { ConfirmModal } from "./components/modals/ConfirmModal";
+import { EditMatchModal } from "./components/modals/EditMatchModal";
+import { ScorekeeperSheet } from "./components/modals/ScorekeeperSheet";
+import { SetupWizardModal } from "./components/modals/SetupWizardModal";
+import { ShareRankingsModal } from "./components/modals/ShareRankingsModal";
+import { ManageTab } from "./components/tabs/ManageTab";
+import { MatchesTab } from "./components/tabs/MatchesTab";
+import { RankingsTab } from "./components/tabs/RankingsTab";
+import { SessionTab } from "./components/tabs/SessionTab";
+import { useSessionStore } from "./hooks/useSessionStore";
+import styles from "./App.module.css";
+
+function App() {
+  const store = useSessionStore();
+  const { remote } = store;
+
+  // A shared `?view=` link: gate on picking a role, entering the Umpire PIN,
+  // and the session actually being reachable, before showing anything else.
+  // Player and Umpire both fall through to the normal app once past this —
+  // only Player then renders read-only (see isReadOnlyPlayer below).
+  if (remote.isRemoteMode) {
+    const ready = remote.role && remote.connected && !remote.missing && remote.firebaseConfigured;
+    if (!ready) return <RemoteGate {...remote} />;
+  }
+
+  if (store.isReviewMode) {
+    return <ReviewScreen {...store.review} />;
+  }
+
+  const isReadOnlyPlayer = remote.isRemoteMode && remote.role === "player";
+
+  return (
+    <div className={styles.app}>
+      <div className={styles.blobTopRight} />
+      <div className={styles.blobBottomLeft} />
+      <div className={styles.blobCenter} />
+      <div className={styles.dotGrid} />
+
+      <Header {...store.header} />
+
+      {isReadOnlyPlayer && <div className={styles.readOnlyBanner}>Live view only — ask the organizer or umpire to make changes</div>}
+
+      <div className={styles.main} style={isReadOnlyPlayer ? { pointerEvents: "none" } : undefined}>
+        {store.tabs.active === "session" && <SessionTab {...store.session} />}
+        {store.tabs.active === "matches" && <MatchesTab {...store.matches} />}
+        {store.tabs.active === "rankings" && <RankingsTab {...store.rankings} />}
+        {store.tabs.active === "manage" && !isReadOnlyPlayer && <ManageTab {...store.manage} />}
+      </div>
+
+      <BottomNav active={store.tabs.active} onChange={store.tabs.setActiveTab} hideManage={isReadOnlyPlayer} />
+
+      {!isReadOnlyPlayer && (
+        <>
+          <ScorekeeperSheet {...store.scorekeeper} />
+          <EditMatchModal {...store.editMatch} />
+          <SetupWizardModal {...store.setup} />
+          <ConfirmModal {...store.confirm} />
+        </>
+      )}
+      <ShareRankingsModal {...store.shareRankings} />
+      <Toast message={store.toast.message} />
+    </div>
+  );
+}
+
+export default App;

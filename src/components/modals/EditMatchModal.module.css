@@ -1,0 +1,122 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.dialog {
+  width: 100%;
+  max-width: 460px;
+  background: var(--sm-surface);
+  border: 1px solid var(--sm-border-soft);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+}
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.headTitle { font-weight: 800; font-size: 15px; }
+.closeBtn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text-2);
+  cursor: pointer;
+  font-size: 16px;
+  font-family: var(--font-body), sans-serif;
+}
+.hintRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: -6px;
+}
+.hint {
+  font-size: 11.5px;
+  color: var(--sm-text-3);
+  flex: 1;
+}
+.autoFillBtn {
+  flex-shrink: 0;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-accent-border);
+  background: var(--sm-accent-soft);
+  color: var(--sm-accent-hover);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: var(--font-body), sans-serif;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.teamCol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 12px;
+  border-radius: var(--radius-md);
+}
+.teamLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.teamLabel.a { color: var(--sm-accent); }
+.teamLabel.b { color: var(--sm-accent-2); }
+.select {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--sm-border);
+  background: var(--sm-bg);
+  color: var(--sm-text);
+  font-size: 12.5px;
+  font-family: var(--font-body), sans-serif;
+}
+.footer {
+  display: flex;
+  gap: 10px;
+}
+.cancelBtn {
+  flex: 1;
+  padding: 11px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text-2);
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+.startBtn {
+  flex: 2;
+  padding: 11px;
+  border-radius: 999px;
+  border: none;
+  background: var(--sm-accent);
+  color: var(--sm-accent-on);
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}

@@ -1,0 +1,145 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 26px;
+  letter-spacing: -0.01em;
+  color: var(--sm-text);
+  text-shadow: 0 2px 12px rgba(63, 182, 168, 0.25);
+}
+.subtitle {
+  font-size: 12px;
+  color: var(--sm-text-2);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--sm-surface);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+}
+.rowHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rowMeta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.court {
+  font-weight: 700;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.matchNum {
+  font-family: var(--sm-font-mono);
+  font-size: 10.5px;
+  color: var(--sm-text-4);
+  flex-shrink: 0;
+}
+.badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.badge.inProgress {
+  background: var(--sm-accent-soft);
+  color: var(--sm-accent-hover);
+}
+.badge.completed {
+  background: var(--sm-fill);
+  color: var(--sm-text-2);
+}
+.teams {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.teamName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.teamName:last-child {
+  text-align: right;
+}
+.teamName.winner {
+  color: var(--sm-accent-hover);
+  font-weight: 700;
+}
+.teamName.loser {
+  color: var(--sm-text-2);
+  font-weight: 500;
+}
+.score {
+  font-family: var(--sm-font-mono);
+  font-weight: 800;
+  flex-shrink: 0;
+  padding: 0 6px;
+  text-align: center;
+}
+.tieTag {
+  display: block;
+  font-family: var(--font-body), sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sm-text-4);
+}
+
+.empty {
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--sm-text-4);
+  padding: 24px 0;
+}
+
+.rowActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 2px;
+}
+.actionBtn {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text-2);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+.actionBtn.danger {
+  border-color: var(--sm-danger-border);
+  color: var(--sm-danger-text);
+}

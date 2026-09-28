@@ -1,0 +1,208 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 26px;
+  letter-spacing: -0.01em;
+  color: var(--sm-text);
+  text-shadow: 0 2px 12px rgba(63, 182, 168, 0.25);
+}
+
+.panel {
+  background: var(--sm-surface);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-lg);
+  padding: 15px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.panelTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sm-text-2);
+}
+.panelHint {
+  font-size: 11.5px;
+  color: var(--sm-text-3);
+  margin-top: -4px;
+}
+
+.formRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.addBtn {
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: none;
+  background: var(--sm-accent);
+  color: var(--sm-accent-on);
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+
+.rosterTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sm-text-2);
+}
+.rosterList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rosterRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--sm-scrim);
+  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+}
+.rosterName { font-weight: 700; font-size: 13px; }
+.rosterLevel { font-weight: 500; font-size: 11px; color: var(--sm-text-4); }
+.rosterStatus { font-size: 11px; }
+.rosterStatus.default { color: var(--sm-text-2); }
+.rosterStatus.warning { color: var(--sm-accent-hover); }
+.rosterStatus.accent { color: var(--sm-accent); }
+.rosterActions { display: flex; gap: 6px; flex-shrink: 0; }
+.pillBtn {
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text-2);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+
+.select {
+  flex: 1;
+  min-width: 110px;
+  padding: 9px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border);
+  background: var(--sm-scrim);
+  color: var(--sm-text);
+  font-size: 13px;
+  font-family: var(--font-body), sans-serif;
+}
+
+.requestedList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+.requestedRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--sm-scrim);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+}
+.removeBtn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-danger-text);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+
+.shareRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pinBadge {
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px dashed var(--sm-border);
+  color: var(--sm-text-2);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: var(--sm-font-mono);
+  letter-spacing: 0.04em;
+}
+
+.courtsPanel {
+  background: var(--sm-surface);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-lg);
+  padding: 15px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.courtsSub {
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+.courtsBtns { display: flex; gap: 8px; }
+.roundBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text-2);
+  font-weight: 800;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+
+.dangerZone {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.zoneBtn {
+  padding: 13px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--sm-border);
+  background: var(--sm-surface);
+  color: var(--sm-text);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-body), sans-serif;
+}
+.zoneBtn.danger {
+  border-color: var(--sm-danger-border);
+  background: transparent;
+  color: var(--sm-danger-text);
+}
+.zoneBtn.dangerSolid {
+  border-color: var(--sm-danger-border);
+  background: var(--sm-danger-soft);
+  color: var(--sm-danger-text);
+}
