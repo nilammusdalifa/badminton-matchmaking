@@ -147,7 +147,9 @@ export function SetupWizardModal({
               <div>
                 {playersCount} players · {courtsCount} courts
               </div>
-              <div>21 points to win, win by 2</div>
+              <div>
+                {resultMode === "score" ? "21 points to win, win by 2" : resultMode === "winner" ? "Winner only — no points tracked" : "No score — just tracks who played"}
+              </div>
             </div>
             <div className={styles.consequence}>{reviewConsequence}</div>
           </div>
