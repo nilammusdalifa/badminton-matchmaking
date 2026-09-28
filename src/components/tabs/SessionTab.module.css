@@ -130,6 +130,15 @@
   overflow-x: auto;
   position: relative;
   scroll-snap-type: x proximity;
+  /* Native scrollbars (especially the classic arrow-button style some
+     browsers/OS settings still render) read as dated on a chip row like
+     this — the fade edge already signals "more to scroll", so the
+     scrollbar itself is hidden across engines rather than just restyled. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.priorityList::-webkit-scrollbar {
+  display: none;
 }
 .priorityCard {
   scroll-snap-align: start;
