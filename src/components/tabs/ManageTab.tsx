@@ -58,7 +58,7 @@ export function ManageTab({
             <div className={styles.rosterRow} key={p.id}>
               <div>
                 <div className={styles.rosterName}>
-                  {p.name} <span className={styles.rosterLevel}>Lvl {p.level}</span>
+                  {p.name} <span className={styles.rosterLevel}>Tier {p.level}</span>
                 </div>
                 <div className={`${styles.rosterStatus} ${styles[p.statusTone]}`}>{p.statusLabel}</div>
               </div>

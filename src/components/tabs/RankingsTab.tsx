@@ -29,7 +29,7 @@ export function RankingsTab({ rankingsVM, onShareRankings }: RankingsTabProps) {
               <span className={styles.rank}>{r.rank}</span>
               <div className={styles.avatar}>{r.initials}</div>
               <span className={styles.name}>
-                {r.name} <span className={styles.level}>Lvl {r.level}</span>
+                {r.name} <span className={styles.level}>Tier {r.level}</span>
               </span>
               <span className={styles.played}>{r.played}p</span>
               <span className={`${styles.diff} ${r.positiveDiff ? styles.positive : styles.negative}`}>{r.diffLabel} pts</span>

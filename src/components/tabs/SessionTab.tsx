@@ -122,7 +122,7 @@ export function SessionTab({
                   <div className={styles.avatar}>{w.initials}</div>
                   <div>
                     <div className={styles.waitingName}>
-                      {w.name} <span className={styles.waitingLevel}>· Lvl {w.level}</span>
+                      {w.name} <span className={styles.waitingLevel}>· Tier {w.level}</span>
                     </div>
                     <div className={styles.waitingMeta}>
                       Waited {w.skipped} matches · {w.games} games played
