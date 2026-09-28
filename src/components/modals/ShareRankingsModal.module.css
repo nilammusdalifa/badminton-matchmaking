@@ -21,13 +21,16 @@
   margin: auto;
 }
 
-/* Fixed 4:5 portrait — reads cleanly as an Instagram feed post or a
-   WhatsApp image without odd letterboxing, and gives html2canvas a
-   predictable capture size regardless of content length. */
+/* ~4:5 portrait — reads cleanly as an Instagram feed post or a WhatsApp
+   image without odd letterboxing. Width shrinks to fit narrow phones
+   (min() against the viewport, minus the backdrop/wrap gutters); height
+   is intentionally NOT pinned to a strict ratio off that shrunk width —
+   forcing one clipped real ranking rows off the bottom edge on narrow
+   screens. Height instead follows its content, which lands very close
+   to 4:5 at the normal 340px width anyway. */
 .card {
   position: relative;
-  width: 340px;
-  height: 425px;
+  width: min(340px, calc(100vw - 64px));
   background: linear-gradient(165deg, #2b2416 0%, #201a12 45%, #1a2420 100%);
   border: 1px solid var(--sm-accent-border);
   border-radius: 22px;
@@ -298,7 +301,7 @@
   display: flex;
   gap: 10px;
   width: 100%;
-  max-width: 340px;
+  max-width: min(340px, calc(100vw - 64px));
 }
 .closeBtn {
   flex: 1;
