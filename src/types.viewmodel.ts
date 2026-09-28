@@ -163,7 +163,7 @@ export interface UpNextEntry {
 
 export interface SessionHealth {
   longestWaitName: string | null;
-  longestWaitRounds: number;
+  longestWaitMatches: number;
   gameSpread: number;
   hasWarning: boolean;
 }

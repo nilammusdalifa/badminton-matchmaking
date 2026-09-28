@@ -1,4 +1,4 @@
-import type { Match, Player, PlayerStatus, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
+import type { CounterSnapshot, Match, Player, PlayerStatus, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
 
 /** Best-effort: pulls the last "HH:MM"-shaped token out of a free-text
  * schedule string (e.g. "Wed · 19:00–22:00" or "Rabu, 19:00 - 22:00") and
@@ -31,6 +31,33 @@ export function isPlaying(playerId: string, matches: Match[]): boolean {
 
 export function teamNames(ids: readonly string[], players: Player[]): string[] {
   return ids.map((id) => players.find((p) => p.id === id)?.name ?? "?");
+}
+
+/** Captures the rotation-fairness fields a match-start is about to touch —
+ * the four joining players (about to have skipped reset and consecutiveGames
+ * bumped) and every other ready, not-yet-playing player (about to have
+ * skipped bumped) — using the *same* eligibility condition the mutation
+ * itself uses, so nothing it will touch is missed. See `Match.counterSnapshot`. */
+export function buildCounterSnapshot(players: Player[], matches: Match[], four: readonly string[]): Record<string, CounterSnapshot> {
+  const snapshot: Record<string, CounterSnapshot> = {};
+  for (const p of players) {
+    if (four.includes(p.id) || (p.status === "ready" && !isPlaying(p.id, matches))) {
+      snapshot[p.id] = { skipped: p.skipped, consecutiveGames: p.consecutiveGames, skipNextRound: p.skipNextRound, maxConsecutive: p.maxConsecutive };
+    }
+  }
+  return snapshot;
+}
+
+/** Restores each player's pre-match rotation fields from a snapshot — used
+ * when cancelling a match that never actually finished, so it doesn't leave
+ * permanent fairness drift behind. Players no longer on the roster, or not
+ * covered by the snapshot, are left untouched. */
+export function reverseCounterSnapshot(players: Player[], snapshot: Record<string, CounterSnapshot> | undefined): Player[] {
+  if (!snapshot) return players;
+  return players.map((p) => {
+    const snap = snapshot[p.id];
+    return snap ? { ...p, ...snap } : p;
+  });
 }
 
 export function formatElapsed(match: Match, tick: number): string {
@@ -111,7 +138,7 @@ export function buildSuggestion(
   if (four.length < 4) return null;
   const split = pickBalancedFoursome(four);
   const lead = ordered[0];
-  const reasons = [`${lead.name} waited ${lead.skipped} rounds — top priority`];
+  const reasons = [`${lead.name} waited ${lead.skipped} matches — top priority`];
   const streak = four.find((p) => p.consecutiveGames >= 2);
   if (streak) reasons.push(`${streak.name} has played back-to-back — watch for fatigue`);
   reasons.push(`Split by skill tier for balance (${four.map((p) => p.level).join("/")})`);

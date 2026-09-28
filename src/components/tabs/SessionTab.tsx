@@ -50,8 +50,8 @@ export function SessionTab({
         {sessionHealth.longestWaitName && (
           <div className={`${styles.healthStrip} ${sessionHealth.hasWarning ? styles.healthWarning : ""}`}>
             <span>
-              Longest wait: <strong>{sessionHealth.longestWaitName}</strong> · {sessionHealth.longestWaitRounds} round
-              {sessionHealth.longestWaitRounds === 1 ? "" : "s"}
+              Longest wait: <strong>{sessionHealth.longestWaitName}</strong> · {sessionHealth.longestWaitMatches} match
+              {sessionHealth.longestWaitMatches === 1 ? "" : "es"}
             </span>
             <span>Game spread: {sessionHealth.gameSpread}</span>
           </div>
@@ -125,7 +125,7 @@ export function SessionTab({
                       {w.name} <span className={styles.waitingLevel}>· Lvl {w.level}</span>
                     </div>
                     <div className={styles.waitingMeta}>
-                      Waited {w.skipped} rounds · {w.games} games played
+                      Waited {w.skipped} matches · {w.games} games played
                       {w.hasStreak ? ` · back-to-back x${w.consec}` : ""}
                     </div>
                   </div>

@@ -4,6 +4,7 @@ import { auth, ensureAnonymousAuth, firebaseConfigured } from "../lib/firebase";
 import { claimUmpireAccess, type FirebasePayload, generateSessionPin, pushSessionOwnership, pushSessionToFirebase, subscribeToRemoteSession } from "../lib/firebaseSync";
 import { load, loadIdentity, save, saveIdentity, type PersistedState } from "../lib/persistence";
 import {
+  buildCounterSnapshot,
   buildSessionSummary,
   buildSuggestion,
   formatElapsed,
@@ -16,6 +17,7 @@ import {
   readyPool as readyPoolFn,
   recomputePlayerStats,
   resetPlayersForNewSession,
+  reverseCounterSnapshot,
   teamNames,
 } from "../lib/session";
 import type { Court, Match, PauseReason, Player, ResultMode, SessionHistoryEntry, SkillLevel, Tab } from "../types";
@@ -482,6 +484,7 @@ export function useSessionStore() {
         return;
       }
       setState((s) => {
+        const four = [...ids1, ...ids2];
         const newMatch: Match = {
           id: "m" + Date.now(),
           round: 0, // vestigial — the header no longer surfaces a "round" concept
@@ -494,8 +497,10 @@ export function useSessionStore() {
           s2: 0,
           elapsedAtTick0: -s.tick,
           resultMode: s.sessionResultMode,
+          // Captured before the mutation below touches anyone, so cancelling
+          // this match later can put everyone back exactly where they were.
+          counterSnapshot: buildCounterSnapshot(s.players, s.matches, four),
         };
-        const four = [...ids1, ...ids2];
         const players = s.players.map((p) => {
           if (four.includes(p.id)) {
             const consecutiveGames = (p.consecutiveGames || 0) + 1;
@@ -815,9 +820,15 @@ export function useSessionStore() {
       if (s.confirmAction === "end") {
         // Any match still in progress at end-of-session never counted toward
         // completedCount (only a genuine save-final does that), so dropping
-        // it here doesn't need a counter adjustment — it just stops it from
-        // silently lingering, unresolved, in a session that's now read-only.
-        return { ...s, matches: s.matches.filter((m) => m.status !== "in_progress"), sessionEnded: true, confirmAction: null };
+        // it here doesn't need a completedCount adjustment — but it DOES
+        // still need its rotation-fairness effects undone, same as
+        // cancelling it individually would (see "deleteMatch" below).
+        // Reversed newest-first so a nested unwind (two courts starting
+        // close together, each recording the other's players in its own
+        // snapshot) restores correctly.
+        const stillActive = [...s.matches].reverse().filter((m) => m.status === "in_progress");
+        const players = stillActive.reduce((acc, m) => reverseCounterSnapshot(acc, m.counterSnapshot), s.players);
+        return { ...s, players, matches: s.matches.filter((m) => m.status !== "in_progress"), sessionEnded: true, confirmAction: null };
       }
       if (s.confirmAction === "reset") {
         return {
@@ -840,6 +851,12 @@ export function useSessionStore() {
           // A completed match already counted toward completedCount; an
           // in-progress one never did, so only back it out in that case.
           completedCount: target.status === "completed" ? Math.max(0, s.completedCount - 1) : s.completedCount,
+          // Cancelling a match that never actually finished should restore
+          // the rotation priority everyone had right before it started —
+          // otherwise a mis-started match leaves permanent fairness drift
+          // even after being cancelled. A completed match's players really
+          // did play, so deleting its *result* never touches rotation state.
+          players: target.status === "in_progress" ? reverseCounterSnapshot(s.players, target.counterSnapshot) : s.players,
           confirmAction: null,
           pendingDeleteMatchId: null,
           // If the deleted match happened to be open in the scorekeeper,
@@ -1083,7 +1100,7 @@ export function useSessionStore() {
             { label: "Leave", onClick: () => leavePlayer(p.id) },
           ];
         } else {
-          statusLabel = "Waited " + p.skipped + " rounds";
+          statusLabel = "Waited " + p.skipped + " matches";
           statusTone = "warning";
           actions = [
             { label: "Skip Next", onClick: () => skipNext(p.id) },
@@ -1106,12 +1123,12 @@ export function useSessionStore() {
         level: p.level,
         reason:
           i === 0
-            ? "Waited " + p.skipped + " rounds — top priority"
+            ? "Waited " + p.skipped + " matches — top priority"
             : p.consecutiveGames >= 2
               ? p.name + " played back-to-back"
               : p.games <= 3
                 ? "Only " + p.games + " games played"
-                : "Waited " + p.skipped + " rounds",
+                : "Waited " + p.skipped + " matches",
       })),
     [orderedReady],
   );
@@ -1234,12 +1251,12 @@ export function useSessionStore() {
     const longestWaiter = [...readyPlayers].sort((a, b) => b.skipped - a.skipped)[0] || null;
     const gameCounts = inRotation.map((p) => p.games);
     const gameSpread = gameCounts.length > 0 ? Math.max(...gameCounts) - Math.min(...gameCounts) : 0;
-    const longestWaitRounds = longestWaiter ? longestWaiter.skipped : 0;
+    const longestWaitMatches = longestWaiter ? longestWaiter.skipped : 0;
     return {
       longestWaitName: longestWaiter ? longestWaiter.name : null,
-      longestWaitRounds,
+      longestWaitMatches,
       gameSpread,
-      hasWarning: longestWaitRounds >= 2 || gameSpread >= 2,
+      hasWarning: longestWaitMatches >= 2 || gameSpread >= 2,
     };
   }, [livePlayers, readyPlayers]);
   const expectedCount = useMemo(() => state.players.filter((p) => p.status === "expected").length, [state.players]);

@@ -33,6 +33,15 @@ export interface Player {
   maxConsecutive: number;
 }
 
+/** A player's rotation-fairness fields, captured just before a match-start
+ * touches them — see `Match.counterSnapshot`. */
+export interface CounterSnapshot {
+  skipped: number;
+  consecutiveGames: number;
+  skipNextRound: boolean;
+  maxConsecutive: number;
+}
+
 export interface Match {
   id: string;
   round: number;
@@ -53,6 +62,14 @@ export interface Match {
    * field existed, which is exactly what "score" (the original, only,
    * behavior) means for them. */
   resultMode?: ResultMode;
+  /** Every player's skipped/consecutiveGames/skipNextRound/maxConsecutive
+   * right before this match started touched them (the four joining players,
+   * plus every other ready player whose skipped count bumped). Cancelling
+   * this match while still in_progress restores these — otherwise a
+   * mistakenly started match leaves permanent fairness drift behind even
+   * after being cancelled. Not meaningful once a match completes for real,
+   * so never applied to a completed match's deletion. */
+  counterSnapshot?: Record<string, CounterSnapshot>;
 }
 
 export interface Court {
