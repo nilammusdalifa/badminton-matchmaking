@@ -731,7 +731,7 @@ export function useSessionStore() {
       return;
     }
     try {
-      const canvas = await html2canvas(node, { backgroundColor: "#2e2b25", scale: 2 });
+      const canvas = await html2canvas(node, { backgroundColor: "#1a1712", scale: 3 });
       const url = canvas.toDataURL("image/png");
       const a = document.createElement("a");
       a.href = url;
@@ -1264,7 +1264,10 @@ export function useSessionStore() {
   const pendingDeleteMatch = state.pendingDeleteMatchId ? state.matches.find((m) => m.id === state.pendingDeleteMatchId) : null;
   const pendingDeleteCourtName = pendingDeleteMatch ? state.courts.find((c) => c.id === pendingDeleteMatch.courtId)?.name || "the court" : "";
 
-  const shareRankingsTop = useMemo<ShareRankingEntry[]>(() => rankingsVM.slice(0, 5).map((r) => ({ rank: r.rank, name: r.name, wins: r.wins, losses: r.losses })), [rankingsVM]);
+  const shareRankingsTop = useMemo<ShareRankingEntry[]>(
+    () => rankingsVM.slice(0, 5).map((r) => ({ rank: r.rank, name: r.name, initials: r.initials, level: r.level, wins: r.wins, losses: r.losses })),
+    [rankingsVM],
+  );
 
   return {
     isActiveMode: !state.sessionEnded,
@@ -1469,6 +1472,8 @@ export function useSessionStore() {
       top: shareRankingsTop,
       sessionName: state.sessionName,
       sessionSchedule: state.sessionSchedule,
+      playersCount: state.players.length,
+      matchesCompleted: state.completedCount,
       close: closeShareRankings,
       download: downloadRankingsImage,
       cardRef: shareCardRef,

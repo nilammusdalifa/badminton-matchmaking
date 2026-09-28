@@ -114,6 +114,8 @@ export interface RequestedPairEntry {
 export interface ShareRankingEntry {
   rank: number;
   name: string;
+  initials: string;
+  level: SkillLevel;
   wins: number;
   losses: number;
 }

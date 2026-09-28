@@ -66,6 +66,17 @@ export function ShareNodesIcon(props: IconProps) {
   );
 }
 
+export function TrophyIcon(props: IconProps) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" strokeWidth="2" {...base} {...props}>
+      <path d="M8 4h8v6a4 4 0 0 1-8 0V4Z" />
+      <path d="M8 5H4v1a4 4 0 0 0 4 4M16 5h4v1a4 4 0 0 1-4 4" />
+      <path d="M10 15v2M14 15v2" />
+      <path d="M8 21h8M9 21v-2.5a3 3 0 0 1 3-3 3 3 0 0 1 3 3V21" />
+    </svg>
+  );
+}
+
 export function CloseIcon(props: IconProps) {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" strokeWidth="2.2" {...base} {...props}>
