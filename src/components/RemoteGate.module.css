@@ -1,0 +1,86 @@
+.wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--sm-bg);
+}
+.card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--sm-surface);
+  border: 1px solid var(--sm-border-soft);
+  border-radius: var(--radius-lg);
+  padding: 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+.title {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  color: var(--sm-text);
+}
+.body {
+  font-size: 13px;
+  color: var(--sm-text-3);
+  line-height: 1.5;
+}
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+.playerBtn {
+  padding: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border);
+  background: var(--sm-scrim);
+  color: var(--sm-text);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+.umpireBtn {
+  padding: 12px;
+  border-radius: 999px;
+  border: none;
+  background: var(--sm-accent);
+  color: var(--sm-accent-on);
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+.umpireBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.backBtn {
+  padding: 6px;
+  border: none;
+  background: transparent;
+  color: var(--sm-text-3);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+.pinInput {
+  padding: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border);
+  background: var(--sm-bg);
+  color: var(--sm-text);
+  font-size: 18px;
+  text-align: center;
+  letter-spacing: 0.5em;
+  font-family: var(--sm-font-mono);
+}
+.error {
+  font-size: 12px;
+  color: var(--sm-danger-text);
+}
