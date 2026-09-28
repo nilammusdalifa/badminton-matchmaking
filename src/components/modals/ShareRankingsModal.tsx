@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AppIcon } from "../AppIcon";
 import { TrophyIcon } from "../icons";
 import type { SessionStore } from "../../hooks/useSessionStore";
@@ -37,6 +38,12 @@ function StatLine({ r }: { r: ShareRankingEntry }) {
 }
 
 export function ShareRankingsModal({ open, top, sessionName, close, download, cardRef }: ShareRankingsProps) {
+  // This deployment's club has its own logo (public/session-logo.png) — show
+  // that instead of the generated two-tone text wordmark when it's actually
+  // there. Falls back to the text version if the file is ever missing (a
+  // fresh checkout without a logo of its own), rather than showing a broken
+  // image on a card meant to be posted publicly.
+  const [logoFailed, setLogoFailed] = useState(false);
   if (!open) return null;
   const byRank = new Map<number, ShareRankingEntry>(top.map((r) => [r.rank, r]));
   const podium = PODIUM_ORDER.map((rank) => byRank.get(rank)).filter((r): r is ShareRankingEntry => Boolean(r));
@@ -50,13 +57,21 @@ export function ShareRankingsModal({ open, top, sessionName, close, download, ca
           <div className={styles.glow1} />
           <div className={styles.glow2} />
 
-          <div className={styles.wordmarkRow}>
-            <AppIcon size={34} />
-            <div className={styles.wordmark}>
-              <span className={styles.wordmarkPlain}>{wordA}</span>
-              {wordB && <span className={styles.wordmarkAccent}> {wordB}</span>}
+          {logoFailed ? (
+            <div className={styles.wordmarkRow}>
+              <AppIcon size={34} />
+              <div className={styles.wordmark}>
+                <span className={styles.wordmarkPlain}>{wordA}</span>
+                {wordB && <span className={styles.wordmarkAccent}> {wordB}</span>}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className={styles.logoRow}>
+              <div className={styles.logoBadge}>
+                <img src="/session-logo.png" alt={sessionName} className={styles.logoImg} onError={() => setLogoFailed(true)} />
+              </div>
+            </div>
+          )}
           <div className={styles.subheading}>
             <TrophyIcon className={styles.subheadingIcon} />
             Top {top.length} Rankings

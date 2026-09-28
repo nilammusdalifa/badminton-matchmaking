@@ -78,6 +78,28 @@
 .wordmarkPlain { color: var(--sm-text); }
 .wordmarkAccent { color: var(--sm-accent); }
 
+/* The logo file itself has a plain white background (no alpha channel) —
+   rather than risk a fringed edge from stripping it in JS, give it a clean
+   white badge to sit on instead of placing it straight on the dark card. */
+.logoRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.logoBadge {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 10px 16px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+.logoImg {
+  display: block;
+  width: 190px;
+  height: auto;
+  object-fit: contain;
+}
+
 .subheading {
   position: relative;
   display: flex;
