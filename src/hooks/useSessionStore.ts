@@ -731,6 +731,14 @@ export function useSessionStore() {
       return;
     }
     try {
+      // html2canvas can rasterize the card before its custom webfonts (the
+      // display heading font especially) have actually finished loading,
+      // producing doubled/ghosted glyphs in the exported PNG even though the
+      // live DOM looks correct. Waiting for the Font Loading API, plus a
+      // couple of paint frames for the resulting layout to settle, avoids
+      // capturing mid-swap.
+      await document.fonts.ready;
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const canvas = await html2canvas(node, { backgroundColor: "#1a1712", scale: 3 });
       const url = canvas.toDataURL("image/png");
       const a = document.createElement("a");
@@ -1265,7 +1273,16 @@ export function useSessionStore() {
   const pendingDeleteCourtName = pendingDeleteMatch ? state.courts.find((c) => c.id === pendingDeleteMatch.courtId)?.name || "the court" : "";
 
   const shareRankingsTop = useMemo<ShareRankingEntry[]>(
-    () => rankingsVM.slice(0, 5).map((r) => ({ rank: r.rank, name: r.name, initials: r.initials, level: r.level, wins: r.wins, losses: r.losses })),
+    () =>
+      rankingsVM.slice(0, 5).map((r) => ({
+        rank: r.rank,
+        name: r.name,
+        initials: r.initials,
+        level: r.level,
+        wins: r.wins,
+        losses: r.losses,
+        winRate: r.wins + r.losses > 0 ? Math.round((r.wins / (r.wins + r.losses)) * 100) : 0,
+      })),
     [rankingsVM],
   );
 

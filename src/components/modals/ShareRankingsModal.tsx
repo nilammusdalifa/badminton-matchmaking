@@ -8,21 +8,40 @@ type ShareRankingsProps = SessionStore["shareRankings"];
 
 const PODIUM_ORDER: [2, 1, 3] = [2, 1, 3];
 
-export function ShareRankingsModal({
-  open,
-  top,
-  sessionName,
-  sessionSchedule,
-  playersCount,
-  matchesCompleted,
-  close,
-  download,
-  cardRef,
-}: ShareRankingsProps) {
+/** Splits a session name into a two-tone "wordmark" — first word / first
+ * capitalized segment gets the plain color, the rest gets the accent. Falls
+ * back to one plain-colored piece when there's no good split point (a
+ * single all-lowercase word), rather than guessing wrong. */
+function splitWordmark(name: string): [string, string] {
+  const spaceIdx = name.indexOf(" ");
+  if (spaceIdx > 0) return [name.slice(0, spaceIdx), name.slice(spaceIdx + 1)];
+  const rest = name.slice(1);
+  const capMatch = rest.match(/[A-Z]/);
+  if (capMatch && capMatch.index !== undefined) {
+    const splitAt = capMatch.index + 1;
+    return [name.slice(0, splitAt), name.slice(splitAt)];
+  }
+  return [name, ""];
+}
+
+function StatLine({ r }: { r: ShareRankingEntry }) {
+  return (
+    <div className={styles.statLine}>
+      <span>{r.winRate}%</span>
+      <span className={styles.statDot} />
+      <span className={styles.win}>{r.wins}W</span>
+      <span className={styles.statDash}>–</span>
+      <span className={styles.loss}>{r.losses}L</span>
+    </div>
+  );
+}
+
+export function ShareRankingsModal({ open, top, sessionName, close, download, cardRef }: ShareRankingsProps) {
   if (!open) return null;
   const byRank = new Map<number, ShareRankingEntry>(top.map((r) => [r.rank, r]));
   const podium = PODIUM_ORDER.map((rank) => byRank.get(rank)).filter((r): r is ShareRankingEntry => Boolean(r));
   const rest = top.filter((r) => r.rank > 3);
+  const [wordA, wordB] = splitWordmark(sessionName);
 
   return (
     <div className={styles.backdrop}>
@@ -30,20 +49,17 @@ export function ShareRankingsModal({
         <div className={styles.card} ref={cardRef}>
           <div className={styles.glow1} />
           <div className={styles.glow2} />
-          <div className={styles.dots} />
 
-          <div className={styles.cardHead}>
-            <div className={styles.cardBadge}>
-              <AppIcon size={16} />
+          <div className={styles.wordmarkRow}>
+            <AppIcon size={34} />
+            <div className={styles.wordmark}>
+              <span className={styles.wordmarkPlain}>{wordA}</span>
+              {wordB && <span className={styles.wordmarkAccent}> {wordB}</span>}
             </div>
-            <div className={styles.cardBrand}>SmashMatch</div>
-            <span className={styles.cardTag}>Final Standings</span>
           </div>
-
-          <div className={styles.cardTitle}>{sessionName}</div>
-          <div className={styles.cardSubtitle}>
-            {sessionSchedule ? sessionSchedule + " · " : ""}
-            {playersCount} players · {matchesCompleted} matches
+          <div className={styles.subheading}>
+            <TrophyIcon className={styles.subheadingIcon} />
+            Top {top.length} Rankings
           </div>
 
           {podium.length > 0 && (
@@ -53,10 +69,7 @@ export function ShareRankingsModal({
                   {r.rank === 1 && <TrophyIcon className={styles.trophy} />}
                   <div className={`${styles.podiumAvatar} ${styles["medal" + r.rank]}`}>{r.initials}</div>
                   <div className={styles.podiumName}>{r.name}</div>
-                  <div className={styles.podiumRecord}>
-                    {r.wins}W–{r.losses}L
-                  </div>
-                  <div className={`${styles.podiumBlock} ${styles["block" + r.rank]}`}>{r.rank}</div>
+                  <StatLine r={r} />
                 </div>
               ))}
             </div>
@@ -67,11 +80,8 @@ export function ShareRankingsModal({
               {rest.map((r) => (
                 <div className={styles.restRow} key={r.rank}>
                   <span className={styles.restRank}>{r.rank}</span>
-                  <span className={styles.restAvatar}>{r.initials}</span>
                   <span className={styles.restName}>{r.name}</span>
-                  <span className={styles.restRecord}>
-                    {r.wins}W–{r.losses}L
-                  </span>
+                  <StatLine r={r} />
                 </div>
               ))}
             </div>

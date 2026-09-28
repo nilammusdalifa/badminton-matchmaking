@@ -31,10 +31,10 @@
 .card {
   position: relative;
   width: min(340px, calc(100vw - 64px));
-  background: linear-gradient(165deg, #2b2416 0%, #201a12 45%, #1a2420 100%);
+  background: linear-gradient(160deg, #0e1420 0%, #10241f 55%, #0d2a24 100%);
   border: 1px solid var(--sm-accent-border);
   border-radius: 22px;
-  padding: 22px 20px 18px;
+  padding: 26px 20px 18px;
   font-family: var(--font-body), sans-serif;
   color: var(--sm-text);
   box-sizing: border-box;
@@ -50,86 +50,65 @@
   width: 260px;
   height: 260px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 205, 90, 0.16), transparent 70%);
+  background: radial-gradient(circle, rgba(63, 182, 168, 0.18), transparent 70%);
 }
 .glow2 {
   position: absolute;
   bottom: -100px;
   left: -80px;
-  width: 260px;
-  height: 260px;
+  width: 240px;
+  height: 240px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(63, 182, 168, 0.2), transparent 70%);
-}
-.dots {
-  position: absolute;
-  inset: 0;
-  opacity: 0.35;
-  background-image: radial-gradient(rgba(249, 244, 237, 0.06) 1px, transparent 1px);
-  background-size: 15px 15px;
+  background: radial-gradient(circle, rgba(63, 182, 168, 0.12), transparent 70%);
 }
 
-.cardHead {
+.wordmarkRow {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.cardBadge {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--sm-accent), var(--color-accent-500));
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--sm-accent-on);
-  box-shadow: 0 3px 10px rgba(63, 182, 168, 0.4);
-  flex-shrink: 0;
+  gap: 9px;
 }
-.cardBrand {
+.wordmark {
   font-family: var(--font-heading);
-  font-size: 13px;
-  letter-spacing: 0.02em;
-}
-.cardTag {
-  margin-left: auto;
-  font-family: var(--sm-font-mono);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #ffd75e;
-  background: rgba(255, 215, 94, 0.14);
-  border: 1px solid rgba(255, 215, 94, 0.35);
-  padding: 3px 9px;
-  border-radius: 999px;
-}
-.cardTitle {
-  position: relative;
-  font-size: 22px;
-  font-family: var(--font-heading);
-  margin-top: 10px;
-  text-shadow: 0 2px 10px rgba(255, 215, 94, 0.18);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 25px;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
-.cardSubtitle {
+.wordmarkPlain { color: var(--sm-text); }
+.wordmarkAccent { color: var(--sm-accent); }
+
+.subheading {
   position: relative;
-  font-size: 10.5px;
-  color: var(--sm-text-3);
-  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--sm-text-2);
+  /* Bold Figtree specifically comes out corrupted (overlapping/duplicated
+     glyphs) when html2canvas rasterizes this card, even after waiting for
+     the Font Loading API — a system stack sidesteps the custom-webfont
+     parsing entirely instead of chasing that bug further. Applies to every
+     bold non-heading, non-mono label in this card (see below). */
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.subheadingIcon {
+  width: 15px;
+  height: 15px;
+  color: #ffd75e;
 }
 
 /* ---- podium (top 3) ---- */
 .podium {
   position: relative;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: center;
   gap: 10px;
-  margin-top: 20px;
+  margin-top: 22px;
   padding: 0 4px;
 }
 .podiumSpot {
@@ -138,6 +117,9 @@
   align-items: center;
   flex: 1;
   min-width: 0;
+}
+.spot2, .spot3 {
+  margin-top: 22px;
 }
 .trophy {
   color: #ffd75e;
@@ -186,100 +168,67 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-.podiumRecord {
-  font-size: 10px;
-  color: var(--sm-text-3);
-  font-family: var(--sm-font-mono);
-  margin-top: 1px;
-}
-.podiumBlock {
-  margin-top: 10px;
-  width: 100%;
-  border-radius: 8px 8px 0 0;
+
+/* ---- shared win/loss stat line (podium + rest rows) ---- */
+.statLine {
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 6px;
-  font-family: var(--font-heading);
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
   font-weight: 700;
+  color: var(--sm-text-2);
+  font-family: var(--sm-font-mono);
+  margin-top: 2px;
+  white-space: nowrap;
 }
-.block1 {
-  height: 52px;
-  font-size: 20px;
-  background: linear-gradient(180deg, rgba(255, 215, 94, 0.32), rgba(255, 215, 94, 0.1));
-  color: #ffd75e;
-  border: 1px solid rgba(255, 215, 94, 0.4);
-  border-bottom: none;
+.statDot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--sm-text-4);
+  flex-shrink: 0;
 }
-.block2 {
-  height: 36px;
-  font-size: 16px;
-  background: linear-gradient(180deg, rgba(184, 190, 199, 0.28), rgba(184, 190, 199, 0.08));
-  color: #d7dbe1;
-  border: 1px solid rgba(184, 190, 199, 0.35);
-  border-bottom: none;
-}
-.block3 {
-  height: 24px;
-  font-size: 15px;
-  background: linear-gradient(180deg, rgba(181, 112, 58, 0.3), rgba(181, 112, 58, 0.1));
-  color: #d99a63;
-  border: 1px solid rgba(181, 112, 58, 0.4);
-  border-bottom: none;
-}
+.statDash { color: var(--sm-text-4); }
+.win { color: var(--sm-accent); }
+.loss { color: #ff8a8a; }
 
 /* ---- ranks 4-5 ---- */
 .restList {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 14px;
+  gap: 8px;
+  margin-top: 16px;
 }
 .restRow {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.18);
-  border: 1px solid var(--sm-surface-hairline);
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.restRow .statLine {
+  margin-top: 0;
 }
 .restRank {
   width: 16px;
   font-family: var(--sm-font-mono);
   font-weight: 700;
-  font-size: 11px;
-  color: var(--sm-text-4);
-  flex-shrink: 0;
-}
-.restAvatar {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--sm-fill);
-  color: var(--sm-text-2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-heading);
-  font-size: 9px;
+  font-size: 13px;
+  color: var(--sm-text-3);
   flex-shrink: 0;
 }
 .restName {
   flex: 1;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13.5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.restRecord {
-  font-size: 10.5px;
-  color: var(--sm-text-3);
-  font-family: var(--sm-font-mono);
-  flex-shrink: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 .footerNote {
@@ -293,8 +242,8 @@
   letter-spacing: 0.04em;
   color: var(--sm-text-3);
   margin-top: auto;
-  padding-top: 14px;
-  border-top: 1px solid var(--sm-border-soft);
+  padding-top: 16px;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 .actions {

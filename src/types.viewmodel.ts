@@ -118,6 +118,7 @@ export interface ShareRankingEntry {
   level: SkillLevel;
   wins: number;
   losses: number;
+  winRate: number;
 }
 
 export interface EditablePlayerOption {
