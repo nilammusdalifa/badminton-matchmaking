@@ -62,6 +62,12 @@ export interface CourtViewModel {
     onStart: () => void;
     onRegenerate: () => void;
   } | null;
+  /** Only meaningful when the court is available and `suggestion` is null —
+   * how many eligible players are left for THIS court once earlier courts'
+   * own suggestions have already claimed theirs, and how many more are
+   * needed to reach four. Lets the empty state say "Need 1 more player"
+   * instead of a generic "not enough players". */
+  insufficientPlayers?: { eligibleCount: number; missing: number };
   /** Present whenever the court is available — lets the organizer assign
    * players by hand instead of accepting/shuffling the auto-suggestion,
    * and still works even when there aren't enough ready players for one. */

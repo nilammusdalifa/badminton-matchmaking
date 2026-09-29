@@ -31,7 +31,7 @@ export function SessionTab({
         <div className={styles.titleRow}>
           <h1 className={styles.title}>Live Session</h1>
           <span className={styles.subtitle}>
-            {playersCount} players · {courtsCount} courts
+            {playersCount} {playersCount === 1 ? "player" : "players"} · {courtsCount} {courtsCount === 1 ? "court" : "courts"}
           </span>
         </div>
         <div className={styles.chips}>
@@ -126,7 +126,7 @@ export function SessionTab({
                       {w.name} {!hideTier && <span className={styles.waitingLevel}>· Tier {w.level}</span>}
                     </div>
                     <div className={styles.waitingMeta}>
-                      Waited {w.skipped} matches · {w.games} games played
+                      Waited {w.skipped} {w.skipped === 1 ? "match" : "matches"} · {w.games} {w.games === 1 ? "game" : "games"} played
                       {w.hasStreak ? ` · back-to-back x${w.consec}` : ""}
                     </div>
                   </div>

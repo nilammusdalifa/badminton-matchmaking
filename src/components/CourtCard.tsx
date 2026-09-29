@@ -99,7 +99,19 @@ export function CourtCard({ court }: CourtCardProps) {
               </>
             ) : (
               <>
-                <div className={styles.noSuggestion}>Not enough players waiting yet</div>
+                <div className={styles.noSuggestion}>
+                  {court.insufficientPlayers ? (
+                    <>
+                      {court.insufficientPlayers.eligibleCount} player{court.insufficientPlayers.eligibleCount === 1 ? "" : "s"}{" "}
+                      {court.insufficientPlayers.eligibleCount === 1 ? "is" : "are"} waiting
+                      <br />
+                      Need {court.insufficientPlayers.missing} more player{court.insufficientPlayers.missing === 1 ? "" : "s"} to start a
+                      doubles match
+                    </>
+                  ) : (
+                    "Not enough players waiting yet"
+                  )}
+                </div>
                 <button className={styles.manualAssignBtn} onClick={court.onEdit}>
                   + Assign Players Manually
                 </button>

@@ -1037,6 +1037,11 @@ export function useSessionStore() {
       const seed = state.suggestSeed[court.id] || 0;
       const suggestion = buildSuggestion(livePlayers, state.matches, state.requestedPairs, claimed, seed);
       if (suggestion) claimed.push(...suggestion.four.map((p) => p.id));
+      // Same pool buildSuggestion itself computes (ready, unskipped, not
+      // already playing, minus whoever earlier courts already claimed) —
+      // recomputed here only to report the exact shortfall when it comes
+      // back empty, never to second-guess whether a suggestion exists.
+      const eligibleCount = suggestion ? 0 : readyPoolFn(livePlayers, state.matches).filter((p) => !claimed.includes(p.id)).length;
       return {
         id: court.id,
         name: court.name,
@@ -1050,6 +1055,7 @@ export function useSessionStore() {
               onRegenerate: () => rerollSuggestion(court.id),
             }
           : null,
+        insufficientPlayers: suggestion ? undefined : { eligibleCount, missing: Math.max(0, 4 - eligibleCount) },
         // Always available on an open court — manual assignment doesn't
         // depend on a suggestion existing.
         onEdit: () => openEdit(court.id),
@@ -1131,7 +1137,7 @@ export function useSessionStore() {
             { label: "Leave", onClick: () => leavePlayer(p.id) },
           ];
         } else {
-          statusLabel = "Waited " + p.skipped + " matches";
+          statusLabel = "Waited " + p.skipped + (p.skipped === 1 ? " match" : " matches");
           statusTone = "warning";
           actions = [
             { label: "Skip Next", onClick: () => skipNext(p.id) },
@@ -1154,12 +1160,12 @@ export function useSessionStore() {
         level: p.level,
         reason:
           i === 0
-            ? "Waited " + p.skipped + " matches — top priority"
+            ? "Waited " + p.skipped + (p.skipped === 1 ? " match" : " matches") + " — top priority"
             : p.consecutiveGames >= 2
               ? p.name + " played back-to-back"
               : p.games <= 3
-                ? "Only " + p.games + " games played"
-                : "Waited " + p.skipped + " matches",
+                ? "Only " + p.games + (p.games === 1 ? " game" : " games") + " played"
+                : "Waited " + p.skipped + (p.skipped === 1 ? " match" : " matches"),
       })),
     [orderedReady],
   );

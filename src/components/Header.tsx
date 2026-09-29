@@ -33,7 +33,11 @@ export function Header({ sessionName, sessionSchedule, matchesCompleted, matches
       {!needsSetup && (
         <>
           <div className={styles.meta}>
-            <span>{matchesTotal !== null ? `${matchesCompleted}/${matchesTotal} matches` : `${matchesCompleted} matches`}</span>
+            <span>
+              {matchesTotal !== null
+                ? `${matchesCompleted}/${matchesTotal} matches`
+                : `${matchesCompleted} ${matchesCompleted === 1 ? "match" : "matches"}`}
+            </span>
           </div>
           {matchesTotal !== null && (
             <div className={styles.progressTrack}>
