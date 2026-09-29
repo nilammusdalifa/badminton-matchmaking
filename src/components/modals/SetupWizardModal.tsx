@@ -31,6 +31,7 @@ export function SetupWizardModal({
   setNewPlayerLevel,
   onAddPlayer,
   onAddPlayers,
+  rosterNames,
   onAddCourt,
   onRemoveCourt,
   resultMode,
@@ -93,6 +94,15 @@ export function SetupWizardModal({
               onAddPlayers={onAddPlayers}
               addLabel="Add Player"
             />
+            {rosterNames.length > 0 && (
+              <div className={styles.rosterChips} aria-label="Players added so far">
+                {rosterNames.map((p, i) => (
+                  <span className={styles.rosterChip} key={i}>
+                    {p.name} · {p.level}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

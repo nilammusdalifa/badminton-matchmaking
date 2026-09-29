@@ -12,7 +12,7 @@ export function ConfirmModal({ open, title, body, actionLabel, onConfirm, close 
         <div className={styles.body}>{body}</div>
         <div className={styles.footer}>
           <button className={styles.cancelBtn} onClick={close}>
-            Cancel
+            Go Back
           </button>
           <button className={styles.confirmBtn} onClick={onConfirm}>
             {actionLabel}

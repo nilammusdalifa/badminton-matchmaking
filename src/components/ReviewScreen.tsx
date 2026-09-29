@@ -3,7 +3,7 @@ import styles from "./ReviewScreen.module.css";
 
 type ReviewProps = SessionStore["review"];
 
-export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, playersCount, courtsCount, resultMode, rankingsVM, onStartNew }: ReviewProps) {
+export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, playersCount, courtsCount, resultMode, rankingsVM, onShareRankings, onStartNew }: ReviewProps) {
   return (
     <div className={styles.wrap}>
       <div className={styles.heading}>
@@ -39,6 +39,11 @@ export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, p
           </div>
         ))}
       </div>
+      {rankingsVM.some((r) => r.rank !== null) && (
+        <button className={styles.shareBtn} onClick={onShareRankings}>
+          Share Rankings
+        </button>
+      )}
       <button className={styles.startNewBtn} onClick={onStartNew}>
         New Session
       </button>

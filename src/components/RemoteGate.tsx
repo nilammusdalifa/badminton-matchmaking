@@ -26,14 +26,14 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
     return (
       <div className={styles.wrap}>
         <div className={styles.card}>
-          <div className={styles.title}>How are you joining?</div>
-          <div className={styles.body}>Pick your role for this live session.</div>
+          <div className={styles.title}>Join live session</div>
+          <div className={styles.body}>Someone shared a live badminton session with you. Choose how you're joining.</div>
           {roleStep === "choose" ? (
             <div className={styles.buttons}>
-              <button className={styles.playerBtn} onClick={() => chooseRole("player")}>
+              <button className={styles.primaryBtn} onClick={() => chooseRole("player")}>
                 Player (just watching)
               </button>
-              <button className={styles.umpireBtn} onClick={() => chooseRole("umpire")}>
+              <button className={styles.secondaryBtn} onClick={() => chooseRole("umpire")}>
                 Umpire (I'm scoring)
               </button>
             </div>
@@ -49,7 +49,7 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
               />
               {pinError && <div className={styles.error}>{pinError}</div>}
-              <button className={styles.umpireBtn} disabled={pin.length !== 4 || checking} onClick={() => submitPin(pin)}>
+              <button className={styles.primaryBtn} disabled={pin.length !== 4 || checking} onClick={() => submitPin(pin)}>
                 {checking ? "Checking…" : "Continue as Umpire"}
               </button>
               <button className={styles.backBtn} onClick={back}>

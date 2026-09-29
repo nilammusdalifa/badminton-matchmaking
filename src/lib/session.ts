@@ -39,6 +39,12 @@ export function canRemovePlayer(player: Player, matches: Match[]): boolean {
   return player.games === 0 && !matches.some((m) => m.t1.includes(player.id) || m.t2.includes(player.id));
 }
 
+/** True on a brand-new install: nothing set up at all. Having players but no
+ * courts yet is a half-finished setup, not a first run. */
+export function isFirstRun(playersCount: number, courtsCount: number): boolean {
+  return playersCount === 0 && courtsCount === 0;
+}
+
 export function isOverTarget(s1: number, s2: number): boolean {
   return (s1 >= 21 && s1 - s2 >= 2) || (s2 >= 21 && s2 - s1 >= 2) || s1 >= 30 || s2 >= 30;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { applyLiveScore, canRemovePlayer, makeBlankPlayer, nameTaken, rankPlayers, recomputePlayerStats } from "./session";
+import { applyLiveScore, canRemovePlayer, isFirstRun, makeBlankPlayer, nameTaken, rankPlayers, recomputePlayerStats } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -67,5 +67,13 @@ describe("roster editing", () => {
     expect(canRemovePlayer(eka, [live])).toBe(true);
     expect(canRemovePlayer(andi, [live])).toBe(false);
     expect(canRemovePlayer({ ...eka, games: 1 }, [])).toBe(false);
+  });
+});
+
+describe("first run", () => {
+  it("isFirstRun is true only with no players and no courts", () => {
+    expect(isFirstRun(0, 0)).toBe(true);
+    expect(isFirstRun(10, 0)).toBe(false);
+    expect(isFirstRun(0, 2)).toBe(false);
   });
 });

@@ -29,7 +29,13 @@ function App() {
   }
 
   if (store.isReviewMode) {
-    return <ReviewScreen {...store.review} />;
+    return (
+      <>
+        <ReviewScreen {...store.review} />
+        <ShareRankingsModal {...store.shareRankings} />
+        <Toast message={store.toast.message} />
+      </>
+    );
   }
 
   const isReadOnlyPlayer = remote.isRemoteMode && remote.role === "player";

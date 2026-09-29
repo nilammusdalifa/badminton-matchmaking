@@ -11,6 +11,7 @@ import {
   buildSuggestion,
   formatElapsed,
   initialsFor,
+  isFirstRun,
   isOverTarget,
   isPlaying as isPlayingFn,
   makeBlankPlayer,
@@ -276,7 +277,7 @@ export function useSessionStore() {
   // the next full page load.
   useEffect(() => {
     if (isRemoteMode) return; // joining someone else's session — never assume it needs first-time setup
-    setState((s) => (s.courts.length === 0 ? { ...s, setupOpen: true, setupStep: 0 } : s));
+    setState((s) => (isFirstRun(s.players.length, s.courts.length) ? { ...s, setupOpen: true, setupStep: 0 } : s));
   }, [isRemoteMode]);
 
   // Persist everything that must survive a refresh/crash — never the
@@ -1399,7 +1400,7 @@ export function useSessionStore() {
       // initial one ("17/16" reads like a bug) — just show the count alone.
       matchesTotal: state.totalEstimate > 0 && state.completedCount <= state.totalEstimate ? state.totalEstimate : null,
       progressWidth: (state.totalEstimate > 0 ? Math.min(100, Math.round((state.completedCount / state.totalEstimate) * 100)) : 0) + "%",
-      needsSetup: state.courts.length === 0,
+      needsSetup: isFirstRun(state.players.length, state.courts.length),
       onOpenSetup: openSetup,
     },
 
@@ -1553,6 +1554,7 @@ export function useSessionStore() {
       onScheduleChange: onSetupScheduleChange,
       reviewName: state.setupName.trim() || state.sessionName,
       reviewSchedule: state.setupSchedule.trim() || state.sessionSchedule,
+      rosterNames: state.players.map((p) => ({ name: p.name, level: p.level })),
       reviewHasHistory: state.completedCount > 0 || state.players.some((p) => p.status !== "expected"),
       reviewConsequence:
         `Starting fresh archives today's ${state.completedCount} completed ${state.completedCount === 1 ? "match" : "matches"} ` +
@@ -1599,6 +1601,7 @@ export function useSessionStore() {
       courtsCount: state.courts.length,
       resultMode: state.sessionResultMode,
       rankingsVM,
+      onShareRankings,
       onStartNew: onStartNewFromReview,
     },
   };
