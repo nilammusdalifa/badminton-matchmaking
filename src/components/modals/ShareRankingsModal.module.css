@@ -145,6 +145,13 @@
   border-radius: 50%;
   background: var(--sm-text-4);
   flex-shrink: 0;
+  /* html2canvas centers this empty div against the text baseline
+     differently than the real browser — measured ~4px too high in a real
+     downloaded capture, floating well above the "%" instead of sitting at
+     its visual middle. Same family of bug as the row-text offset above,
+     just the opposite direction since there's no glyph descent to anchor
+     against. */
+  margin-top: 4px;
 }
 .statDash { color: var(--sm-text-4); }
 .win { color: var(--sm-accent); }
