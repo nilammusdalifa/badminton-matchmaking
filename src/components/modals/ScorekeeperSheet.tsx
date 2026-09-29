@@ -16,6 +16,7 @@ export function ScorekeeperSheet({
   t2,
   isGameOver,
   isLikelyIncomplete,
+  isTie,
   isEditingCompleted,
   addT1,
   addT2,
@@ -37,6 +38,10 @@ export function ScorekeeperSheet({
   if (!open) return null;
 
   const handleSave = () => {
+    // Ties are never a real badminton result — no override, unlike the
+    // "looks unfinished" case below. The only honest way out of a tied
+    // score is Cancel Match, not a second tap here.
+    if (isTie) return;
     if (isLikelyIncomplete && !pendingConfirm) {
       setPendingConfirm(true);
       return;
@@ -80,14 +85,19 @@ export function ScorekeeperSheet({
             </button>
           </div>
         </div>
-        {isGameOver && <div className={styles.gameOverNote}>Game point reached — save when ready</div>}
-        {pendingConfirm && <div className={styles.gameOverNote}>That score looks unfinished — tap again to save it anyway</div>}
+        {isTie ? (
+          <div className={styles.gameOverNote}>Scores can't tie in badminton — cancel this match below if it can't be finished</div>
+        ) : pendingConfirm ? (
+          <div className={styles.gameOverNote}>That score looks unfinished — tap again to save it anyway</div>
+        ) : (
+          isGameOver && <div className={styles.gameOverNote}>Game point reached — save when ready</div>
+        )}
         <div className={styles.footer}>
           <button className={styles.undoBtn} onClick={undo}>
             Undo Point
           </button>
-          <button className={styles.saveBtn} onClick={handleSave}>
-            {pendingConfirm ? "Save Anyway?" : isEditingCompleted ? "Update Result" : "Save Final Result"}
+          <button className={styles.saveBtn} onClick={handleSave} disabled={isTie}>
+            {isTie ? "Can't Save a Tie" : pendingConfirm ? "Save Anyway?" : isEditingCompleted ? "Update Result" : "Save Final Result"}
           </button>
         </div>
         <button className={styles.cancelMatchBtn} onClick={onCancelMatch}>

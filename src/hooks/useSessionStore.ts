@@ -436,6 +436,13 @@ export function useSessionStore() {
   const skSaveFinal = useCallback(() => {
     const matchId = state.scorekeeperMatchId;
     if (!matchId) return;
+    // A tie can never be a genuine badminton result — guarded here too, not
+    // just in the sheet's button, since this is what actually writes the
+    // match. If it can't be finished, Cancel Match is the honest action.
+    if (state.scorekeeperT1 === state.scorekeeperT2) {
+      showToast("Scores can't tie — cancel the match instead if it can't be finished");
+      return;
+    }
     // Reopening an already-completed match (to fix a mis-entered score) must
     // not count it a second time — only a genuine in_progress → completed
     // transition increments the total.
@@ -447,7 +454,7 @@ export function useSessionStore() {
       scorekeeperMatchId: null,
     }));
     showToast(wasCompleted ? "Result updated" : "Result saved — court is available");
-  }, [state.scorekeeperMatchId, state.matches, showToast]);
+  }, [state.scorekeeperMatchId, state.matches, state.scorekeeperT1, state.scorekeeperT2, showToast]);
 
   // One-tap completion for the "winner only" and "no score" result modes —
   // no scorekeeper sheet at all, just record the outcome and free the
@@ -1270,10 +1277,12 @@ export function useSessionStore() {
   const skT1Names = sk ? teamNames(sk.t1, state.players) : ["", ""];
   const skT2Names = sk ? teamNames(sk.t2, state.players) : ["", ""];
   const skGameOver = sk ? isOverTarget(state.scorekeeperT1, state.scorekeeperT2) : false;
-  // A tie, or a score that hasn't reached the winning threshold yet, is
-  // probably not actually a finished game — the sheet asks for a second tap
-  // instead of saving it as a final result silently.
-  const skLikelyIncomplete = sk ? state.scorekeeperT1 === state.scorekeeperT2 || (state.scorekeeperT1 < 21 && state.scorekeeperT2 < 21) : false;
+  // A tie can never be a real badminton result — hard-blocked, no override.
+  // A score that just hasn't reached the winning threshold yet might still
+  // be a real result (an early forfeit/injury with a genuine winner), so
+  // that case only gets a soft second-tap confirmation, not a hard block.
+  const skIsTie = sk ? state.scorekeeperT1 === state.scorekeeperT2 : false;
+  const skLikelyIncomplete = sk ? skIsTie || (state.scorekeeperT1 < 21 && state.scorekeeperT2 < 21) : false;
 
   const playingCount = useMemo(() => state.players.filter((p) => isPlaying(p.id)).length, [state.players, isPlaying]);
   const pausedCount = useMemo(() => state.players.filter((p) => p.status === "paused").length, [state.players]);
@@ -1411,6 +1420,7 @@ export function useSessionStore() {
       t2: state.scorekeeperT2,
       isGameOver: skGameOver,
       isLikelyIncomplete: skLikelyIncomplete,
+      isTie: skIsTie,
       isEditingCompleted: sk?.status === "completed",
       addT1: () => skPoint(1),
       addT2: () => skPoint(2),

@@ -133,6 +133,11 @@
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
+.saveBtn:disabled {
+  background: var(--sm-fill);
+  color: var(--sm-text-4);
+  cursor: not-allowed;
+}
 
 .cancelMatchBtn {
   display: block;

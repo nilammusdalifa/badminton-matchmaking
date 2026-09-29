@@ -67,6 +67,18 @@
   box-sizing: border-box;
 }
 
+/* Buttons are already inert here (pointer-events:none on .main is what
+   actually blocks them) — this just makes that visually honest instead of
+   leaving Rest/Skip Next/Enter Score looking fully clickable on a page
+   that can't act on them. */
+.readOnlyMain {
+  pointer-events: none;
+}
+.readOnlyMain button {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .readOnlyBanner {
   position: relative;
   z-index: 1;
