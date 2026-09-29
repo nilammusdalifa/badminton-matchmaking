@@ -101,7 +101,6 @@
   border: 1px solid var(--sm-border);
   background: var(--sm-scrim);
   color: var(--sm-text);
-  font-size: 13px;
   font-family: var(--font-body), sans-serif;
 }
 

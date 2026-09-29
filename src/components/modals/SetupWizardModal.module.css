@@ -77,7 +77,6 @@
   border: 1px solid var(--sm-border);
   background: rgba(0, 0, 0, 0.18);
   color: var(--sm-text);
-  font-size: 13px;
   font-family: var(--font-body), sans-serif;
 }
 .formRow {

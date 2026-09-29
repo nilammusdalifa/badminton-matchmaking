@@ -45,13 +45,15 @@ export function PlayerAddForm({
           placeholder={"One name per line, e.g.\nAndi\nBudi\nCitra"}
         />
         <div className={styles.formRow}>
-          <span className={styles.tierLabel}>Tier (A strongest):</span>
-          <LevelPicker value={newPlayerLevel} onChange={setNewPlayerLevel} />
-          <button className={styles.addBtn} onClick={submitBulk}>
+          <span className={styles.tierGroup}>
+            <span className={styles.tierLabel}>Tier (A strongest):</span>
+            <LevelPicker value={newPlayerLevel} onChange={setNewPlayerLevel} />
+          </span>
+          <button type="button" className={styles.addBtn} onClick={submitBulk}>
             Add All Players
           </button>
         </div>
-        <button className={styles.toggleBtn} onClick={() => setBulkMode(false)}>
+        <button type="button" className={styles.toggleBtn} onClick={() => setBulkMode(false)}>
           Add one by one instead
         </button>
       </div>
@@ -60,21 +62,34 @@ export function PlayerAddForm({
 
   return (
     <div className={styles.wrap}>
-      <div className={styles.formRow}>
+      <form
+        className={styles.wrap}
+        onSubmit={(e) => {
+          e.preventDefault();
+          onAddPlayer();
+        }}
+      >
         <input
           type="text"
           className={styles.nameInput}
           value={newPlayerName}
           onChange={onNewPlayerNameChange}
           placeholder="Player name"
+          autoCapitalize="words"
+          autoComplete="off"
+          enterKeyHint="done"
         />
-        <span className={styles.tierLabel}>Tier (A strongest):</span>
-        <LevelPicker value={newPlayerLevel} onChange={setNewPlayerLevel} />
-        <button className={styles.addBtn} onClick={onAddPlayer}>
-          {addLabel}
-        </button>
-      </div>
-      <button className={styles.toggleBtn} onClick={() => setBulkMode(true)}>
+        <div className={styles.formRow}>
+          <span className={styles.tierGroup}>
+            <span className={styles.tierLabel}>Tier (A strongest):</span>
+            <LevelPicker value={newPlayerLevel} onChange={setNewPlayerLevel} />
+          </span>
+          <button type="submit" className={styles.addBtn}>
+            {addLabel}
+          </button>
+        </div>
+      </form>
+      <button type="button" className={styles.toggleBtn} onClick={() => setBulkMode(true)}>
         Paste a list instead
       </button>
     </div>
