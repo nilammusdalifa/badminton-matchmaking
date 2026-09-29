@@ -159,8 +159,13 @@
    confirmed via a real downloaded capture — and a tight line-height:1 made
    it worse, clipping glyphs outright since their rendered extent exceeded
    that shrunk line box). Giving each text child a line-height equal to the
-   row's own content height centers it by line-box math instead, which both
-   environments agree on. */
+   row's own content height gets it close, but a real downloaded capture
+   still measured every text child (name AND stat line, whether centered via
+   line-height or via this row's own align-items:center) sitting ~5px lower
+   than the pill's true center, by the same amount either way — html2canvas
+   has its own baseline-vs-line-top offset for text that doesn't match the
+   real browser's. A small negative margin-top on each text child is the
+   direct, measured correction for that residual bias. */
 .row {
   display: flex;
   align-items: center;
@@ -175,7 +180,7 @@
   border: 1px solid rgba(255, 215, 94, 0.3);
 }
 .row .statLine {
-  margin-top: 0;
+  margin-top: -5px;
 }
 .rankBadge {
   width: 18px;
@@ -184,6 +189,7 @@
   font-weight: 700;
   font-size: 12px;
   line-height: 42px;
+  margin-top: -5px;
   color: var(--sm-text-3);
   flex-shrink: 0;
 }
@@ -192,6 +198,7 @@
   font-weight: 700;
   font-size: 12.5px;
   line-height: 42px;
+  margin-top: -5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
