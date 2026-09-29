@@ -79,6 +79,7 @@
   font-size: 11.5px;
   color: var(--sm-text-3);
   padding: 8px 12px;
+  margin-bottom: 10px;
   background: var(--sm-scrim);
   border-radius: var(--radius-md);
 }
@@ -88,120 +89,6 @@
   color: var(--color-accent-2-300);
 }
 .healthWarning strong { color: var(--color-accent-2-300); }
-
-.priorityPanel {
-  position: relative;
-  background: linear-gradient(155deg, var(--sm-surface-gradient-1), var(--sm-surface-gradient-2));
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--sm-accent-border);
-  border-radius: var(--radius-lg);
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  overflow: hidden;
-}
-.priorityGlow {
-  position: absolute;
-  top: -30%;
-  right: -10%;
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(63, 182, 168, 0.14), transparent 70%);
-}
-.priorityHeading {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--sm-text-2);
-  position: relative;
-}
-.priorityListWrap {
-  position: relative;
-}
-.priorityList {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  position: relative;
-  scroll-snap-type: x proximity;
-  /* Native scrollbars (especially the classic arrow-button style some
-     browsers/OS settings still render) read as dated on a chip row like
-     this — the fade edge already signals "more to scroll", so the
-     scrollbar itself is hidden across engines rather than just restyled. */
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.priorityList::-webkit-scrollbar {
-  display: none;
-}
-.priorityCard {
-  scroll-snap-align: start;
-}
-/* Signals there's more to scroll to on narrow screens, instead of the row
-   just looking cut off at the edge. Hidden once nothing overflows since the
-   fade would otherwise sit over content that never moves. */
-.priorityFade {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 28px;
-  pointer-events: none;
-  background: linear-gradient(to right, transparent, var(--sm-surface-gradient-2) 85%);
-}
-@media (min-width: 720px) {
-  .priorityFade {
-    display: none;
-  }
-}
-.priorityCard {
-  flex: 0 0 auto;
-  min-width: 150px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--sm-surface-hairline);
-  border-radius: var(--radius-md);
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.priorityAvatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--sm-accent), var(--color-accent-500));
-  color: var(--sm-accent-on);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-heading);
-  font-size: 11px;
-  flex-shrink: 0;
-  box-shadow: 0 2px 6px rgba(63, 182, 168, 0.35);
-}
-.priorityName {
-  font-weight: 700;
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.priorityLevel {
-  font-weight: 500;
-  font-size: 10.5px;
-  color: var(--sm-text-3);
-}
-.priorityReason {
-  font-size: 11px;
-  color: var(--color-accent-2-300);
-  margin-top: 1px;
-}
 
 .courtsGrid {
   display: flex;

@@ -33,7 +33,6 @@ import type {
   RequestedPairEntry,
   SessionHealth,
   ShareRankingEntry,
-  TopPriorityEntry,
   UpNextEntry,
   WaitingEntry,
 } from "../types.viewmodel";
@@ -1191,26 +1190,6 @@ export function useSessionStore() {
   const readyPlayers = useMemo(() => readyPool(), [readyPool]);
   const orderedReady = useMemo(() => playerPriority(readyPlayers), [readyPlayers]);
 
-  const topPriorityWaiting = useMemo<TopPriorityEntry[]>(
-    () =>
-      orderedReady.slice(0, 3).map((p, i) => ({
-        name: p.name,
-        initials: initialsFor(p.name),
-        level: p.level,
-        reason:
-          i === 0
-            ? p.skipped === 0
-              ? "First in line"
-              : "Waited " + p.skipped + (p.skipped === 1 ? " match" : " matches") + " — top priority"
-            : p.consecutiveGames >= 2
-              ? p.name + " played back-to-back"
-              : p.games <= 3
-                ? "Only " + p.games + (p.games === 1 ? " game" : " games") + " played"
-                : "Waited " + p.skipped + (p.skipped === 1 ? " match" : " matches"),
-      })),
-    [orderedReady],
-  );
-
   const waitingVM = useMemo<WaitingEntry[]>(
     () =>
       orderedReady.map((p) => ({
@@ -1244,7 +1223,7 @@ export function useSessionStore() {
   }, [state.players, isPlaying, resumePlayer, cancelSkip]);
 
   const recentResultsVM = useMemo<RecentResultEntry[]>(() => {
-    const completed = state.matches.filter((m) => m.status === "completed").slice(-4).reverse();
+    const completed = state.matches.filter((m) => m.status === "completed").slice(-3).reverse();
     return completed.map((m) => {
       const t1 = teamNames(m.t1, state.players);
       const t2 = teamNames(m.t2, state.players);
@@ -1403,7 +1382,6 @@ export function useSessionStore() {
       expectedCount,
       hasExpected: expectedCount > 0,
       onCheckInAll: checkInAll,
-      topPriorityWaiting,
       courtsVM,
       upNext,
       waitingVM,

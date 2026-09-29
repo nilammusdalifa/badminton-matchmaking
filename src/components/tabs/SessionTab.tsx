@@ -1,9 +1,8 @@
 import { CourtCard } from "../CourtCard";
-import { UsersIcon } from "../icons";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./SessionTab.module.css";
 
-type SessionTabProps = SessionStore["session"] & { hideTier?: boolean; readOnly?: boolean };
+type SessionTabProps = SessionStore["session"] & { hideTier?: boolean; readOnly?: boolean; onSeeAllMatches?: () => void };
 
 export function SessionTab({
   playersCount,
@@ -14,7 +13,6 @@ export function SessionTab({
   expectedCount,
   hasExpected,
   onCheckInAll,
-  topPriorityWaiting,
   courtsVM,
   upNext,
   waitingVM,
@@ -25,6 +23,7 @@ export function SessionTab({
   sessionHealth,
   hideTier,
   readOnly,
+  onSeeAllMatches,
 }: SessionTabProps) {
   return (
     <>
@@ -49,42 +48,7 @@ export function SessionTab({
             </button>
           </div>
         )}
-        {sessionHealth.longestWaitName && (sessionHealth.longestWaitMatches > 0 || sessionHealth.gameSpread > 0) && (
-          <div className={`${styles.healthStrip} ${sessionHealth.hasWarning ? styles.healthWarning : ""}`}>
-            <span>
-              Waiting longest: <strong>{sessionHealth.longestWaitName}</strong> ({sessionHealth.longestWaitMatches} match
-              {sessionHealth.longestWaitMatches === 1 ? "" : "es"})
-            </span>
-            <span>Games played: {sessionHealth.gameSpread} apart from most to fewest</span>
-          </div>
-        )}
       </div>
-
-      {topPriorityWaiting.length > 0 && (
-        <div className={styles.priorityPanel}>
-          <div className={styles.priorityGlow} />
-          <div className={styles.priorityHeading}>
-            <UsersIcon />
-            Who should play next
-          </div>
-          <div className={styles.priorityListWrap}>
-            <div className={styles.priorityList}>
-              {topPriorityWaiting.map((p, i) => (
-                <div className={styles.priorityCard} key={i}>
-                  <div className={styles.priorityAvatar}>{p.initials}</div>
-                  <div>
-                    <div className={styles.priorityName}>
-                      {p.name} {!hideTier && <span className={styles.priorityLevel}>· {p.level}</span>}
-                    </div>
-                    <div className={styles.priorityReason}>{p.reason}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className={styles.priorityFade} />
-          </div>
-        </div>
-      )}
 
       {courtsVM.length > 0 ? (
         <div className={styles.courtsGrid}>
@@ -116,6 +80,12 @@ export function SessionTab({
 
       <div className={styles.panel}>
         <div className={styles.panelTitle}>Waiting ({waitingCount})</div>
+        {sessionHealth.hasWarning && sessionHealth.longestWaitName && (
+          <div className={`${styles.healthStrip} ${styles.healthWarning}`}>
+            Waiting longest: <strong>{sessionHealth.longestWaitName}</strong> ({sessionHealth.longestWaitMatches} match
+            {sessionHealth.longestWaitMatches === 1 ? "" : "es"}) · Games played: {sessionHealth.gameSpread} apart from most to fewest
+          </div>
+        )}
         {waitingCount === 0 && !hasNotInRotation ? (
           <div className={styles.emptyNote}>No one waiting right now.</div>
         ) : (
@@ -123,7 +93,7 @@ export function SessionTab({
             {!readOnly && waitingVM.length > 0 && (
               <div className={styles.emptyNote}>Sit Out Next skips one match. Rest keeps them out until you bring them back.</div>
             )}
-            {waitingVM.map((w) => (
+            {waitingVM.map((w, i) => (
               <div className={styles.waitingRow} key={w.id}>
                 <div className={styles.waitingLeft}>
                   <div className={styles.avatar}>{w.initials}</div>
@@ -132,7 +102,7 @@ export function SessionTab({
                       {w.name} {!hideTier && <span className={styles.waitingLevel}>· Tier {w.level}</span>}
                     </div>
                     <div className={styles.waitingMeta}>
-                      Waited {w.skipped} {w.skipped === 1 ? "match" : "matches"} · {w.games} {w.games === 1 ? "game" : "games"} played
+                      {i === 0 && "Next up · "}Waited {w.skipped} {w.skipped === 1 ? "match" : "matches"} · {w.games} {w.games === 1 ? "game" : "games"} played
                       {w.hasStreak ? ` · back-to-back x${w.consec}` : ""}
                     </div>
                   </div>
@@ -187,6 +157,11 @@ export function SessionTab({
                 </div>
               );
             })}
+            {onSeeAllMatches && (
+              <button className={styles.linkBtn} onClick={onSeeAllMatches}>
+                See all matches
+              </button>
+            )}
           </div>
         )}
       </div>

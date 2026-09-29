@@ -1,12 +1,5 @@
 import type { PauseReason, ResultMode, SkillLevel } from "./types";
 
-export interface TopPriorityEntry {
-  name: string;
-  initials: string;
-  level: SkillLevel;
-  reason: string;
-}
-
 export interface WaitingEntry {
   id: string;
   name: string;
