@@ -28,6 +28,7 @@ export function ManageTab({
   onEndSession,
   onResetSession,
   resultMode,
+  isOwner,
   shareEnabled,
   shareUrl,
   sessionPin,
@@ -137,17 +138,17 @@ export function ManageTab({
         <div className={styles.panel}>
           <div className={styles.panelTitle}>Live Sharing</div>
           <div className={styles.panelHint}>
-            Anyone with the link can watch this session live. They can also score matches by entering the Umpire PIN below.
+            {isOwner
+              ? "Anyone with the link can watch this session live. They can also score matches by entering the Umpire PIN below."
+              : "Anyone with the link can watch this session live."}
           </div>
           <div className={styles.shareRow}>
             <button className={styles.addBtn} onClick={onCopyShareLink}>
               Copy Live Link
             </button>
-            <div className={styles.pinBadge}>
-              PIN: {sessionPin}
-            </div>
+            {isOwner && <div className={styles.pinBadge}>PIN: {sessionPin}</div>}
           </div>
-          <div className={styles.pinHint}>Give this PIN only to people you want scoring matches.</div>
+          {isOwner && <div className={styles.pinHint}>Give this PIN only to people you want scoring matches.</div>}
           <div className={styles.shareUrl}>{shareUrl}</div>
         </div>
       )}

@@ -49,11 +49,11 @@ export function SessionTab({
             </button>
           </div>
         )}
-        {sessionHealth.longestWaitName && (
+        {sessionHealth.longestWaitName && (sessionHealth.longestWaitMatches > 0 || sessionHealth.gameSpread > 0) && (
           <div className={`${styles.healthStrip} ${sessionHealth.hasWarning ? styles.healthWarning : ""}`}>
             <span>
               Waiting longest: <strong>{sessionHealth.longestWaitName}</strong> ({sessionHealth.longestWaitMatches} match
-              {sessionHealth.longestWaitMatches === 1 ? "" : "es"} sat out)
+              {sessionHealth.longestWaitMatches === 1 ? "" : "es"})
             </span>
             <span>Games played: {sessionHealth.gameSpread} apart from most to fewest</span>
           </div>
@@ -94,7 +94,9 @@ export function SessionTab({
         </div>
       ) : (
         <div className={styles.panel}>
-          <div className={styles.emptyNote}>No courts yet — add one in Manage → Courts to start scheduling matches.</div>
+          <div className={styles.emptyNote}>
+            {readOnly ? "No courts have been set up yet." : "No courts yet — add one in Manage → Courts to start scheduling matches."}
+          </div>
         </div>
       )}
 
@@ -125,7 +127,7 @@ export function SessionTab({
               <div className={styles.waitingRow} key={w.id}>
                 <div className={styles.waitingLeft}>
                   <div className={styles.avatar}>{w.initials}</div>
-                  <div>
+                  <div className={styles.waitingText}>
                     <div className={styles.waitingName}>
                       {w.name} {!hideTier && <span className={styles.waitingLevel}>· Tier {w.level}</span>}
                     </div>

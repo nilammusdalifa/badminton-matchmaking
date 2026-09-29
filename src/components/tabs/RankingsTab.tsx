@@ -78,14 +78,14 @@ export function RankingsTab({ rankingsVM, onShareRankings, hideTier }: RankingsT
                   </span>
                 </div>
                 <div className={styles.detailRow}>
-                  <span className={styles.detailLabel}>Wait &amp; streak</span>
+                  <span className={styles.detailLabel}>Rotation</span>
                   <span>
                     Avg wait {r.avgWait} min · most games in a row: {r.maxConsecutive}
                   </span>
                 </div>
                 {!hideTier && (
                   <div className={styles.tierRow}>
-                    <span className={styles.tierLabel}>Tier:</span>
+                    <span className={styles.tierLabel}>Tier (A strongest):</span>
                     <LevelPicker value={r.level} onChange={r.onSetLevel} size="sm" />
                   </div>
                 )}

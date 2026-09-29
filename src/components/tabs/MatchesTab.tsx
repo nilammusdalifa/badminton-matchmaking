@@ -1,9 +1,9 @@
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./MatchesTab.module.css";
 
-type MatchesTabProps = SessionStore["matches"];
+type MatchesTabProps = SessionStore["matches"] & { readOnly?: boolean };
 
-export function MatchesTab({ matchLogVM, courtsCount }: MatchesTabProps) {
+export function MatchesTab({ matchLogVM, courtsCount, readOnly }: MatchesTabProps) {
   return (
     <>
       <div className={styles.section}>
@@ -14,7 +14,11 @@ export function MatchesTab({ matchLogVM, courtsCount }: MatchesTabProps) {
       <div className={styles.list}>
         {matchLogVM.length === 0 && (
           <div className={styles.empty}>
-            {courtsCount === 0 ? "No matches yet — add a court in Manage first." : "No matches yet — start one from the Session tab."}
+            {readOnly
+              ? "No matches yet."
+              : courtsCount === 0
+                ? "No matches yet — add a court in Manage first."
+                : "No matches yet — start one from the Session tab."}
           </div>
         )}
         {matchLogVM.map((m) => (

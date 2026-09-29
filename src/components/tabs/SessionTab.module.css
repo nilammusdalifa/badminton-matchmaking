@@ -298,7 +298,8 @@
   font-size: 10px;
   flex-shrink: 0;
 }
-.waitingName { font-weight: 700; font-size: 13px; }
+.waitingText { min-width: 0; }
+.waitingName { font-weight: 700; font-size: 13px; overflow-wrap: anywhere; }
 .waitingLevel { font-weight: 500; color: var(--sm-text-3); font-size: 11px; }
 .waitingMeta { font-size: 11px; color: var(--sm-text-3); }
 .waitingActions { display: flex; gap: 6px; flex-shrink: 0; }

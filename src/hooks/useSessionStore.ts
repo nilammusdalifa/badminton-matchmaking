@@ -742,7 +742,7 @@ export function useSessionStore() {
   // entering `state.sessionPin`. Requires Firebase to actually be configured
   // (see firebaseConfigured); this device's own session id/pin still exist
   // without it, they just wouldn't resolve to anything live.
-  const shareUrl = `${window.location.origin}${window.location.pathname}?view=${state.sessionId}`;
+  const shareUrl = `${window.location.origin}${window.location.pathname}?view=${viewSessionId ?? state.sessionId}`;
   const copyShareLink = useCallback(() => {
     navigator.clipboard
       .writeText(shareUrl)
@@ -1419,6 +1419,7 @@ export function useSessionStore() {
       onEndSession: openEndConfirm,
       onResetSession: openResetConfirm,
       resultMode: state.sessionResultMode,
+      isOwner: !isRemoteMode,
       shareEnabled: firebaseConfigured,
       shareUrl,
       sessionPin: state.sessionPin,

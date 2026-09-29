@@ -47,7 +47,7 @@ function App() {
 
       <div className={`${styles.main} ${isReadOnlyPlayer ? styles.readOnlyMain : ""}`}>
         {store.tabs.active === "session" && <SessionTab {...store.session} hideTier={isReadOnlyPlayer} readOnly={isReadOnlyPlayer} />}
-        {store.tabs.active === "matches" && <MatchesTab {...store.matches} />}
+        {store.tabs.active === "matches" && <MatchesTab {...store.matches} readOnly={isReadOnlyPlayer} />}
         {store.tabs.active === "rankings" && <RankingsTab {...store.rankings} hideTier={isReadOnlyPlayer} />}
         {store.tabs.active === "manage" && !isReadOnlyPlayer && <ManageTab {...store.manage} />}
       </div>
