@@ -1,0 +1,17 @@
+{
+  "name": "SmashMatch",
+  "short_name": "SmashMatch",
+  "description": "Badminton session manager: courts, fair match suggestions, scores and rankings.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#2e2b25",
+  "theme_color": "#2e2b25",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
