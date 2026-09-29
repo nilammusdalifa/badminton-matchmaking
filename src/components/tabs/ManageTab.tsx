@@ -43,7 +43,7 @@ export function ManageTab({
 
       <div className={styles.panel}>
         <div className={styles.panelTitle}>Add a Walk-in Player</div>
-        <div className={styles.panelHint}>They're here now — added straight to Ready</div>
+        <div className={styles.panelHint}>They're here now — added straight to Waiting</div>
         <PlayerAddForm
           newPlayerName={newPlayerName}
           newPlayerLevel={newPlayerLevel}

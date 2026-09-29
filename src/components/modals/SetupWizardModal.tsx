@@ -79,7 +79,7 @@ export function SetupWizardModal({
         {step === 1 && (
           <div className={styles.step}>
             <div className={styles.stepTitle}>Players ({playersCount} on the roster)</div>
-            <div className={styles.stepHint}>Added here as Expected — they check in when they actually arrive</div>
+            <div className={styles.stepHint}>They start as not checked in — check them in on the Session tab when they arrive</div>
             <PlayerAddForm
               newPlayerName={newPlayerName}
               newPlayerLevel={newPlayerLevel}

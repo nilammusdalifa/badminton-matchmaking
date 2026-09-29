@@ -11,6 +11,8 @@
   align-items: center;
 }
 
+.tierLabel { font-size: 12px; font-weight: 700; color: var(--sm-text-3); }
+
 .nameInput {
   flex: 1;
   min-width: 140px;

@@ -85,7 +85,7 @@ export function RankingsTab({ rankingsVM, onShareRankings, hideTier }: RankingsT
                 </div>
                 {!hideTier && (
                   <div className={styles.tierRow}>
-                    <span className={styles.tierLabel}>Skill tier:</span>
+                    <span className={styles.tierLabel}>Tier:</span>
                     <LevelPicker value={r.level} onChange={r.onSetLevel} size="sm" />
                   </div>
                 )}

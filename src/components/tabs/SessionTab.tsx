@@ -37,7 +37,7 @@ export function SessionTab({
         <div className={styles.chips}>
           <span className={`${styles.chip} ${styles.chipPlaying}`}>Playing {playingCount}</span>
           <span className={`${styles.chip} ${styles.chipWaiting}`}>Waiting {readyWaitingCount}</span>
-          <span className={`${styles.chip} ${styles.chipPaused}`}>Paused {pausedCount}</span>
+          <span className={`${styles.chip} ${styles.chipPaused}`}>Resting {pausedCount}</span>
           {hasExpected && <span className={`${styles.chip} ${styles.chipExpected}`}>{expectedCount} not checked in</span>}
         </div>
         {hasExpected && (

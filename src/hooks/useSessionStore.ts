@@ -597,7 +597,7 @@ export function useSessionStore() {
     const seed = state.suggestSeed[courtId] || 0;
     const sug = buildSuggestion(livePlayers, state.matches, state.requestedPairs, [], seed);
     if (!sug) {
-      showToast("Not enough ready players to auto-fill");
+      showToast("Not enough waiting players to auto-fill");
       return;
     }
     setState((s) => ({
@@ -638,7 +638,7 @@ export function useSessionStore() {
     (id: string, reason: PauseReason = "rest") => {
       const p = getPlayer(id);
       setState((s) => ({ ...s, players: s.players.map((pl) => (pl.id === id ? { ...pl, status: "paused" as const, pauseReason: reason } : pl)) }));
-      showToast((p ? p.name : "Player") + " paused");
+      showToast((p ? p.name : "Player") + " is resting");
     },
     [getPlayer, showToast],
   );
@@ -696,7 +696,7 @@ export function useSessionStore() {
       }
       const player = makeBlankPlayer("p" + Date.now(), name, state.newPlayerLevel, status);
       setState((s) => ({ ...s, players: [...s.players, player], newPlayerName: "" }));
-      showToast(name + (status === "expected" ? " added — checks in on arrival" : " added to the roster"));
+      showToast(name + (status === "expected" ? " added — check them in when they arrive" : " added to the roster"));
     },
     [state.newPlayerName, state.newPlayerLevel, state.players, showToast],
   );
@@ -729,7 +729,7 @@ export function useSessionStore() {
   const setPlayerTier = useCallback(
     (id: string, level: SkillLevel) => {
       setState((s) => ({ ...s, players: s.players.map((p) => (p.id === id ? { ...p, level } : p)) }));
-      showToast("Skill tier updated");
+      showToast("Tier updated");
     },
     [showToast],
   );
@@ -1140,7 +1140,7 @@ export function useSessionStore() {
           // "Resting" reads as its own state (matches how the audit's
           // Waiting/Playing/Resting/Left model names it); other pause
           // reasons are less common exceptions, so they keep the explicit label.
-          statusLabel = p.pauseReason === "rest" || !p.pauseReason ? "Resting" : "Paused · " + (PAUSE_LABELS[p.pauseReason] || "Rest");
+          statusLabel = p.pauseReason === "rest" || !p.pauseReason ? "Resting" : "Resting · " + (PAUSE_LABELS[p.pauseReason] || "Rest");
           actions = [
             { label: "Back to Waiting", onClick: () => resumePlayer(p.id) },
             { label: "Leave", onClick: () => leavePlayer(p.id) },
@@ -1212,7 +1212,7 @@ export function useSessionStore() {
         ? {
             id: p.id,
             name: p.name,
-            tag: p.pauseReason === "rest" || !p.pauseReason ? "Resting" : "Paused · " + (PAUSE_LABELS[p.pauseReason] || "Rest"),
+            tag: p.pauseReason === "rest" || !p.pauseReason ? "Resting" : "Resting · " + (PAUSE_LABELS[p.pauseReason] || "Rest"),
             actionLabel: "Back to Waiting",
             onAction: () => resumePlayer(p.id),
           }

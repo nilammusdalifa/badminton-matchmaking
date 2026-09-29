@@ -11,7 +11,7 @@ interface LevelPickerProps {
 
 export function LevelPicker({ value, onChange, size = "md" }: LevelPickerProps) {
   return (
-    <div className={styles.group}>
+    <div className={styles.group} role="group" aria-label="Tier (A strongest, C newest)">
       {LEVELS.map((level) => (
         <button
           key={level}

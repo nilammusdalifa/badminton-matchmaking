@@ -30,7 +30,7 @@ export function EditMatchModal({
           </button>
         </div>
         <div className={styles.hintRow}>
-          <div className={styles.hint}>Swap in anyone who's ready — fairness and skill are recalculated when you start.</div>
+          <div className={styles.hint}>Swap in anyone who's waiting — teams are rebalanced when you start.</div>
           <button className={styles.autoFillBtn} onClick={onAutoFill}>
             Auto-fill
           </button>

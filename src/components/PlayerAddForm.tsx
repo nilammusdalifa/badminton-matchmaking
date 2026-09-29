@@ -45,7 +45,7 @@ export function PlayerAddForm({
           placeholder={"One name per line, e.g.\nAndi\nBudi\nCitra"}
         />
         <div className={styles.formRow}>
-          <span>Tier:</span>
+          <span className={styles.tierLabel}>Tier:</span>
           <LevelPicker value={newPlayerLevel} onChange={setNewPlayerLevel} />
           <button className={styles.addBtn} onClick={submitBulk}>
             Add All
@@ -68,6 +68,7 @@ export function PlayerAddForm({
           onChange={onNewPlayerNameChange}
           placeholder="Player name"
         />
+        <span className={styles.tierLabel}>Tier:</span>
         <LevelPicker value={newPlayerLevel} onChange={setNewPlayerLevel} />
         <button className={styles.addBtn} onClick={onAddPlayer}>
           {addLabel}
