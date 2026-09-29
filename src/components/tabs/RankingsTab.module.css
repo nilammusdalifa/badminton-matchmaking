@@ -5,7 +5,7 @@
 }
 .empty {
   font-size: 12.5px;
-  color: var(--sm-text-4);
+  color: var(--sm-text-3);
   text-align: center;
   padding: 24px 0;
 }
@@ -94,7 +94,7 @@
   justify-content: center;
   font-family: var(--sm-font-mono);
   font-weight: 800;
-  color: var(--sm-text-4);
+  color: var(--sm-text-3);
   font-size: 12.5px;
 }
 .avatar {
@@ -107,7 +107,7 @@
   align-items: center;
   justify-content: center;
   font-family: var(--font-heading);
-  font-size: 10px;
+  font-size: 12px;
   flex-shrink: 0;
 }
 .avatarTop1 { box-shadow: 0 0 0 2px rgba(232, 164, 48, 0.6); }
@@ -124,8 +124,8 @@
 }
 .level {
   font-weight: 500;
-  font-size: 11px;
-  color: var(--sm-text-4);
+  font-size: 12px;
+  color: var(--sm-text-3);
 }
 .winRate {
   flex-shrink: 0;
@@ -199,18 +199,18 @@
   gap: 1px;
 }
 .detailLabel {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: var(--sm-text-4);
+  color: var(--sm-text-3);
 }
 .detailStrong { color: var(--sm-text); }
-.ratingCaption { color: var(--sm-text-4); font-size: 11px; }
+.ratingCaption { color: var(--sm-text-3); font-size: 12px; }
 .tierRow {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-top: 3px;
 }
-.tierLabel { font-size: 11px; color: var(--sm-text-4); }
+.tierLabel { font-size: 12px; color: var(--sm-text-3); }

@@ -24,7 +24,7 @@
   margin-bottom: 14px;
 }
 .headTitle { font-weight: 800; font-size: 15px; }
-.headHint { font-size: 11px; color: var(--sm-text-4); margin-top: 1px; }
+.headHint { font-size: 12px; color: var(--sm-text-3); margin-top: 1px; }
 .closeBtn {
   width: 32px;
   height: 32px;
@@ -50,7 +50,7 @@
   padding: 14px 10px;
 }
 .teamLabel {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -136,7 +136,7 @@
 }
 .saveBtn:disabled {
   background: var(--sm-fill);
-  color: var(--sm-text-4);
+  color: var(--sm-text-3);
   cursor: not-allowed;
 }
 
@@ -148,7 +148,7 @@
   border: none;
   background: transparent;
   color: var(--sm-danger-text);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   text-align: center;

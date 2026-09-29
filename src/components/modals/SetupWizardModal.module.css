@@ -56,7 +56,7 @@
   gap: 16px;
 }
 .stepTitle { font-size: 13px; font-weight: 700; }
-.stepHint { font-size: 11.5px; color: var(--sm-text-3); margin-top: -12px; }
+.stepHint { font-size: 12px; color: var(--sm-text-3); margin-top: -12px; }
 .rosterChips {
   display: flex;
   flex-wrap: wrap;
@@ -72,7 +72,7 @@
   font-size: 12px;
   overflow-wrap: anywhere;
 }
-.fieldHint { font-size: 11.5px; color: var(--sm-text-3); }
+.fieldHint { font-size: 12px; color: var(--sm-text-3); }
 .warnNote { font-size: 12px; color: var(--sm-danger-text); padding: 0 2px; }
 .field {
   display: flex;
@@ -80,7 +80,7 @@
   gap: 6px;
 }
 .fieldLabel {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -136,7 +136,7 @@
   border: 1px solid var(--sm-border);
   background: transparent;
   color: var(--sm-text-2);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
@@ -158,7 +158,7 @@
   gap: 4px;
 }
 .consequence {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--sm-accent-hover);
 }
 

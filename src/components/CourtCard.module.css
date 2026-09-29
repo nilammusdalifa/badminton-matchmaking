@@ -59,7 +59,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -85,7 +85,7 @@
 }
 .stateBadge.paused {
   background: transparent;
-  color: var(--sm-text-4);
+  color: var(--sm-text-3);
   border: 1px dashed var(--sm-border);
 }
 .stateDot {
@@ -112,7 +112,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--sm-text-3);
   font-family: var(--sm-font-mono);
 }
@@ -128,7 +128,7 @@
   min-width: 0;
 }
 .teamLabel {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -160,7 +160,7 @@
   gap: 4px;
 }
 .scoreDash {
-  color: var(--sm-text-4);
+  color: var(--sm-text-3);
   font-size: 18px;
 }
 .scoreVs {
@@ -210,7 +210,7 @@
 .suggestionTeam2 { color: var(--color-accent-2-300); font-weight: 700; }
 .suggestionReason {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--sm-text-3);
 }
 
@@ -247,7 +247,7 @@
   text-align: center;
   font-size: 12px;
   font-style: italic;
-  color: var(--sm-text-4);
+  color: var(--sm-text-3);
   padding: 8px;
 }
 
@@ -270,8 +270,8 @@
   padding: 4px;
   border: none;
   background: transparent;
-  color: var(--sm-text-4);
-  font-size: 11px;
+  color: var(--sm-text-3);
+  font-size: 12px;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }

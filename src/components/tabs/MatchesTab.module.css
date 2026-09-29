@@ -53,12 +53,12 @@
 }
 .matchNum {
   font-family: var(--sm-font-mono);
-  font-size: 10.5px;
-  color: var(--sm-text-4);
+  font-size: 12px;
+  color: var(--sm-text-3);
   flex-shrink: 0;
 }
 .badge {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -112,13 +112,13 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--sm-text-4);
+  color: var(--sm-text-3);
 }
 
 .empty {
   text-align: center;
   font-size: 12.5px;
-  color: var(--sm-text-4);
+  color: var(--sm-text-3);
   padding: 24px 0;
 }
 
@@ -134,7 +134,7 @@
   border: 1px solid var(--sm-border);
   background: transparent;
   color: var(--sm-text-2);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
