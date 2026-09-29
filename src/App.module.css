@@ -57,7 +57,7 @@
   position: relative;
   z-index: 1;
   flex: 1;
-  padding: 16px 14px 100px;
+  padding: 16px 14px calc(100px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 16px;

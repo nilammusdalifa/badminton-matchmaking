@@ -1,4 +1,4 @@
-import type { CounterSnapshot, Match, Player, PlayerStatus, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
+import type { CounterSnapshot, Court, Match, Player, PlayerStatus, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
 
 /** Best-effort: pulls the last "HH:MM"-shaped token out of a free-text
  * schedule string (e.g. "Wed · 19:00–22:00" or "Rabu, 19:00 - 22:00") and
@@ -21,6 +21,34 @@ export function parseScheduleEndTime(schedule: string): { hour: number; minute: 
  * otherwise retyping a score while fixing it would rewrite rankings live. */
 export function applyLiveScore(matches: Match[], matchId: string, s1: number, s2: number): Match[] {
   return matches.map((m) => (m.id === matchId && m.status === "in_progress" ? { ...m, s1, s2 } : m));
+}
+
+/** Identity of a session document for sync purposes: everything EXCEPT the
+ * running points of matches still being played. Points entered in the
+ * scorekeeper change many times a rally; pushing the whole session to
+ * Firebase each time makes two devices' writes collide constantly (the
+ * server only accepts a strictly higher `rev`, and the loser silently
+ * diverges). Live points travel with the next real push instead. */
+export function syncFingerprint<T extends { matches: Match[] }>(data: T): string {
+  return JSON.stringify({ ...data, matches: data.matches.map((m) => (m.status === "in_progress" ? { ...m, s1: 0, s2: 0 } : m)) });
+}
+
+/** The points on the board for a match that's still being played — what an
+ * open scorekeeper sheet should show when another device changed the match
+ * underneath it. Null for a finished or unknown match. */
+export function liveScoreFor(matches: Match[], matchId: string | null): { s1: number; s2: number } | null {
+  const m = matchId ? matches.find((x) => x.id === matchId) : undefined;
+  return m && m.status === "in_progress" ? { s1: m.s1, s2: m.s2 } : null;
+}
+
+/** Firebase Realtime Database doesn't store empty arrays, so a snapshot
+ * simply lacks a list that was just emptied (last partner request removed,
+ * session reset, only match cancelled). Merging that snapshot over local
+ * state must reset those lists, not keep the stale copy. */
+export function withListDefaults<T extends { players?: Player[]; matches?: Match[]; courts?: Court[]; requestedPairs?: [string, string][]; history?: SessionHistoryEntry[] }>(
+  payload: T,
+): T & { players: Player[]; matches: Match[]; courts: Court[]; requestedPairs: [string, string][]; history: SessionHistoryEntry[] } {
+  return { players: [], matches: [], courts: [], requestedPairs: [], history: [], ...payload };
 }
 
 /** True when another roster entry already uses this name (trimmed,

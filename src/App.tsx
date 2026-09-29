@@ -52,7 +52,7 @@ function App() {
       {isReadOnlyPlayer && <div className={styles.readOnlyBanner}>Live view only — ask the organizer or umpire to make changes</div>}
 
       <div className={`${styles.main} ${isReadOnlyPlayer ? styles.readOnlyMain : ""}`}>
-        {store.tabs.active === "session" && <SessionTab {...store.session} hideTier={isReadOnlyPlayer} readOnly={isReadOnlyPlayer} onSeeAllMatches={() => store.tabs.setActiveTab("matches")} />}
+        {store.tabs.active === "session" && <SessionTab {...store.session} hideTier={isReadOnlyPlayer} readOnly={isReadOnlyPlayer} onSeeAllMatches={isReadOnlyPlayer ? undefined : () => store.tabs.setActiveTab("matches")} />}
         {store.tabs.active === "matches" && <MatchesTab {...store.matches} readOnly={isReadOnlyPlayer} />}
         {store.tabs.active === "rankings" && <RankingsTab {...store.rankings} hideTier={isReadOnlyPlayer} />}
         {store.tabs.active === "manage" && !isReadOnlyPlayer && <ManageTab {...store.manage} />}

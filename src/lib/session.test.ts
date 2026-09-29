@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { applyLiveScore, canRemovePlayer, isFirstRun, makeBlankPlayer, nameTaken, rankPlayers, recomputePlayerStats } from "./session";
+import { applyLiveScore, canRemovePlayer, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -75,5 +75,38 @@ describe("first run", () => {
     expect(isFirstRun(0, 0)).toBe(true);
     expect(isFirstRun(10, 0)).toBe(false);
     expect(isFirstRun(0, 2)).toBe(false);
+  });
+});
+
+describe("remote sync helpers", () => {
+  const live: Match = { ...completed("live", ["a", "b"], ["c", "d"], 0, 0), status: "in_progress" };
+  const done = completed("done", ["a", "b"], ["c", "d"], 21, 15);
+  const doc = (matches: Match[], extra: object = {}) => ({ matches, sessionName: "Rabu", completedCount: 1, ...extra });
+
+  it("syncFingerprint ignores live points on an in-progress match", () => {
+    expect(syncFingerprint(doc([{ ...live, s1: 5, s2: 3 }, done]))).toBe(syncFingerprint(doc([live, done])));
+  });
+
+  it("syncFingerprint changes when anything other than live points changes", () => {
+    const base = syncFingerprint(doc([live, done]));
+    expect(syncFingerprint(doc([{ ...live, status: "completed" }, done]))).not.toBe(base);
+    expect(syncFingerprint(doc([live, { ...done, s1: 20 }]))).not.toBe(base);
+    expect(syncFingerprint(doc([live, done], { sessionName: "Kamis" }))).not.toBe(base);
+  });
+
+  it("liveScoreFor returns the score of an in-progress match only", () => {
+    expect(liveScoreFor([{ ...live, s1: 7, s2: 4 }], "live")).toEqual({ s1: 7, s2: 4 });
+    expect(liveScoreFor([done], "done")).toBeNull();
+    expect(liveScoreFor([live], "missing")).toBeNull();
+    expect(liveScoreFor([live], null)).toBeNull();
+  });
+
+  it("withListDefaults restores lists Firebase dropped because they were empty", () => {
+    const merged = withListDefaults({ sessionName: "Rabu" } as { sessionName: string; requestedPairs?: [string, string][]; matches?: Match[] });
+    expect(merged.requestedPairs).toEqual([]);
+    expect(merged.matches).toEqual([]);
+    expect(merged.sessionName).toBe("Rabu");
+    const kept = withListDefaults({ matches: [done] });
+    expect(kept.matches).toEqual([done]);
   });
 });

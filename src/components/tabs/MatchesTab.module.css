@@ -108,7 +108,7 @@
 .tieTag {
   display: block;
   font-family: var(--font-body), sans-serif;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;

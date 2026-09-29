@@ -14,6 +14,7 @@ import {
   isFirstRun,
   isOverTarget,
   isPlaying as isPlayingFn,
+  liveScoreFor,
   makeBlankPlayer,
   nameTaken,
   parseScheduleEndTime,
@@ -23,7 +24,9 @@ import {
   recomputePlayerStats,
   resetPlayersForNewSession,
   reverseCounterSnapshot,
+  syncFingerprint,
   teamNames,
+  withListDefaults,
 } from "../lib/session";
 import type { Court, Match, PauseReason, Player, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion, Tab } from "../types";
 import type {
@@ -168,6 +171,10 @@ export function useSessionStore() {
   const localRevRef = useRef(0);
   const lastKnownRemoteRevRef = useRef(0);
   const isApplyingRemoteRef = useRef(false);
+  // What this device last pushed (or adopted from Firebase), minus live match
+  // points — see syncFingerprint. Live-point-only changes are saved locally
+  // but not pushed.
+  const lastPushedKeyRef = useRef<string | null>(null);
   // P0 fix: a device that can write (organizer, or Umpire) must never push
   // before it has heard back from its OWN subscription at least once —
   // otherwise the persistence effect's very first run, on mount, fires with
@@ -186,7 +193,17 @@ export function useSessionStore() {
     if (payload.rev <= localRevRef.current) return; // our own echo, or older than what we already have
     lastKnownRemoteRevRef.current = payload.rev;
     isApplyingRemoteRef.current = true;
-    setState((s) => ({ ...s, ...payload }));
+    setState((s) => {
+      const next = { ...s, ...withListDefaults(payload) };
+      // A scorekeeper sheet left open on a match another device just changed
+      // must show the merged points — otherwise its next +1 or Undo would
+      // write the old ones back over them.
+      const live = liveScoreFor(next.matches, s.scorekeeperMatchId);
+      if (live && (live.s1 !== s.scorekeeperT1 || live.s2 !== s.scorekeeperT2)) {
+        return { ...next, scorekeeperT1: live.s1, scorekeeperT2: live.s2, scorekeeperHistory: [{ t1: live.s1, t2: live.s2 }] };
+      }
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -310,6 +327,15 @@ export function useSessionStore() {
     // device authored.
     if (isApplyingRemoteRef.current) {
       isApplyingRemoteRef.current = false;
+      lastPushedKeyRef.current = syncFingerprint(persisted);
+      if (!isRemoteMode) save(persisted);
+      return;
+    }
+    // Only live points on an in-progress match changed: keep them on this
+    // device (and in its local save) but don't push or bump the revision —
+    // see syncFingerprint.
+    const key = syncFingerprint(persisted);
+    if (key === lastPushedKeyRef.current) {
       if (!isRemoteMode) save(persisted);
       return;
     }
@@ -322,11 +348,17 @@ export function useSessionStore() {
       // definition above) — otherwise this can be the still-blank state
       // from the instant Umpire access was claimed, about to overwrite the
       // real session it hasn't finished loading yet.
-      if (remoteRole === "umpire" && viewSessionId && hasHydratedRef.current) pushSessionToFirebase(viewSessionId, persisted, rev);
+      if (remoteRole === "umpire" && viewSessionId && hasHydratedRef.current) {
+        lastPushedKeyRef.current = key;
+        pushSessionToFirebase(viewSessionId, persisted, rev);
+      }
       return;
     }
     save(persisted);
-    if (!firebaseConfigured || hasHydratedRef.current) pushSessionToFirebase(state.sessionId, persisted, rev);
+    if (!firebaseConfigured || hasHydratedRef.current) {
+      lastPushedKeyRef.current = key;
+      pushSessionToFirebase(state.sessionId, persisted, rev);
+    }
   }, [
     isRemoteMode,
     remoteRole,
