@@ -86,6 +86,7 @@ export interface RankingEntry {
   positiveDiff: boolean;
   trendLabel: string;
   trend: number;
+  recentForm: number[];
   favPartner: string;
   favPartnerWin: number;
   favPartnerGames: number;

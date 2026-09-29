@@ -958,6 +958,7 @@ export function useSessionStore() {
       positiveDiff: p.diff >= 0,
       trendLabel: p.trend > 0 ? "▲" + p.trend : p.trend < 0 ? "▼" + Math.abs(p.trend) : "—",
       trend: p.trend,
+      recentForm: p.recentForm,
       favPartner: p.favPartner,
       favPartnerWin: p.favPartnerWin,
       favPartnerGames: p.favPartnerGames,

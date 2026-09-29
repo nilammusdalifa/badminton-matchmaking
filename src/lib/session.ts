@@ -80,15 +80,42 @@ export function playerPriority(pool: Player[]): Player[] {
 
 const LEVEL_RANK: Record<SkillLevel, number> = { A: 3, B: 2, C: 1 };
 
+function pairKey(aId: string, bId: string): string {
+  return [aId, bId].sort().join("|");
+}
+
 /** Splits a foursome into two teams by skill tier (highest+lowest vs. the
- * middle pair) so the average skill on each side of the net is close.
- * Deliberately keyed on the organizer-set tier, not a performance-derived
- * rating — the audit backing this rework calls out result-driven rating as
- * a live matchmaking input as hard to trust/explain; tier is visible,
- * organizer-controlled, and doesn't drift mid-session. */
-export function pickBalancedFoursome(four: Player[]): { team1: [Player, Player]; team2: [Player, Player] } {
-  const sorted = [...four].sort((a, b) => LEVEL_RANK[b.level] - LEVEL_RANK[a.level]);
-  return { team1: [sorted[0], sorted[3]], team2: [sorted[1], sorted[2]] };
+ * middle pair by default) so the average skill on each side of the net is
+ * close. Deliberately keyed on the organizer-set tier, not a
+ * performance-derived rating — the audit backing this rework calls out
+ * result-driven rating as a live matchmaking input as hard to trust/explain;
+ * tier is visible, organizer-controlled, and doesn't drift mid-session.
+ *
+ * `avoidPairs` — partnerships (by id, order-independent) to steer away from
+ * recreating, typically the partnerships from the last match or two. Of the
+ * 3 ways to split 4 people into two pairs, this picks whichever repeats the
+ * fewest of them, breaking ties by skill balance — the extremes-vs-middle
+ * split is listed first so it still wins when nothing needs avoiding, same
+ * as before this had any history-awareness at all. Without this, the same
+ * two players could be teamed together again the very next match. */
+export function pickBalancedFoursome(
+  four: Player[],
+  avoidPairs: Set<string> = new Set(),
+): { team1: [Player, Player]; team2: [Player, Player] } {
+  const [a, b, c, d] = [...four].sort((x, y) => LEVEL_RANK[y.level] - LEVEL_RANK[x.level]);
+  const candidates: [[Player, Player], [Player, Player]][] = [
+    [[a, d], [b, c]],
+    [[a, c], [b, d]],
+    [[a, b], [c, d]],
+  ];
+  const skillGap = (t1: [Player, Player], t2: [Player, Player]) =>
+    Math.abs(LEVEL_RANK[t1[0].level] + LEVEL_RANK[t1[1].level] - (LEVEL_RANK[t2[0].level] + LEVEL_RANK[t2[1].level]));
+  const repeatCount = (t1: [Player, Player], t2: [Player, Player]) =>
+    (avoidPairs.has(pairKey(t1[0].id, t1[1].id)) ? 1 : 0) + (avoidPairs.has(pairKey(t2[0].id, t2[1].id)) ? 1 : 0);
+  const best = candidates
+    .map(([team1, team2]) => ({ team1, team2, repeats: repeatCount(team1, team2), gap: skillGap(team1, team2) }))
+    .sort((x, y) => x.repeats - y.repeats || x.gap - y.gap)[0];
+  return { team1: best.team1, team2: best.team2 };
 }
 
 export function readyPool(players: Player[], matches: Match[]): Player[] {
@@ -136,7 +163,16 @@ export function buildSuggestion(
   const fourth = restPool.length ? restPool[seed % restPool.length] : null;
   const four = [...top3, fourth].filter((p): p is Player => Boolean(p));
   if (four.length < 4) return null;
-  const split = pickBalancedFoursome(four);
+  // Steer the team split away from repeating who was partnered with whom in
+  // the last couple of completed matches — otherwise, with a small ready
+  // pool, the same two players can easily get teamed together again
+  // back-to-back with no variation at all.
+  const avoidPairs = new Set<string>();
+  for (const m of [...matches].filter((m) => m.status === "completed").sort((a, b) => b.num - a.num).slice(0, 2)) {
+    avoidPairs.add(pairKey(m.t1[0], m.t1[1]));
+    avoidPairs.add(pairKey(m.t2[0], m.t2[1]));
+  }
+  const split = pickBalancedFoursome(four, avoidPairs);
   const lead = ordered[0];
   const reasons = [`${lead.name} waited ${lead.skipped} matches — top priority`];
   const streak = four.find((p) => p.consecutiveGames >= 2);
@@ -217,7 +253,8 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
     const w = wins.get(p.id) || 0;
     const l = losses.get(p.id) || 0;
     const d = diff.get(p.id) || 0;
-    const trend = (recent.get(p.id) || []).slice(-5).reduce((a, b) => a + b, 0);
+    const recentForm = (recent.get(p.id) || []).slice(-5);
+    const trend = recentForm.reduce((a, b) => a + b, 0);
 
     let favPartner = "—";
     let favPartnerWin = 0;
@@ -263,6 +300,7 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
       diff: d,
       rating: 1100 + d * 3 + w * 15 - l * 10,
       trend,
+      recentForm,
       favPartner,
       favPartnerWin,
       favPartnerGames,
@@ -284,6 +322,7 @@ export function makeBlankPlayer(id: string, name: string, level: SkillLevel, sta
     diff: 0,
     rating: 1100,
     trend: 0,
+    recentForm: [],
     status,
     skipped: 0,
     consecutiveGames: 0,
@@ -313,6 +352,7 @@ export function resetPlayersForNewSession(players: Player[]): Player[] {
     diff: 0,
     rating: 1100,
     trend: 0,
+    recentForm: [],
     skipped: 0,
     consecutiveGames: 0,
     skipNextRound: false,

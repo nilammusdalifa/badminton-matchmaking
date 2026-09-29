@@ -18,6 +18,10 @@ export interface Player {
   diff: number;
   rating: number;
   trend: number;
+  /** Last 5 completed (non-tie) match results, oldest first: 1 = win, -1 =
+   * loss. Same derive-fresh-every-time treatment as `trend` — a short form
+   * streak for display, not a value anything else reads. */
+  recentForm: number[];
   status: PlayerStatus;
   skipped: number;
   consecutiveGames: number;
