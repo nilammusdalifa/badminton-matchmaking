@@ -3,9 +3,9 @@ import { ShareNodesIcon } from "../icons";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./RankingsTab.module.css";
 
-type RankingsTabProps = SessionStore["rankings"];
+type RankingsTabProps = SessionStore["rankings"] & { hideTier?: boolean };
 
-export function RankingsTab({ rankingsVM, onShareRankings }: RankingsTabProps) {
+export function RankingsTab({ rankingsVM, onShareRankings, hideTier }: RankingsTabProps) {
   return (
     <>
       <div className={styles.section}>
@@ -29,7 +29,7 @@ export function RankingsTab({ rankingsVM, onShareRankings }: RankingsTabProps) {
               <span className={styles.rank}>{r.rank}</span>
               <div className={styles.avatar}>{r.initials}</div>
               <span className={styles.name}>
-                {r.name} <span className={styles.level}>Tier {r.level}</span>
+                {r.name} {!hideTier && <span className={styles.level}>Tier {r.level}</span>}
               </span>
               <span className={styles.played}>{r.played}p</span>
               <span className={`${styles.diff} ${r.positiveDiff ? styles.positive : styles.negative}`}>{r.diffLabel} pts</span>
@@ -50,10 +50,12 @@ export function RankingsTab({ rankingsVM, onShareRankings }: RankingsTabProps) {
               <div>
                 Avg wait between games: {r.avgWait} min · Longest streak: {r.maxConsecutive} games
               </div>
-              <div className={styles.tierRow}>
-                <span className={styles.tierLabel}>Skill tier:</span>
-                <LevelPicker value={r.level} onChange={r.onSetLevel} size="sm" />
-              </div>
+              {!hideTier && (
+                <div className={styles.tierRow}>
+                  <span className={styles.tierLabel}>Skill tier:</span>
+                  <LevelPicker value={r.level} onChange={r.onSetLevel} size="sm" />
+                </div>
+              )}
             </div>
           </details>
         ))}

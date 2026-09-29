@@ -46,9 +46,9 @@ function App() {
       {isReadOnlyPlayer && <div className={styles.readOnlyBanner}>Live view only — ask the organizer or umpire to make changes</div>}
 
       <div className={styles.main} style={isReadOnlyPlayer ? { pointerEvents: "none" } : undefined}>
-        {store.tabs.active === "session" && <SessionTab {...store.session} />}
+        {store.tabs.active === "session" && <SessionTab {...store.session} hideTier={isReadOnlyPlayer} />}
         {store.tabs.active === "matches" && <MatchesTab {...store.matches} />}
-        {store.tabs.active === "rankings" && <RankingsTab {...store.rankings} />}
+        {store.tabs.active === "rankings" && <RankingsTab {...store.rankings} hideTier={isReadOnlyPlayer} />}
         {store.tabs.active === "manage" && !isReadOnlyPlayer && <ManageTab {...store.manage} />}
       </div>
 

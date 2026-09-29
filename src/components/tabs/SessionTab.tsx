@@ -3,7 +3,7 @@ import { UsersIcon } from "../icons";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./SessionTab.module.css";
 
-type SessionTabProps = SessionStore["session"];
+type SessionTabProps = SessionStore["session"] & { hideTier?: boolean };
 
 export function SessionTab({
   playersCount,
@@ -23,6 +23,7 @@ export function SessionTab({
   notInRotationVM,
   recentResultsVM,
   sessionHealth,
+  hideTier,
 }: SessionTabProps) {
   return (
     <>
@@ -72,7 +73,7 @@ export function SessionTab({
                   <div className={styles.priorityAvatar}>{p.initials}</div>
                   <div>
                     <div className={styles.priorityName}>
-                      {p.name} <span className={styles.priorityLevel}>· {p.level}</span>
+                      {p.name} {!hideTier && <span className={styles.priorityLevel}>· {p.level}</span>}
                     </div>
                     <div className={styles.priorityReason}>{p.reason}</div>
                   </div>
@@ -122,7 +123,7 @@ export function SessionTab({
                   <div className={styles.avatar}>{w.initials}</div>
                   <div>
                     <div className={styles.waitingName}>
-                      {w.name} <span className={styles.waitingLevel}>· Tier {w.level}</span>
+                      {w.name} {!hideTier && <span className={styles.waitingLevel}>· Tier {w.level}</span>}
                     </div>
                     <div className={styles.waitingMeta}>
                       Waited {w.skipped} matches · {w.games} games played
