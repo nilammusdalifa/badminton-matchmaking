@@ -164,6 +164,19 @@ export function useSessionStore() {
   const localRevRef = useRef(0);
   const lastKnownRemoteRevRef = useRef(0);
   const isApplyingRemoteRef = useRef(false);
+  // P0 fix: a device that can write (organizer, or Umpire) must never push
+  // before it has heard back from its OWN subscription at least once —
+  // otherwise the persistence effect's very first run, on mount, fires with
+  // nothing but blank initial state (no players/matches yet) and pushes
+  // that over whatever the real shared session already has, before the
+  // async Firebase read that would have pulled the real data down even had
+  // a chance to land. Reproduced directly: an Umpire whose PIN was accepted
+  // could overwrite an organizer's live 6-player session with an empty one
+  // in the moment between claiming access and the first snapshot arriving.
+  // Sits at "has this device's subscription delivered its first callback
+  // yet" (true even for a null payload — a genuinely new/missing session is
+  // also a real answer, not something to keep waiting on).
+  const hasHydratedRef = useRef(false);
 
   const applyRemoteUpdate = useCallback((payload: FirebasePayload) => {
     if (payload.rev <= localRevRef.current) return; // our own echo, or older than what we already have
@@ -221,6 +234,7 @@ export function useSessionStore() {
   useEffect(() => {
     if (!isRemoteMode || !viewSessionId || !remoteRole || !authReady) return;
     const unsubscribe = subscribeToRemoteSession(viewSessionId, (payload) => {
+      hasHydratedRef.current = true;
       setRemoteConnected(true);
       if (!payload) {
         setRemoteMissing(true);
@@ -240,6 +254,7 @@ export function useSessionStore() {
   useEffect(() => {
     if (isRemoteMode || !authReady || !firebaseConfigured) return;
     const unsubscribe = subscribeToRemoteSession(state.sessionId, (payload) => {
+      hasHydratedRef.current = true;
       if (payload) applyRemoteUpdate(payload);
     });
     return unsubscribe;
@@ -298,11 +313,16 @@ export function useSessionStore() {
     localRevRef.current = rev;
     lastKnownRemoteRevRef.current = rev;
     if (isRemoteMode) {
-      if (remoteRole === "umpire" && viewSessionId) pushSessionToFirebase(viewSessionId, persisted, rev);
+      // hasHydratedRef guard: never push before this device's own
+      // subscription has delivered its first callback (see the ref's
+      // definition above) — otherwise this can be the still-blank state
+      // from the instant Umpire access was claimed, about to overwrite the
+      // real session it hasn't finished loading yet.
+      if (remoteRole === "umpire" && viewSessionId && hasHydratedRef.current) pushSessionToFirebase(viewSessionId, persisted, rev);
       return;
     }
     save(persisted);
-    pushSessionToFirebase(state.sessionId, persisted, rev);
+    if (!firebaseConfigured || hasHydratedRef.current) pushSessionToFirebase(state.sessionId, persisted, rev);
   }, [
     isRemoteMode,
     remoteRole,
