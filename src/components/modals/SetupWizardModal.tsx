@@ -91,7 +91,7 @@ export function SetupWizardModal({
               setNewPlayerLevel={setNewPlayerLevel}
               onAddPlayer={onAddPlayer}
               onAddPlayers={onAddPlayers}
-              addLabel="Add"
+              addLabel="Add Player"
             />
           </div>
         )}

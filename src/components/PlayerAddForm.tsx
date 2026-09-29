@@ -48,7 +48,7 @@ export function PlayerAddForm({
           <span className={styles.tierLabel}>Tier:</span>
           <LevelPicker value={newPlayerLevel} onChange={setNewPlayerLevel} />
           <button className={styles.addBtn} onClick={submitBulk}>
-            Add All
+            Add All Players
           </button>
         </div>
         <button className={styles.toggleBtn} onClick={() => setBulkMode(false)}>

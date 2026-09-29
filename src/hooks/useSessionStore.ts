@@ -754,7 +754,7 @@ export function useSessionStore() {
     const node = shareCardRef.current;
     const html2canvas = (await import("html2canvas")).default;
     if (!node || !html2canvas) {
-      showToast("Image export unavailable");
+      showToast("Image export isn't supported in this browser");
       return;
     }
     try {
@@ -776,7 +776,7 @@ export function useSessionStore() {
       a.click();
       showToast("Image downloaded");
     } catch {
-      showToast("Could not generate image");
+      showToast("Couldn't create the image — try again");
     }
   }, [showToast]);
 
@@ -1149,14 +1149,14 @@ export function useSessionStore() {
           statusLabel = "Sitting out next";
           statusTone = "warning";
           actions = [
-            { label: "Cancel Skip", onClick: () => cancelSkip(p.id) },
+            { label: "Cancel Sit Out", onClick: () => cancelSkip(p.id) },
             { label: "Leave", onClick: () => leavePlayer(p.id) },
           ];
         } else {
           statusLabel = "Waited " + p.skipped + (p.skipped === 1 ? " match" : " matches");
           statusTone = "warning";
           actions = [
-            { label: "Skip Next", onClick: () => skipNext(p.id) },
+            { label: "Sit Out Next", onClick: () => skipNext(p.id) },
             { label: "Rest", onClick: () => pausePlayer(p.id, "rest") },
             { label: "Leave", onClick: () => leavePlayer(p.id) },
           ];
@@ -1216,7 +1216,7 @@ export function useSessionStore() {
             actionLabel: "Back to Waiting",
             onAction: () => resumePlayer(p.id),
           }
-        : { id: p.id, name: p.name, tag: "Sitting out next round", actionLabel: "Cancel", onAction: () => cancelSkip(p.id) },
+        : { id: p.id, name: p.name, tag: "Sitting out next match", actionLabel: "Cancel", onAction: () => cancelSkip(p.id) },
     );
   }, [state.players, isPlaying, resumePlayer, cancelSkip]);
 

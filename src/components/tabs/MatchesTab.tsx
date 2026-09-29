@@ -43,11 +43,11 @@ export function MatchesTab({ matchLogVM, courtsCount }: MatchesTabProps) {
             <div className={styles.rowActions}>
               {m.status === "completed" && m.resultMode === "score" && (
                 <button className={styles.actionBtn} onClick={m.onEditScore}>
-                  Fix score
+                  Fix Score
                 </button>
               )}
               <button className={`${styles.actionBtn} ${styles.danger}`} onClick={m.onDelete}>
-                {m.status === "in_progress" ? "Cancel" : "Delete"}
+                {m.status === "in_progress" ? "Cancel Match" : "Delete"}
               </button>
             </div>
           </div>

@@ -61,7 +61,7 @@ export function RankingsTab({ rankingsVM, onShareRankings, hideTier }: RankingsT
                   <span className={styles.detailStatValue}>
                     {r.wins}W – {r.losses}L
                   </span>
-                  <span className={styles.ratingCaption}>rating {r.rating} — rises and falls with results</span>
+                  <span className={styles.ratingCaption}>Rating {r.rating} · goes up with wins, down with losses</span>
                 </div>
                 <div className={styles.detailRow}>
                   <span className={styles.detailLabel}>Favorite partner</span>
@@ -78,9 +78,9 @@ export function RankingsTab({ rankingsVM, onShareRankings, hideTier }: RankingsT
                   </span>
                 </div>
                 <div className={styles.detailRow}>
-                  <span className={styles.detailLabel}>Avg wait</span>
+                  <span className={styles.detailLabel}>Wait &amp; streak</span>
                   <span>
-                    {r.avgWait} min · longest streak {r.maxConsecutive} games
+                    Avg wait {r.avgWait} min · most games in a row: {r.maxConsecutive}
                   </span>
                 </div>
                 {!hideTier && (

@@ -97,7 +97,7 @@ export function ManageTab({
 
       <div className={styles.panel}>
         <div className={styles.panelTitle}>Partner Requests</div>
-        <div className={styles.panelHint}>Put two players on the same team, once — filled in by whoever's most owed a game</div>
+        <div className={styles.panelHint}>Pair two players on the same team for their next match. The other two spots go to whoever has waited longest.</div>
         <div className={styles.formRow}>
           <select className={styles.select} value={requestA} onChange={onRequestAChange}>
             <option value="">Player A</option>
@@ -116,7 +116,7 @@ export function ManageTab({
             ))}
           </select>
           <button className={styles.addBtn} onClick={onAddPartnerRequest}>
-            Request
+            Pair Them
           </button>
         </div>
         {hasRequestedPairs && (
@@ -143,23 +143,24 @@ export function ManageTab({
             <button className={styles.addBtn} onClick={onCopyShareLink}>
               Copy Live Link
             </button>
-            <div className={styles.pinBadge} title="Umpire PIN — share only with someone you want scoring matches">
+            <div className={styles.pinBadge}>
               PIN: {sessionPin}
             </div>
           </div>
+          <div className={styles.pinHint}>Give this PIN only to people you want scoring matches.</div>
           <div className={styles.shareUrl}>{shareUrl}</div>
         </div>
       )}
 
       <div className={styles.dangerZone}>
         <button className={styles.zoneBtn} onClick={onOpenSetup}>
-          + Start a New Session
+          + New Session
         </button>
         <button className={`${styles.zoneBtn} ${styles.danger}`} onClick={onEndSession}>
-          End Session
+          End &amp; See Results
         </button>
         <button className={`${styles.zoneBtn} ${styles.dangerSolid}`} onClick={onResetSession}>
-          Reset This Session
+          Erase Results &amp; Restart
         </button>
       </div>
     </>

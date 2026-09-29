@@ -40,7 +40,7 @@ export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, p
         ))}
       </div>
       <button className={styles.startNewBtn} onClick={onStartNew}>
-        Start New Session
+        New Session
       </button>
     </div>
   );

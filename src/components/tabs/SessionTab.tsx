@@ -3,7 +3,7 @@ import { UsersIcon } from "../icons";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./SessionTab.module.css";
 
-type SessionTabProps = SessionStore["session"] & { hideTier?: boolean };
+type SessionTabProps = SessionStore["session"] & { hideTier?: boolean; readOnly?: boolean };
 
 export function SessionTab({
   playersCount,
@@ -24,6 +24,7 @@ export function SessionTab({
   recentResultsVM,
   sessionHealth,
   hideTier,
+  readOnly,
 }: SessionTabProps) {
   return (
     <>
@@ -51,10 +52,10 @@ export function SessionTab({
         {sessionHealth.longestWaitName && (
           <div className={`${styles.healthStrip} ${sessionHealth.hasWarning ? styles.healthWarning : ""}`}>
             <span>
-              Longest wait: <strong>{sessionHealth.longestWaitName}</strong> · {sessionHealth.longestWaitMatches} match
-              {sessionHealth.longestWaitMatches === 1 ? "" : "es"}
+              Waiting longest: <strong>{sessionHealth.longestWaitName}</strong> ({sessionHealth.longestWaitMatches} match
+              {sessionHealth.longestWaitMatches === 1 ? "" : "es"} sat out)
             </span>
-            <span>Game spread: {sessionHealth.gameSpread}</span>
+            <span>Games played: {sessionHealth.gameSpread} apart from most to fewest</span>
           </div>
         )}
       </div>
@@ -117,6 +118,9 @@ export function SessionTab({
           <div className={styles.emptyNote}>No one waiting right now.</div>
         ) : (
           <div className={styles.list}>
+            {!readOnly && waitingVM.length > 0 && (
+              <div className={styles.emptyNote}>Sit Out Next skips one match. Rest keeps them out until you bring them back.</div>
+            )}
             {waitingVM.map((w) => (
               <div className={styles.waitingRow} key={w.id}>
                 <div className={styles.waitingLeft}>
@@ -132,10 +136,10 @@ export function SessionTab({
                   </div>
                 </div>
                 <div className={styles.waitingActions}>
-                  <button className={styles.pillBtn} onClick={w.onSkip} title="Sit out one match, then return automatically">
-                    Skip Next
+                  <button className={styles.pillBtn} onClick={w.onSkip}>
+                    Sit Out Next
                   </button>
-                  <button className={styles.pillBtn} onClick={w.onPause} title="Rest until brought back to waiting">
+                  <button className={styles.pillBtn} onClick={w.onPause}>
                     Rest
                   </button>
                 </div>

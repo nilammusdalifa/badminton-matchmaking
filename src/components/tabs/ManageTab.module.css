@@ -140,6 +140,11 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+.pinHint {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--sm-text-3);
+}
 .shareUrl {
   margin-top: 10px;
   font-family: var(--sm-font-mono);
