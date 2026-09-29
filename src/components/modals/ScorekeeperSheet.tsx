@@ -66,7 +66,7 @@ export function ScorekeeperSheet({
           <div>
             <div className={styles.headTitle}>{courtLabel}</div>
             <div className={styles.headHint}>
-              {isEditingCompleted ? "Editing a saved result — fix the score and save again" : "Tap +1 to score live, or edit a number directly"}
+              {isEditingCompleted ? "Fix the score, then save." : "Tap +1 or type a score."}
             </div>
           </div>
           <button className={styles.closeBtn} onClick={close} aria-label="Close scorekeeper">
@@ -96,9 +96,9 @@ export function ScorekeeperSheet({
           </div>
         </div>
         {isTie && tieAttempted ? (
-          <div className={styles.gameOverNote}>Scores can't tie in badminton — cancel this match below if it can't be finished</div>
+          <div className={styles.gameOverNote}>A game can't end tied. Keep scoring, or cancel the match.</div>
         ) : pendingConfirm ? (
-          <div className={styles.gameOverNote}>That score looks unfinished — tap again to save it anyway</div>
+          <div className={styles.gameOverNote}>Looks unfinished. Tap again to save anyway.</div>
         ) : (
           isGameOver && <div className={styles.gameOverNote}>Game over — save the result</div>
         )}

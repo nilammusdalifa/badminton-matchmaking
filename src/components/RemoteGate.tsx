@@ -16,7 +16,7 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
       <div className={styles.wrap}>
         <div className={styles.card}>
           <div className={styles.title}>Live sharing isn't set up</div>
-          <div className={styles.body}>This link needs the organizer's app to have live sharing configured. Ask them to check it and resend the link.</div>
+          <div className={styles.body}>The organizer needs to set up live sharing, then resend the link.</div>
         </div>
       </div>
     );
@@ -27,7 +27,7 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
       <div className={styles.wrap}>
         <div className={styles.card}>
           <div className={styles.title}>Join live session</div>
-          <div className={styles.body}>Someone shared a live badminton session with you. Choose how you're joining.</div>
+          <div className={styles.body}>Choose how you're joining.</div>
           {roleStep === "choose" ? (
             <div className={styles.buttons}>
               <button className={styles.primaryBtn} onClick={() => chooseRole("player")}>
@@ -77,7 +77,7 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
       <div className={styles.wrap}>
         <div className={styles.card}>
           <div className={styles.title}>Session not found</div>
-          <div className={styles.body}>This live link doesn't point at a session anymore — ask the organizer for a fresh one.</div>
+          <div className={styles.body}>This link is no longer valid. Ask for a new one.</div>
         </div>
       </div>
     );

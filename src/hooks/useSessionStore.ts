@@ -17,7 +17,7 @@ import {
   liveScoreFor,
   makeBlankPlayer,
   nameTaken,
-  parseScheduleEndTime,
+  photoReminderMinutes,
   playerPriority,
   rankPlayers,
   readyPool as readyPoolFn,
@@ -237,8 +237,8 @@ export function useSessionStore() {
       const result = await claimUmpireAccess(viewSessionId, pin.trim());
       setRemoteChecking(false);
       if (result === "ok") setRemoteRole("umpire");
-      else if (result === "unavailable") setRemotePinError("Live sync isn't available right now — try again in a moment.");
-      else setRemotePinError("Incorrect PIN. Ask the organizer for the right code.");
+      else if (result === "unavailable") setRemotePinError("Live sync isn't available. Try again shortly.");
+      else setRemotePinError("Wrong PIN. Ask the organizer.");
     },
     [viewSessionId],
   );
@@ -392,35 +392,12 @@ export function useSessionStore() {
     toastTimer.current = setTimeout(() => setState((s) => ({ ...s, toastMsg: null })), durationMs);
   }, []);
 
-  // Best-effort "take a group photo" nudge. There's no real signal for
-  // "2 games left" without tracking match pace, which this app doesn't do —
-  // so this uses a fixed lead time (roughly what 2 games tend to take)
-  // before the schedule's parsed end time instead. Silently does nothing if
-  // the schedule text doesn't contain a recognizable end time.
-  const PHOTO_REMINDER_LEAD_MINUTES = 30;
-  const scheduleEndTime = useMemo(() => {
-    const parsed = parseScheduleEndTime(state.sessionSchedule);
-    if (!parsed) return null;
-    const d = new Date();
-    d.setHours(parsed.hour, parsed.minute, 0, 0);
-    return d;
-  }, [state.sessionSchedule]);
-  useEffect(() => {
-    if (!scheduleEndTime || state.sessionEnded || state.courts.length === 0 || state.photoReminderShown) return;
-    const leadMs = PHOTO_REMINDER_LEAD_MINUTES * 60 * 1000;
-    const now = Date.now();
-    const end = scheduleEndTime.getTime();
-    // Window: from 30 min before the parsed end time, up to 30 min after
-    // it (covers opening the app a bit late without firing a stale
-    // reminder hours after the session presumably wrapped up).
-    if (now >= end - leadMs && now <= end + leadMs) {
-      setState((s) => ({ ...s, photoReminderShown: true }));
-      showToast("About 30 minutes left — good time for a group photo!", 6000);
-    }
-    // Re-checks every second via the shared tick, cheaply, without needing
-    // its own interval.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.tick, scheduleEndTime, state.sessionEnded, state.courts.length, state.photoReminderShown]);
+  // "Take a group photo" nudge for the last 30 minutes of the schedule. It's
+  // derived from the clock each second (no stored state to fall out of sync)
+  // and shown as a banner until dismissed — a passing toast is easy to miss
+  // with a racket in hand. Only for devices that run the session.
+  const photoMinutesLeft = photoReminderMinutes(state.sessionSchedule, new Date());
+  const dismissPhotoReminder = useCallback(() => setState((s) => ({ ...s, photoReminderShown: true })), []);
 
   const isPlaying = useCallback((id: string, matches?: Match[]) => isPlayingFn(id, matches ?? state.matches), [state.matches]);
 
@@ -498,7 +475,7 @@ export function useSessionStore() {
     // just in the sheet's button, since this is what actually writes the
     // match. If it can't be finished, Cancel Match is the honest action.
     if (state.scorekeeperT1 === state.scorekeeperT2) {
-      showToast("Scores can't tie — cancel the match instead if it can't be finished");
+      showToast("Scores can't tie");
       return;
     }
     // Reopening an already-completed match (to fix a mis-entered score) must
@@ -713,7 +690,7 @@ export function useSessionStore() {
   const skipNext = useCallback(
     (id: string) => {
       setState((s) => ({ ...s, players: s.players.map((p) => (p.id === id ? { ...p, skipNextRound: true } : p)) }));
-      showToast("Will sit out the next match, then return automatically");
+      showToast("Sits out the next match");
     },
     [showToast],
   );
@@ -749,7 +726,7 @@ export function useSessionStore() {
       // apart in a dropdown — better to ask for a quick disambiguator now
       // than untangle two players' worth of games afterward.
       if (nameTaken(state.players, name)) {
-        showToast(`${name} is already on the roster — add a last initial to tell them apart`);
+        showToast(`${name} is already on the roster. Add a last initial.`);
         return;
       }
       const player = makeBlankPlayer("p" + Date.now(), name, state.newPlayerLevel, status);
@@ -779,7 +756,7 @@ export function useSessionStore() {
         const newPlayers = toAdd.map((name, i) => makeBlankPlayer("p" + Date.now() + "_" + i, name, s.newPlayerLevel, status));
         return { ...s, players: [...s.players, ...newPlayers], newPlayerName: "" };
       });
-      showToast(skipped > 0 ? `${toAdd.length} players added, ${skipped} skipped (already on roster)` : `${toAdd.length} players added`);
+      showToast(skipped > 0 ? `${toAdd.length} added, ${skipped} already on roster` : `${toAdd.length} ${toAdd.length === 1 ? "player" : "players"} added`);
     },
     [state.players, showToast],
   );
@@ -797,7 +774,7 @@ export function useSessionStore() {
       const trimmed = name.trim();
       if (!trimmed) return false;
       if (nameTaken(state.players, trimmed, id)) {
-        showToast(`${trimmed} is already on the roster — add a last initial to tell them apart`);
+        showToast(`${trimmed} is already on the roster. Add a last initial.`);
         return false;
       }
       setState((s) => ({ ...s, players: s.players.map((p) => (p.id === id ? { ...p, name: trimmed, level } : p)) }));
@@ -835,7 +812,7 @@ export function useSessionStore() {
     navigator.clipboard
       .writeText(shareUrl)
       .then(() => showToast("Live link copied"))
-      .catch(() => showToast("Couldn't copy — select the link below and copy it"));
+      .catch(() => showToast("Couldn't copy. Select the link below."));
   }, [shareUrl, showToast]);
   const closeShareRankings = useCallback(() => setState((s) => ({ ...s, shareRankingsOpen: false })), []);
   const downloadRankingsImage = useCallback(async () => {
@@ -1058,7 +1035,7 @@ export function useSessionStore() {
   // ------------------------------------------------------------------
 
   const rankingsVM = useMemo<RankingEntry[]>(() => {
-    return rankPlayers(livePlayers).map(({ player: p, rank }) => ({
+    return rankPlayers(livePlayers, state.sessionResultMode).map(({ player: p, rank }) => ({
       id: p.id,
       rank,
       name: p.name,
@@ -1067,7 +1044,6 @@ export function useSessionStore() {
       played: p.games,
       wins: p.wins,
       losses: p.losses,
-      rating: p.rating,
       diffLabel: p.diff >= 0 ? "+" + p.diff : String(p.diff),
       positiveDiff: p.diff >= 0,
       trendLabel: p.trend > 0 ? "▲" + p.trend : p.trend < 0 ? "▼" + Math.abs(p.trend) : "—",
@@ -1079,11 +1055,9 @@ export function useSessionStore() {
       toughOpp: p.toughOpp,
       toughOppLoss: p.toughOppLoss,
       toughOppGames: p.toughOppGames,
-      avgWait: p.avgWait,
-      maxConsecutive: p.maxConsecutive,
       onSetLevel: (level) => setPlayerTier(p.id, level),
     }));
-  }, [livePlayers, setPlayerTier]);
+  }, [livePlayers, state.sessionResultMode, setPlayerTier]);
 
   // The tier-balance note names tiers, which the read-only Player view hides
   // everywhere else — so it's dropped from the reason line there.
@@ -1400,7 +1374,6 @@ export function useSessionStore() {
           level: r.level,
           wins: r.wins,
           losses: r.losses,
-          winRate: r.wins + r.losses > 0 ? Math.round((r.wins / (r.wins + r.losses)) * 100) : 0,
         })),
     [rankingsVM],
   );
@@ -1462,7 +1435,7 @@ export function useSessionStore() {
       matchLogVM,
     },
 
-    rankings: { rankingsVM, onShareRankings },
+    rankings: { rankingsVM, resultMode: state.sessionResultMode, onShareRankings },
 
     manage: {
       playersCount: state.players.length,
@@ -1553,14 +1526,13 @@ export function useSessionStore() {
       body:
         state.confirmAction === "end"
           ? activeMatchesCount > 0
-            ? `${activeMatchesCount > 1 ? "They" : "It"} will be cancelled with no score saved if you end now — go back and tap "Enter Score" ` +
-              `to finish ${activeMatchesCount > 1 ? "them" : "it"} first, or end anyway and cancel ${activeMatchesCount > 1 ? "them" : "it"}.`
-            : "This closes the session and shows the final standings. You can start a new session afterward."
+            ? `Ending now cancels ${activeMatchesCount > 1 ? "them" : "it"} with no score. Finish ${activeMatchesCount > 1 ? "them" : "it"} first, or end anyway.`
+            : "Closes the session and shows final standings."
           : state.confirmAction === "reset"
-            ? "Everyone stays on the roster, but all matches, scores and stats are erased and players go back to not checked in. This can't be undone."
+            ? "Erases all matches and stats. Players stay, set to not checked in. Can't be undone."
             : pendingDeleteMatch?.status === "in_progress"
-              ? `This frees up ${pendingDeleteCourtName} immediately and removes it from the match log. The score entered so far won't be saved.`
-              : "This permanently removes the result from the match log and adjusts the completed count. It can't be undone.",
+              ? `Frees ${pendingDeleteCourtName}. The score so far isn't saved.`
+              : "Removes this result for good.",
       actionLabel:
         state.confirmAction === "end"
           ? activeMatchesCount > 0
@@ -1589,8 +1561,7 @@ export function useSessionStore() {
       rosterNames: state.players.map((p) => ({ name: p.name, level: p.level })),
       reviewHasHistory: state.completedCount > 0 || state.players.some((p) => p.status !== "expected"),
       reviewConsequence:
-        `Starting fresh archives today's ${state.completedCount} completed ${state.completedCount === 1 ? "match" : "matches"} ` +
-        `and sets all ${state.players.length} ${state.players.length === 1 ? "player" : "players"} back to not checked in.`,
+        `Starts fresh: ${state.completedCount} ${state.completedCount === 1 ? "match" : "matches"} archived, all players set to not checked in.`,
       canBack: state.setupStep > 0,
       isLast: state.setupStep === 3,
       close: closeSetup,
@@ -1624,6 +1595,13 @@ export function useSessionStore() {
     },
 
     toast: { message: state.toastMsg },
+
+    // Null unless this device runs the session, courts exist, it hasn't been
+    // dismissed and the last 30 minutes of the schedule have started.
+    photoReminder:
+      photoMinutesLeft !== null && !state.photoReminderShown && !state.sessionEnded && state.courts.length > 0 && (!isRemoteMode || remoteRole === "umpire")
+        ? { minutesLeft: photoMinutesLeft, onDismiss: dismissPhotoReminder }
+        : null,
 
     review: {
       sessionName: state.sessionName,

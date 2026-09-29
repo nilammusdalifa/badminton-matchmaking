@@ -102,11 +102,7 @@ export function CourtCard({ court }: CourtCardProps) {
                 <div className={styles.noSuggestion}>
                   {court.insufficientPlayers ? (
                     <>
-                      {court.insufficientPlayers.eligibleCount} player{court.insufficientPlayers.eligibleCount === 1 ? "" : "s"}{" "}
-                      {court.insufficientPlayers.eligibleCount === 1 ? "is" : "are"} waiting
-                      <br />
-                      Need {court.insufficientPlayers.missing} more player{court.insufficientPlayers.missing === 1 ? "" : "s"} to start a
-                      doubles match
+                      {court.insufficientPlayers.eligibleCount} waiting · need {court.insufficientPlayers.missing} more to start
                     </>
                   ) : (
                     "Not enough players waiting yet"
@@ -124,7 +120,7 @@ export function CourtCard({ court }: CourtCardProps) {
         )}
         {state === "paused" && (
           <>
-            <div className={styles.pausedNote}>This court is paused — it won't be suggested a match until resumed.</div>
+            <div className={styles.pausedNote}>Court paused. No matches until resumed.</div>
             <button className={styles.startBtn} onClick={court.onTogglePause}>
               Resume Court
             </button>

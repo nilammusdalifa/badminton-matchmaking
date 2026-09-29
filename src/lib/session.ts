@@ -1,18 +1,45 @@
-import type { CounterSnapshot, Court, Match, Player, PlayerStatus, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
+import type { CounterSnapshot, Court, Match, Player, PlayerStatus, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
 
-/** Best-effort: pulls the last "HH:MM"-shaped token out of a free-text
- * schedule string (e.g. "Wed · 19:00–22:00" or "Rabu, 19:00 - 22:00") and
- * treats it as the session's end time. Needs at least two time-like tokens
- * (a start and an end) to avoid misreading a single time as an end time;
- * returns null rather than guess when the text doesn't look like that. */
-export function parseScheduleEndTime(schedule: string): { hour: number; minute: number } | null {
-  const matches = [...schedule.matchAll(/(\d{1,2}):(\d{2})/g)];
-  if (matches.length < 2) return null;
-  const [, h, m] = matches[matches.length - 1];
-  const hour = parseInt(h, 10);
-  const minute = parseInt(m, 10);
-  if (hour > 23 || minute > 59) return null;
-  return { hour, minute };
+const PHOTO_REMINDER_LEAD_MINUTES = 30;
+
+/** Times written in a free-text schedule, as minutes after midnight: "19:00",
+ * "7:30 PM", "7pm". A bare number ("Wed 12 Nov") isn't a time — it needs a
+ * colon or am/pm. Out-of-range values are dropped. */
+function scheduleTimes(schedule: string): number[] {
+  const times: number[] = [];
+  for (const m of schedule.matchAll(/(\d{1,2})(?::(\d{2}))?\s*(?:([ap])\.?m\b\.?)?/gi)) {
+    const [, h, min, ampm] = m;
+    if (min === undefined && !ampm) continue;
+    let hour = parseInt(h, 10);
+    const minute = min === undefined ? 0 : parseInt(min, 10);
+    if (minute > 59) continue;
+    if (ampm) {
+      if (hour < 1 || hour > 12) continue;
+      hour = (hour % 12) + (ampm.toLowerCase() === "p" ? 12 : 0);
+    } else if (hour > 23) continue;
+    times.push(hour * 60 + minute);
+  }
+  return times;
+}
+
+/** Minutes left when `now` falls in the last 30 minutes of the session named
+ * by a free-text schedule ("Rabu · 19:00–22:00", "7pm-10pm", "22:00–00:30");
+ * null otherwise, or when the text doesn't hold a start and an end time. The
+ * first time is the start and the last is the end; an end at or before the
+ * start means the session runs past midnight. */
+export function photoReminderMinutes(schedule: string, now: Date): number | null {
+  const times = scheduleTimes(schedule);
+  if (times.length < 2) return null;
+  const start = times[0];
+  let end = times[times.length - 1];
+  if (end <= start) end += 1440;
+  const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  // the session may have started today, or (past midnight) yesterday
+  for (const endToday of [end, end - 1440]) {
+    const left = endToday - nowMin;
+    if (left > 0 && left <= PHOTO_REMINDER_LEAD_MINUTES) return Math.ceil(left);
+  }
+  return null;
 }
 
 /** Writes points entered in the scorekeeper onto the match itself while it's
@@ -209,8 +236,8 @@ export function buildSuggestion(
         team2: fillers,
         four: [a, b, ...fillers],
         reasons: [
-          `${a.name} & ${b.name} — requested partners`,
-          `${fillers.map((p) => p.name).join(" & ")} filled in by priority`,
+          `${a.name} & ${b.name} requested as partners`,
+          "Others chosen by waiting time",
         ],
         balanceNote: null,
       };
@@ -236,11 +263,11 @@ export function buildSuggestion(
   const reasons = [
     lead.skipped === 0
       ? `${lead.name} is first in line`
-      : `${lead.name} has waited ${lead.skipped} ${lead.skipped === 1 ? "match" : "matches"} — top priority`,
+      : `${lead.name} has waited ${lead.skipped} ${lead.skipped === 1 ? "match" : "matches"}`,
   ];
   const streak = four.find((p) => p.consecutiveGames >= 2);
-  if (streak) reasons.push(`${streak.name} has played back-to-back — watch for fatigue`);
-  const balanceNote = `Teams balanced by tier (${four.map((p) => p.level).join("/")})`;
+  if (streak) reasons.push(`${streak.name} is playing back-to-back`);
+  const balanceNote = `Balanced by tier (${four.map((p) => p.level).join("/")})`;
   return { team1: split.team1, team2: split.team2, four, reasons, balanceNote };
 }
 
@@ -253,6 +280,9 @@ export function buildSuggestion(
  * an informational-only "form" number for the leaderboard sort; it is never
  * read by matchmaking (team splits use skill tier — see
  * pickBalancedFoursome), so it can't become a hidden algorithmic factor. */
+/** Games together / faced before partner and opponent stats are shown. */
+const MIN_PAIR_GAMES = 2;
+
 export function recomputePlayerStats(players: Player[], matches: Match[]): Player[] {
   interface PartnerStat {
     games: number;
@@ -326,6 +356,8 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
     if (pm) {
       let best: [string, PartnerStat] | null = null;
       for (const entry of pm) {
+        // One game together (or never winning together) isn't a "favourite".
+        if (entry[1].games < MIN_PAIR_GAMES || entry[1].wins === 0) continue;
         const rate = entry[1].wins / entry[1].games;
         const bestRate = best ? best[1].wins / best[1].games : -1;
         if (!best || rate > bestRate || (rate === bestRate && entry[1].games > best[1].games)) best = entry;
@@ -344,13 +376,13 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
     if (om) {
       let worst: [string, OppStat] | null = null;
       for (const entry of om) {
+        // Same bar for "tough opponent": faced twice, and lost at least once.
+        if (entry[1].games < MIN_PAIR_GAMES || entry[1].losses === 0) continue;
         const rate = entry[1].losses / entry[1].games;
         const worstRate = worst ? worst[1].losses / worst[1].games : -1;
         if (!worst || rate > worstRate || (rate === worstRate && entry[1].games > worst[1].games)) worst = entry;
       }
-      // Only someone they've actually lost to counts as "tough" — otherwise a
-      // spotless record would list an opponent with "0% loss".
-      if (worst && worst[1].losses > 0) {
+      if (worst) {
         toughOpp = nameOf(worst[0]);
         toughOppLoss = Math.round((worst[1].losses / worst[1].games) * 100);
         toughOppGames = worst[1].games;
@@ -376,14 +408,18 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
   });
 }
 
-/** Leaderboard order. Only players who have played are ranked (1..n by
- * rating, then wins, then name) — everyone still on their starting rating
- * would otherwise sit above players who lost a game and take a medal for
- * nothing. Players with no games follow, unranked (`rank: null`), by name. */
-export function rankPlayers(players: Player[]): { player: Player; rank: number | null }[] {
+/** Leaderboard order, in words anyone can check: most wins first, then the
+ * bigger point difference, then fewer losses, then name. Only players who
+ * have played are ranked; the rest follow, unranked (`rank: null`), by name.
+ * A session that doesn't record results ("none") has nothing to rank by, so
+ * nobody is ranked and the list just shows who played most. */
+export function rankPlayers(players: Player[], resultMode: ResultMode = "score"): { player: Player; rank: number | null }[] {
+  if (resultMode === "none") {
+    return [...players].sort((a, b) => b.games - a.games || a.name.localeCompare(b.name)).map((player) => ({ player, rank: null }));
+  }
   const played = players
     .filter((p) => p.games > 0)
-    .sort((a, b) => b.rating - a.rating || b.wins - a.wins || a.name.localeCompare(b.name));
+    .sort((a, b) => b.wins - a.wins || b.diff - a.diff || a.losses - b.losses || a.name.localeCompare(b.name));
   const unplayed = players.filter((p) => p.games === 0).sort((a, b) => a.name.localeCompare(b.name));
   return [...played.map((player, i) => ({ player, rank: i + 1 })), ...unplayed.map((player) => ({ player, rank: null }))];
 }
@@ -453,10 +489,10 @@ export function buildSessionSummary(params: {
   courtsCount: number;
   players: Player[];
 }): SessionHistoryEntry {
-  const topRankings = [...params.players]
-    .sort((a, b) => b.rating - a.rating)
+  const topRankings = rankPlayers(params.players)
+    .filter((r) => r.rank !== null)
     .slice(0, 5)
-    .map((p, i) => ({ rank: i + 1, name: p.name, wins: p.wins, losses: p.losses }));
+    .map((r) => ({ rank: r.rank as number, name: r.player.name, wins: r.player.wins, losses: r.player.losses }));
   return {
     id: params.id,
     name: params.name,

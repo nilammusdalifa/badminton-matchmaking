@@ -38,11 +38,10 @@ export function SessionTab({
           <span className={`${styles.chip} ${styles.chipPlaying}`}>Playing {playingCount}</span>
           <span className={`${styles.chip} ${styles.chipWaiting}`}>Waiting {readyWaitingCount}</span>
           <span className={`${styles.chip} ${styles.chipPaused}`}>Resting {pausedCount}</span>
-          {hasExpected && <span className={`${styles.chip} ${styles.chipExpected}`}>{expectedCount} not checked in</span>}
         </div>
         {hasExpected && (
           <div className={styles.checkInBanner}>
-            <span className={styles.checkInText}>{expectedCount} on the roster haven't checked in yet</span>
+            <span className={styles.checkInText}>{expectedCount} not checked in</span>
             <button className={styles.checkInBtn} onClick={onCheckInAll}>
               Check In All
             </button>
@@ -59,7 +58,7 @@ export function SessionTab({
       ) : (
         <div className={styles.panel}>
           <div className={styles.emptyNote}>
-            {readOnly ? "No courts have been set up yet." : "No courts yet — add one in Manage → Courts to start scheduling matches."}
+            {readOnly ? "No courts yet." : "No courts yet. Add one in Manage."}
           </div>
         </div>
       )}
@@ -91,7 +90,7 @@ export function SessionTab({
         ) : (
           <div className={styles.list}>
             {!readOnly && waitingVM.length > 0 && (
-              <div className={styles.emptyNote}>Sit Out Next skips one match. Rest keeps them out until you bring them back.</div>
+              <div className={styles.emptyNote}>Sit Out Next skips 1 match. Rest pauses them.</div>
             )}
             {waitingVM.map((w, i) => (
               <div className={styles.waitingRow} key={w.id}>

@@ -8,7 +8,7 @@ export function MatchesTab({ matchLogVM, courtsCount, readOnly }: MatchesTabProp
     <>
       <div className={styles.section}>
         <h1 className={styles.title}>Matches</h1>
-        <div className={styles.subtitle}>Every match this session, most recent first</div>
+        <div className={styles.subtitle}>Newest first.</div>
       </div>
 
       <div className={styles.list}>
@@ -17,8 +17,8 @@ export function MatchesTab({ matchLogVM, courtsCount, readOnly }: MatchesTabProp
             {readOnly
               ? "No matches yet."
               : courtsCount === 0
-                ? "No matches yet — add a court in Manage first."
-                : "No matches yet — start one from the Session tab."}
+                ? "No matches yet. Add a court in Manage."
+                : "No matches yet. Start one on the Session tab."}
           </div>
         )}
         {matchLogVM.map((m) => (

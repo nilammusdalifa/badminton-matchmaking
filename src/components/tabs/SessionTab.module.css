@@ -43,7 +43,6 @@
 .chipPlaying { background: var(--sm-accent-soft); color: var(--sm-accent-hover); }
 .chipWaiting { background: var(--sm-fill); color: var(--sm-text-2); }
 .chipPaused { background: var(--sm-accent-2-soft); color: var(--color-accent-2-300); }
-.chipExpected { background: rgba(63, 182, 168, 0.24); color: var(--color-accent-200); }
 
 .checkInBanner {
   display: flex;

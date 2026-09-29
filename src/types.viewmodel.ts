@@ -81,7 +81,6 @@ export interface RankingEntry {
   played: number;
   wins: number;
   losses: number;
-  rating: number;
   diffLabel: string;
   positiveDiff: boolean;
   trendLabel: string;
@@ -93,8 +92,6 @@ export interface RankingEntry {
   toughOpp: string;
   toughOppLoss: number;
   toughOppGames: number;
-  avgWait: number;
-  maxConsecutive: number;
   onSetLevel: (level: SkillLevel) => void;
 }
 
@@ -124,7 +121,6 @@ export interface ShareRankingEntry {
   level: SkillLevel;
   wins: number;
   losses: number;
-  winRate: number;
 }
 
 export interface EditablePlayerOption {

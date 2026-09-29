@@ -127,34 +127,31 @@
   font-size: 12px;
   color: var(--sm-text-3);
 }
-.winRate {
+.record {
   flex-shrink: 0;
   font-family: var(--sm-font-mono);
   font-weight: 800;
   font-size: 13px;
-  color: var(--sm-accent-hover);
+  color: var(--sm-text);
 }
 
-/* Second row: win-rate bar + last-5 form dots, indented to line up under
-   the name (rank + avatar + their gaps ≈ 70px). */
+/* Second row: last-5 form dots and point difference, indented to line up
+   under the name (rank + avatar + their gaps ≈ 70px). */
 .summaryBottom {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding-left: 70px;
 }
-.barTrack {
-  flex: 1;
-  height: 4px;
-  border-radius: 999px;
-  background: var(--sm-fill);
-  overflow: hidden;
+.diffPos,
+.diffNeg {
+  font-family: var(--sm-font-mono);
+  font-weight: 700;
+  font-size: 12px;
 }
-.barFill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--sm-accent), var(--sm-accent-hover));
-}
+.diffPos { color: var(--sm-accent-hover); }
+.diffNeg { color: var(--color-accent-2-300); }
 .formDots {
   display: flex;
   align-items: center;
@@ -181,18 +178,6 @@
   flex-direction: column;
   gap: 7px;
 }
-.detailStat {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.detailStatValue {
-  font-family: var(--sm-font-mono);
-  font-weight: 800;
-  font-size: 13px;
-  color: var(--sm-text);
-}
 .detailRow {
   display: flex;
   flex-direction: column;
@@ -206,7 +191,6 @@
   color: var(--sm-text-3);
 }
 .detailStrong { color: var(--sm-text); }
-.ratingCaption { color: var(--sm-text-3); font-size: 12px; }
 .tierRow {
   display: flex;
   align-items: center;

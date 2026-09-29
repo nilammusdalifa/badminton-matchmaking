@@ -49,7 +49,16 @@ function App() {
 
       <Header {...store.header} />
 
-      {isReadOnlyPlayer && <div className={styles.readOnlyBanner}>Live view only — ask the organizer or umpire to make changes</div>}
+      {store.photoReminder && (
+        <div className={styles.photoBanner}>
+          <span>{store.photoReminder.minutesLeft} min left. Time for a group photo!</span>
+          <button className={styles.photoBannerBtn} onClick={store.photoReminder.onDismiss}>
+            Done
+          </button>
+        </div>
+      )}
+
+      {isReadOnlyPlayer && <div className={styles.readOnlyBanner}>View only. Ask the organizer to make changes.</div>}
 
       <div className={`${styles.main} ${isReadOnlyPlayer ? styles.readOnlyMain : ""}`}>
         {store.tabs.active === "session" && <SessionTab {...store.session} hideTier={isReadOnlyPlayer} readOnly={isReadOnlyPlayer} onSeeAllMatches={isReadOnlyPlayer ? undefined : () => store.tabs.setActiveTab("matches")} />}

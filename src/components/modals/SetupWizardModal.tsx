@@ -54,7 +54,7 @@ export function SetupWizardModal({
         {step === 0 && (
           <div className={styles.step}>
             <div className={styles.stepTitle}>Session basics</div>
-            <div className={styles.stepHint}>Set up tonight's session — SmashMatch suggests fair doubles matches as players arrive.</div>
+            <div className={styles.stepHint}>Name tonight's session.</div>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Session name</span>
               <input
@@ -75,7 +75,7 @@ export function SetupWizardModal({
                 placeholder="e.g. Wed · 19:00–22:00"
               />
               <span className={styles.fieldHint}>
-                Optional. Add start and end times (e.g. 19:00–22:00) to get a heads-up 30 minutes before the end.
+                Optional. Add times like 19:00–22:00 for an end-of-session reminder.
               </span>
             </label>
           </div>
@@ -84,7 +84,7 @@ export function SetupWizardModal({
         {step === 1 && (
           <div className={styles.step}>
             <div className={styles.stepTitle}>Players ({playersCount} on the roster)</div>
-            <div className={styles.stepHint}>They start as not checked in — check them in on the Session tab when they arrive</div>
+            <div className={styles.stepHint}>Check them in when they arrive.</div>
             <PlayerAddForm
               newPlayerName={newPlayerName}
               newPlayerLevel={newPlayerLevel}
@@ -109,7 +109,7 @@ export function SetupWizardModal({
         {step === 2 && (
           <div className={styles.step}>
             <div className={styles.stepTitle}>Courts &amp; scoring</div>
-            <div className={styles.stepHint}>You can add or remove courts later in Manage.</div>
+            <div className={styles.stepHint}>You can change courts later in Manage.</div>
             <div className={styles.courtsRow}>
               <span>
                 {courtsCount} {courtsCount === 1 ? "court" : "courts"}
@@ -123,7 +123,7 @@ export function SetupWizardModal({
                 </button>
               </div>
             </div>
-            {courtsCount === 0 && <div className={styles.warnNote}>Add at least one court to start suggesting matches.</div>}
+            {courtsCount === 0 && <div className={styles.warnNote}>Add a court to start matches.</div>}
             <div className={styles.field}>
               <span className={styles.fieldLabel}>How to record results</span>
               <div className={styles.modeGroup}>
@@ -151,8 +151,8 @@ export function SetupWizardModal({
               </div>
             </div>
             {resultMode === "score" && <div className={styles.rulesNote}>21 points to win · win by 2 · cap 30</div>}
-            {resultMode === "winner" && <div className={styles.rulesNote}>One tap records which team won — no points tracked</div>}
-            {resultMode === "none" && <div className={styles.rulesNote}>Just tracks who played, not who won</div>}
+            {resultMode === "winner" && <div className={styles.rulesNote}>Tap the winning team. No points.</div>}
+            {resultMode === "none" && <div className={styles.rulesNote}>Tracks who played, not who won.</div>}
           </div>
         )}
 
@@ -167,10 +167,10 @@ export function SetupWizardModal({
                 {playersCount} {playersCount === 1 ? "player" : "players"} · {courtsCount} {courtsCount === 1 ? "court" : "courts"}
               </div>
               <div>
-                {resultMode === "score" ? "21 points to win, win by 2" : resultMode === "winner" ? "Winner only — no points tracked" : "No score — just tracks who played"}
+                {resultMode === "score" ? "21 points to win, win by 2" : resultMode === "winner" ? "Winner only" : "No score"}
               </div>
             </div>
-            {courtsCount === 0 && <div className={styles.warnNote}>Add at least one court to start suggesting matches.</div>}
+            {courtsCount === 0 && <div className={styles.warnNote}>Add a court to start matches.</div>}
             {reviewHasHistory && <div className={styles.consequence}>{reviewConsequence}</div>}
           </div>
         )}

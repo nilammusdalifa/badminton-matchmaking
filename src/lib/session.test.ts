@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { applyLiveScore, canRemovePlayer, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import { applyLiveScore, canRemovePlayer, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -33,9 +33,41 @@ describe("rankings", () => {
     ]);
   });
 
-  it("recomputePlayerStats shows no tough opponent without a loss", () => {
-    expect(stats.find((p) => p.name === "Ana")!.toughOpp).toBe("—");
-    expect(stats.find((p) => p.name === "Cy")!.toughOpp).not.toBe("—");
+  it("partner and opponent stats need at least two games and a win/loss", () => {
+    // one game together / faced is noise, not a "favourite partner" or "tough opponent"
+    expect(stats.find((p) => p.name === "Ana")!.favPartner).toBe("—");
+    expect(stats.find((p) => p.name === "Cy")!.toughOpp).toBe("—");
+    // Ana + Bo beat Cy + Di again, and Ana + Cy lose to Bo + Di
+    const twice = recomputePlayerStats(players, [
+      completed("m1", ["ana", "bo"], ["cy", "di"], 21, 15),
+      completed("m2", ["ana", "bo"], ["cy", "di"], 21, 10),
+      completed("m3", ["ana", "cy"], ["bo", "di"], 15, 21),
+    ]);
+    expect(twice.find((p) => p.name === "Ana")!.favPartner).toBe("Bo");
+    expect(twice.find((p) => p.name === "Cy")!.toughOpp).not.toBe("—");
+    expect(twice.find((p) => p.name === "Eka")!.favPartner).toBe("—");
+  });
+
+  it("rankPlayers orders by wins first, then point difference", () => {
+    const ppl = ["X", "P", "Q", "Y", "R", "S"].map(player);
+    const s = recomputePlayerStats(ppl, [
+      completed("m1", ["x", "p"], ["q", "r"], 21, 20), // X wins by 1
+      completed("m2", ["x", "p"], ["q", "r"], 21, 20), // X wins by 1
+      completed("m3", ["x", "q"], ["p", "r"], 11, 21), // X loses by 10 -> X: 2 wins, 1 loss, diff -8
+      completed("m4", ["y", "s"], ["r", "q"], 21, 2), //  Y wins by 19 -> Y: 1 win, 0 losses, diff +19
+    ]);
+    const order = rankPlayers(s).map((r) => r.player.name);
+    // the old hidden rating put Y (1172) above X (1096); wins come first now
+    expect(order.indexOf("X")).toBeLessThan(order.indexOf("Y"));
+    // equal wins: the bigger point difference ranks higher (P and Y both won once... P won 2)
+    const eq = rankPlayers(s).filter((r) => r.player.wins === 1).map((r) => r.player.name);
+    expect(eq).toEqual([...eq].sort((a, b) => s.find((p) => p.name === b)!.diff - s.find((p) => p.name === a)!.diff));
+  });
+
+  it("rankPlayers leaves everyone unranked when the session doesn't record results", () => {
+    const ppl = ["Ana", "Bo"].map(player);
+    const s = recomputePlayerStats(ppl, [completed("a", ["ana", "bo"], ["x", "y"], 0, 0)]);
+    expect(rankPlayers(s, "none").map((r) => r.rank)).toEqual([null, null]);
   });
 });
 
@@ -108,5 +140,38 @@ describe("remote sync helpers", () => {
     expect(merged.sessionName).toBe("Rabu");
     const kept = withListDefaults({ matches: [done] });
     expect(kept.matches).toEqual([done]);
+  });
+});
+
+describe("group photo reminder", () => {
+  // local time on an arbitrary day
+  const at = (h: number, m: number, dayOffset = 0) => new Date(2026, 8, 30 + dayOffset, h, m, 0, 0);
+
+  it("counts down the last 30 minutes of a schedule", () => {
+    expect(photoReminderMinutes("Rabu · 19:00–22:00", at(21, 30))).toBe(30);
+    expect(photoReminderMinutes("Rabu · 19:00–22:00", at(21, 40))).toBe(20);
+    expect(photoReminderMinutes("Rabu · 19:00–22:00", at(21, 59))).toBe(1);
+  });
+
+  it("stays quiet before the last 30 minutes and after the end", () => {
+    expect(photoReminderMinutes("Rabu · 19:00–22:00", at(21, 20))).toBeNull();
+    expect(photoReminderMinutes("Rabu · 19:00–22:00", at(22, 1))).toBeNull();
+  });
+
+  it("handles a session that ends after midnight", () => {
+    expect(photoReminderMinutes("22:00–00:30", at(0, 5, 1))).toBe(25); // just after midnight
+    expect(photoReminderMinutes("22:00–00:30", at(23, 50))).toBeNull(); // 40 minutes left
+  });
+
+  it("reads 12-hour times", () => {
+    expect(photoReminderMinutes("7:00 PM – 10:00 PM", at(21, 40))).toBe(20);
+    expect(photoReminderMinutes("7pm-10pm", at(21, 40))).toBe(20);
+  });
+
+  it("does nothing without a start and end time", () => {
+    expect(photoReminderMinutes("", at(21, 40))).toBeNull();
+    expect(photoReminderMinutes("Rabu malam", at(21, 40))).toBeNull();
+    expect(photoReminderMinutes("Wed 12 Nov · 22:00", at(21, 40))).toBeNull();
+    expect(photoReminderMinutes("25:00–26:00", at(21, 40))).toBeNull();
   });
 });

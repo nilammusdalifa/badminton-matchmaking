@@ -54,7 +54,7 @@ export function ManageTab({
 
       <div className={styles.panel}>
         <div className={styles.panelTitle}>Add a Walk-in Player</div>
-        <div className={styles.panelHint}>They're here now — added straight to Waiting</div>
+        <div className={styles.panelHint}>Added straight to Waiting.</div>
         <PlayerAddForm
           newPlayerName={newPlayerName}
           newPlayerLevel={newPlayerLevel}
@@ -103,8 +103,8 @@ export function ManageTab({
           <div className={styles.panelTitle}>Live Sharing</div>
           <div className={styles.panelHint}>
             {isOwner
-              ? "Anyone with the link can watch this session live. They can also score matches by entering the Umpire PIN below."
-              : "Anyone with the link can watch this session live."}
+              ? "Share the link to let people watch live. The PIN lets someone score."
+              : "Share the link to let people watch live."}
           </div>
           <div className={styles.shareRow}>
             <button className={styles.addBtn} onClick={onCopyShareLink}>
@@ -112,14 +112,14 @@ export function ManageTab({
             </button>
             {isOwner && <div className={styles.pinBadge}>PIN: {sessionPin}</div>}
           </div>
-          {isOwner && <div className={styles.pinHint}>Give this PIN only to people you want scoring matches.</div>}
+          {isOwner && <div className={styles.pinHint}>Only share the PIN with scorers.</div>}
           <div className={styles.shareUrl}>{shareUrl}</div>
         </div>
       )}
 
       <div className={styles.panel}>
         <div className={styles.panelTitle}>Partner Requests</div>
-        <div className={styles.panelHint}>Pair two players on the same team for their next match. The other two spots go to whoever has waited longest.</div>
+        <div className={styles.panelHint}>Put two players on the same team next match.</div>
         <div className={styles.formRow}>
           <select className={styles.select} value={requestA} onChange={onRequestAChange}>
             <option value="">Player A</option>

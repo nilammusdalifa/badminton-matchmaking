@@ -79,6 +79,34 @@
   cursor: default;
 }
 
+.photoBanner {
+  position: relative;
+  z-index: 1;
+  margin: 8px 14px 0;
+  padding: 6px 6px 6px 14px;
+  border-radius: var(--radius-md);
+  background: var(--sm-accent-2-soft);
+  border: 1px solid var(--sm-accent-2-border);
+  color: var(--color-accent-2-300);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.photoBannerBtn {
+  flex-shrink: 0;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-accent-2-border);
+  background: transparent;
+  color: var(--color-accent-2-300);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
 .readOnlyBanner {
   position: relative;
   z-index: 1;

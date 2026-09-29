@@ -60,8 +60,6 @@ export function ShareRankingsModal({ open, top, sessionName, close, download, ca
                   <span className={styles.rankBadge}>{MEDAL[r.rank] ?? r.rank}</span>
                   <span className={styles.rowName}>{r.name}</span>
                   <div className={styles.statLine}>
-                    <span>{r.winRate}%</span>
-                    <span className={styles.statDot} />
                     {/* Colors alone carry the win/loss distinction here — no
                        "W"/"L" suffix. html2canvas silently substitutes a
                        plain "I" glyph for capital "L" in this capture
