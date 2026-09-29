@@ -134,7 +134,6 @@
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   margin-top: 2px;
   white-space: nowrap;
-  overflow: hidden;
 }
 .statDot {
   width: 3px;
@@ -154,11 +153,20 @@
   gap: 7px;
   margin-top: 26px;
 }
+/* Fixed height + line-height matched to it, instead of vertical padding +
+   align-items:center. html2canvas's flex cross-axis centering measurably
+   disagrees with the real browser for this row (text rendered visibly low —
+   confirmed via a real downloaded capture — and a tight line-height:1 made
+   it worse, clipping glyphs outright since their rendered extent exceeded
+   that shrunk line box). Giving each text child a line-height equal to the
+   row's own content height centers it by line-box math instead, which both
+   environments agree on. */
 .row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 12px;
+  height: 42px;
+  padding: 0 12px;
   border-radius: 13px;
   background: rgba(255, 255, 255, 0.05);
 }
@@ -175,6 +183,7 @@
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-weight: 700;
   font-size: 12px;
+  line-height: 42px;
   color: var(--sm-text-3);
   flex-shrink: 0;
 }
@@ -182,23 +191,10 @@
   flex: 1;
   font-weight: 700;
   font-size: 12.5px;
+  line-height: 42px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-
-.footerNote {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--sm-text-3);
-  padding-top: 14px;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 

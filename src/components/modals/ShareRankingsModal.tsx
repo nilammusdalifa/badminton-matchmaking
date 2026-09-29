@@ -78,11 +78,6 @@ export function ShareRankingsModal({ open, top, sessionName, close, download, ca
               ))}
             </div>
           </div>
-
-          <div className={styles.footerNote}>
-            <AppIcon size={13} />
-            <span>Made with SmashMatch</span>
-          </div>
         </div>
         <div className={styles.actions}>
           <button className={styles.closeBtn} onClick={close}>
