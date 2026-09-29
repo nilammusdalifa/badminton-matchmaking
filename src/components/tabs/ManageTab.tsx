@@ -55,6 +55,23 @@ export function ManageTab({
         />
       </div>
 
+      <div className={styles.courtsPanel}>
+        <div>
+          <div className={styles.panelTitle}>Courts</div>
+          <div className={styles.courtsSub}>
+            {courtsCount} {courtsCount === 1 ? "court" : "courts"} · {rulesLabel}
+          </div>
+        </div>
+        <div className={styles.courtsBtns}>
+          <button className={styles.roundBtn} onClick={onRemoveCourt} aria-label="Remove a court">
+            –
+          </button>
+          <button className={styles.roundBtn} onClick={onAddCourt} aria-label="Add a court">
+            +
+          </button>
+        </div>
+      </div>
+
       <div className={styles.panel}>
         <div className={styles.rosterTitle}>Roster ({playersCount})</div>
         <div className={styles.rosterList}>
@@ -133,23 +150,6 @@ export function ManageTab({
           <div className={styles.shareUrl}>{shareUrl}</div>
         </div>
       )}
-
-      <div className={styles.courtsPanel}>
-        <div>
-          <div className={styles.panelTitle}>Courts</div>
-          <div className={styles.courtsSub}>
-            {courtsCount} {courtsCount === 1 ? "court" : "courts"} · {rulesLabel}
-          </div>
-        </div>
-        <div className={styles.courtsBtns}>
-          <button className={styles.roundBtn} onClick={onRemoveCourt}>
-            –
-          </button>
-          <button className={styles.roundBtn} onClick={onAddCourt}>
-            +
-          </button>
-        </div>
-      </div>
 
       <div className={styles.dangerZone}>
         <button className={styles.zoneBtn} onClick={onOpenSetup}>

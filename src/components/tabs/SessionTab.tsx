@@ -93,7 +93,7 @@ export function SessionTab({
         </div>
       ) : (
         <div className={styles.panel}>
-          <div className={styles.emptyNote}>No courts yet — add one in the Manage tab to start scheduling matches.</div>
+          <div className={styles.emptyNote}>No courts yet — add one in Manage → Courts to start scheduling matches.</div>
         </div>
       )}
 

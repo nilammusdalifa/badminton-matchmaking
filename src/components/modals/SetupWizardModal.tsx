@@ -42,7 +42,7 @@ export function SetupWizardModal({
       <div className={styles.dialog}>
         <div className={styles.head}>
           <div className={styles.headTitle}>New Session · Step {stepLabel}/4</div>
-          <button className={styles.closeBtn} onClick={close}>
+          <button className={styles.closeBtn} onClick={close} aria-label="Close setup">
             ×
           </button>
         </div>
@@ -53,6 +53,7 @@ export function SetupWizardModal({
         {step === 0 && (
           <div className={styles.step}>
             <div className={styles.stepTitle}>Session basics</div>
+            <div className={styles.stepHint}>Set up tonight's session — SmashMatch suggests fair doubles matches as players arrive.</div>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Session name</span>
               <input
@@ -72,6 +73,9 @@ export function SetupWizardModal({
                 onChange={onScheduleChange}
                 placeholder="e.g. Wed · 19:00–22:00"
               />
+              <span className={styles.fieldHint}>
+                Optional. Add start and end times (e.g. 19:00–22:00) to get a heads-up 30 minutes before the end.
+              </span>
             </label>
           </div>
         )}
@@ -94,20 +98,24 @@ export function SetupWizardModal({
 
         {step === 2 && (
           <div className={styles.step}>
-            <div className={styles.stepTitle}>Courts &amp; rules</div>
+            <div className={styles.stepTitle}>Courts &amp; scoring</div>
+            <div className={styles.stepHint}>You can add or remove courts later in Manage.</div>
             <div className={styles.courtsRow}>
-              <span>{courtsCount} courts</span>
+              <span>
+                {courtsCount} {courtsCount === 1 ? "court" : "courts"}
+              </span>
               <div className={styles.formRow}>
-                <button className={styles.roundBtn} onClick={onRemoveCourt}>
+                <button className={styles.roundBtn} onClick={onRemoveCourt} aria-label="Remove a court">
                   –
                 </button>
-                <button className={styles.roundBtn} onClick={onAddCourt}>
+                <button className={styles.roundBtn} onClick={onAddCourt} aria-label="Add a court">
                   +
                 </button>
               </div>
             </div>
+            {courtsCount === 0 && <div className={styles.warnNote}>Add at least one court to start suggesting matches.</div>}
             <div className={styles.field}>
-              <span className={styles.fieldLabel}>Track results</span>
+              <span className={styles.fieldLabel}>How to record results</span>
               <div className={styles.modeGroup}>
                 <button
                   type="button"
@@ -152,6 +160,7 @@ export function SetupWizardModal({
                 {resultMode === "score" ? "21 points to win, win by 2" : resultMode === "winner" ? "Winner only — no points tracked" : "No score — just tracks who played"}
               </div>
             </div>
+            {courtsCount === 0 && <div className={styles.warnNote}>Add at least one court to start suggesting matches.</div>}
             {reviewHasHistory && <div className={styles.consequence}>{reviewConsequence}</div>}
           </div>
         )}

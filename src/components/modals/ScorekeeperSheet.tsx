@@ -59,7 +59,7 @@ export function ScorekeeperSheet({
               {isEditingCompleted ? "Editing a saved result — fix the score and save again" : "Tap +1 to score live, or edit a number directly"}
             </div>
           </div>
-          <button className={styles.closeBtn} onClick={close}>
+          <button className={styles.closeBtn} onClick={close} aria-label="Close scorekeeper">
             <CloseIcon />
           </button>
         </div>

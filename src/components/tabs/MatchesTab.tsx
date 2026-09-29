@@ -3,7 +3,7 @@ import styles from "./MatchesTab.module.css";
 
 type MatchesTabProps = SessionStore["matches"];
 
-export function MatchesTab({ matchLogVM }: MatchesTabProps) {
+export function MatchesTab({ matchLogVM, courtsCount }: MatchesTabProps) {
   return (
     <>
       <div className={styles.section}>
@@ -12,7 +12,11 @@ export function MatchesTab({ matchLogVM }: MatchesTabProps) {
       </div>
 
       <div className={styles.list}>
-        {matchLogVM.length === 0 && <div className={styles.empty}>No matches yet — start one from the Session tab.</div>}
+        {matchLogVM.length === 0 && (
+          <div className={styles.empty}>
+            {courtsCount === 0 ? "No matches yet — add a court in Manage first." : "No matches yet — start one from the Session tab."}
+          </div>
+        )}
         {matchLogVM.map((m) => (
           <div className={styles.row} key={m.id}>
             <div className={styles.rowHead}>

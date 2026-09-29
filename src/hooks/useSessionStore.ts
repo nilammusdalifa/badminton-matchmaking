@@ -1388,7 +1388,10 @@ export function useSessionStore() {
       sessionHealth,
     },
 
-    matches: { matchLogVM },
+    matches: {
+      courtsCount: state.courts.length,
+      matchLogVM,
+    },
 
     rankings: { rankingsVM, onShareRankings },
 

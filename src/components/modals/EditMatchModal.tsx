@@ -25,7 +25,7 @@ export function EditMatchModal({
       <div className={styles.dialog}>
         <div className={styles.head}>
           <div className={styles.headTitle}>Edit Match — Court {courtLabel}</div>
-          <button className={styles.closeBtn} onClick={close}>
+          <button className={styles.closeBtn} onClick={close} aria-label="Close">
             ×
           </button>
         </div>
