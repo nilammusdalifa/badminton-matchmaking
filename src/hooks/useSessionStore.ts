@@ -739,7 +739,9 @@ export function useSessionStore() {
       // capturing mid-swap.
       await document.fonts.ready;
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const canvas = await html2canvas(node, { backgroundColor: "#1a1712", scale: 3 });
+      // Card's base size is a 270px-wide 9:16 frame — scale 4 lands on a
+      // real 1080x1920 Instagram/WhatsApp Story resolution.
+      const canvas = await html2canvas(node, { backgroundColor: "#1a1712", scale: 4 });
       const url = canvas.toDataURL("image/png");
       const a = document.createElement("a");
       a.href = url;

@@ -11,7 +11,7 @@
 }
 .wrap {
   width: 100%;
-  max-width: 400px;
+  max-width: 340px;
   max-height: 92vh;
   overflow-y: auto;
   display: flex;
@@ -21,20 +21,22 @@
   margin: auto;
 }
 
-/* ~4:5 portrait — reads cleanly as an Instagram feed post or a WhatsApp
-   image without odd letterboxing. Width shrinks to fit narrow phones
-   (min() against the viewport, minus the backdrop/wrap gutters); height
-   is intentionally NOT pinned to a strict ratio off that shrunk width —
-   forcing one clipped real ranking rows off the bottom edge on narrow
-   screens. Height instead follows its content, which lands very close
-   to 4:5 at the normal 340px width anyway. */
+/* 9:16 — a real Instagram/WhatsApp Story frame, not a feed post. Width
+   shrinks to fit narrow phones (min() against the viewport, minus the
+   backdrop/wrap gutters). Height is an explicit pixel value rather than
+   `aspect-ratio: 9/16` on purpose — html2canvas (this library predates that
+   CSS property) computed a shorter height for the card during capture than
+   the real browser did, squeezing the podium and the row below it into an
+   overlap that never showed up on screen. A literal `height` is something
+   both the browser and html2canvas read the same way. */
 .card {
   position: relative;
-  width: min(340px, calc(100vw - 64px));
+  width: min(270px, calc(100vw - 64px));
+  height: 480px;
   background: linear-gradient(160deg, #0e1420 0%, #10241f 55%, #0d2a24 100%);
   border: 1px solid var(--sm-accent-border);
   border-radius: 22px;
-  padding: 26px 20px 18px;
+  padding: 26px 18px 16px;
   font-family: var(--font-body), sans-serif;
   color: var(--sm-text);
   box-sizing: border-box;
@@ -62,52 +64,45 @@
   background: radial-gradient(circle, rgba(63, 182, 168, 0.12), transparent 70%);
 }
 
-.wordmarkRow {
+/* The tall 9:16 frame has more room than the content strictly needs, so
+   sections get generous fixed margins (below) to spread across it instead
+   of clumping at the top. Deliberately NOT `justify-content: space-evenly`
+   here — html2canvas computed a different available height for this flex
+   container than the live browser did, so the "even" gaps came out
+   different sizes in each, and the podium overlapped the row below it in
+   the exported image despite looking fine on screen. Fixed margins can't
+   drift like that. */
+.cardBody {
   position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+}
+
+.wordmarkRow {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: 8px;
 }
 .wordmark {
   font-family: var(--font-heading);
-  font-size: 25px;
+  font-size: 21px;
   letter-spacing: 0.01em;
   white-space: nowrap;
 }
 .wordmarkPlain { color: var(--sm-text); }
 .wordmarkAccent { color: var(--sm-accent); }
 
-/* The logo file itself has a plain white background (no alpha channel) —
-   rather than risk a fringed edge from stripping it in JS, give it a clean
-   white badge to sit on instead of placing it straight on the dark card. */
-.logoRow {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.logoBadge {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 10px 16px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-}
-.logoImg {
-  display: block;
-  width: 190px;
-  height: auto;
-  object-fit: contain;
-}
-
 .subheading {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  margin-top: 6px;
-  font-size: 14px;
+  margin-top: 18px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--sm-text-2);
   /* Bold Figtree specifically comes out corrupted (overlapping/duplicated
@@ -118,92 +113,28 @@
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .subheadingIcon {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   color: #ffd75e;
 }
 
-/* ---- podium (top 3) ---- */
-.podium {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 22px;
-  padding: 0 4px;
-}
-.podiumSpot {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-.spot2, .spot3 {
-  margin-top: 22px;
-}
-.trophy {
-  color: #ffd75e;
-  margin-bottom: 2px;
-  filter: drop-shadow(0 2px 6px rgba(255, 215, 94, 0.5));
-}
-.podiumAvatar {
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-heading);
-  font-weight: 700;
-  flex-shrink: 0;
-}
-.medal1 {
-  width: 62px;
-  height: 62px;
-  font-size: 20px;
-  background: linear-gradient(155deg, #ffe9a8, #e8a430);
-  color: #3a2405;
-  box-shadow: 0 4px 16px rgba(232, 164, 48, 0.5), 0 0 0 3px rgba(255, 215, 94, 0.25);
-}
-.medal2 {
-  width: 50px;
-  height: 50px;
-  font-size: 16px;
-  background: linear-gradient(155deg, #eef1f4, #b8bec7);
-  color: #33383f;
-  box-shadow: 0 3px 12px rgba(184, 190, 199, 0.4);
-}
-.medal3 {
-  width: 50px;
-  height: 50px;
-  font-size: 16px;
-  background: linear-gradient(155deg, #e8b58a, #b5703a);
-  color: #3a2205;
-  box-shadow: 0 3px 12px rgba(181, 112, 58, 0.4);
-}
-.podiumName {
-  margin-top: 8px;
-  font-weight: 700;
-  font-size: 12.5px;
-  text-align: center;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-
-/* ---- shared win/loss stat line (podium + rest rows) ---- */
+/* ---- shared win/loss stat line ---- */
 .statLine {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 10.5px;
+  gap: 4px;
+  font-size: 9.5px;
   font-weight: 700;
   color: var(--sm-text-2);
-  font-family: var(--sm-font-mono);
+  /* Not monospace: html2canvas clips glyphs (W, L) under bold monospace
+     fonts specifically — system, JetBrains, doesn't matter — same bug class
+     as the earlier Figtree corruption, just a different codepath. The
+     system sans stack used everywhere else in this card is the one proven
+     clean across repeated real downloads, so stat text uses it too. */
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   margin-top: 2px;
   white-space: nowrap;
+  overflow: hidden;
 }
 .statDot {
   width: 3px;
@@ -216,37 +147,41 @@
 .win { color: var(--sm-accent); }
 .loss { color: #ff8a8a; }
 
-/* ---- ranks 4-5 ---- */
-.restList {
-  position: relative;
+/* ---- ranked list — every row shares the exact same structure/height ---- */
+.list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 16px;
+  gap: 7px;
+  margin-top: 26px;
 }
-.restRow {
+.row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 14px;
-  border-radius: 14px;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 13px;
   background: rgba(255, 255, 255, 0.05);
 }
-.restRow .statLine {
+.rowFirst {
+  background: rgba(255, 215, 94, 0.12);
+  border: 1px solid rgba(255, 215, 94, 0.3);
+}
+.row .statLine {
   margin-top: 0;
 }
-.restRank {
-  width: 16px;
-  font-family: var(--sm-font-mono);
+.rankBadge {
+  width: 18px;
+  text-align: center;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--sm-text-3);
   flex-shrink: 0;
 }
-.restName {
+.rowName {
   flex: 1;
   font-weight: 700;
-  font-size: 13.5px;
+  font-size: 12.5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -259,12 +194,11 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--sm-text-3);
-  margin-top: auto;
-  padding-top: 16px;
+  padding-top: 14px;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
@@ -272,7 +206,7 @@
   display: flex;
   gap: 10px;
   width: 100%;
-  max-width: min(340px, calc(100vw - 64px));
+  max-width: min(270px, calc(100vw - 64px));
 }
 .closeBtn {
   flex: 1;

@@ -1,13 +1,11 @@
-import { useState } from "react";
 import { AppIcon } from "../AppIcon";
 import { TrophyIcon } from "../icons";
 import type { SessionStore } from "../../hooks/useSessionStore";
-import type { ShareRankingEntry } from "../../types.viewmodel";
 import styles from "./ShareRankingsModal.module.css";
 
 type ShareRankingsProps = SessionStore["shareRankings"];
 
-const PODIUM_ORDER: [2, 1, 3] = [2, 1, 3];
+const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
 /** Splits a session name into a two-tone "wordmark" — first word / first
  * capitalized segment gets the plain color, the rest gets the accent. Falls
@@ -25,29 +23,8 @@ function splitWordmark(name: string): [string, string] {
   return [name, ""];
 }
 
-function StatLine({ r }: { r: ShareRankingEntry }) {
-  return (
-    <div className={styles.statLine}>
-      <span>{r.winRate}%</span>
-      <span className={styles.statDot} />
-      <span className={styles.win}>{r.wins}W</span>
-      <span className={styles.statDash}>–</span>
-      <span className={styles.loss}>{r.losses}L</span>
-    </div>
-  );
-}
-
 export function ShareRankingsModal({ open, top, sessionName, close, download, cardRef }: ShareRankingsProps) {
-  // This deployment's club has its own logo (public/session-logo.png) — show
-  // that instead of the generated two-tone text wordmark when it's actually
-  // there. Falls back to the text version if the file is ever missing (a
-  // fresh checkout without a logo of its own), rather than showing a broken
-  // image on a card meant to be posted publicly.
-  const [logoFailed, setLogoFailed] = useState(false);
   if (!open) return null;
-  const byRank = new Map<number, ShareRankingEntry>(top.map((r) => [r.rank, r]));
-  const podium = PODIUM_ORDER.map((rank) => byRank.get(rank)).filter((r): r is ShareRankingEntry => Boolean(r));
-  const rest = top.filter((r) => r.rank > 3);
   const [wordA, wordB] = splitWordmark(sessionName);
 
   return (
@@ -57,50 +34,50 @@ export function ShareRankingsModal({ open, top, sessionName, close, download, ca
           <div className={styles.glow1} />
           <div className={styles.glow2} />
 
-          {logoFailed ? (
+          <div className={styles.cardBody}>
             <div className={styles.wordmarkRow}>
-              <AppIcon size={34} />
+              <AppIcon size={30} />
               <div className={styles.wordmark}>
                 <span className={styles.wordmarkPlain}>{wordA}</span>
                 {wordB && <span className={styles.wordmarkAccent}> {wordB}</span>}
               </div>
             </div>
-          ) : (
-            <div className={styles.logoRow}>
-              <div className={styles.logoBadge}>
-                <img src="/session-logo.png" alt={sessionName} className={styles.logoImg} onError={() => setLogoFailed(true)} />
-              </div>
+            <div className={styles.subheading}>
+              <TrophyIcon className={styles.subheadingIcon} />
+              Top {top.length} Rankings
             </div>
-          )}
-          <div className={styles.subheading}>
-            <TrophyIcon className={styles.subheadingIcon} />
-            Top {top.length} Rankings
+
+            {/* A single uniform-height row per rank — every row has the exact
+               same structure/height, which sidesteps a real html2canvas bug
+               hit while this used a podium: a flex row whose children had
+               different heights (bigger #1 avatar, staggered margins for
+               #2/#3) rendered with badly wrong vertical positions during
+               capture, overlapping the row below, even though it looked
+               fine on screen. Uniform rows have nothing uneven to get wrong. */}
+            <div className={styles.list}>
+              {top.map((r) => (
+                <div className={`${styles.row} ${r.rank === 1 ? styles.rowFirst : ""}`} key={r.rank}>
+                  <span className={styles.rankBadge}>{MEDAL[r.rank] ?? r.rank}</span>
+                  <span className={styles.rowName}>{r.name}</span>
+                  <div className={styles.statLine}>
+                    <span>{r.winRate}%</span>
+                    <span className={styles.statDot} />
+                    {/* Colors alone carry the win/loss distinction here — no
+                       "W"/"L" suffix. html2canvas silently substitutes a
+                       plain "I" glyph for capital "L" in this capture
+                       environment, reproducibly, in every font tried
+                       (custom webfont, system sans, system monospace) — a
+                       font-independent bug, not the earlier webfont-specific
+                       one. Numbers-only sidesteps it instead of chasing it
+                       further. */}
+                    <span className={styles.win}>{r.wins}</span>
+                    <span className={styles.statDash}>–</span>
+                    <span className={styles.loss}>{r.losses}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-
-          {podium.length > 0 && (
-            <div className={styles.podium}>
-              {podium.map((r) => (
-                <div key={r.rank} className={`${styles.podiumSpot} ${styles["spot" + r.rank]}`}>
-                  {r.rank === 1 && <TrophyIcon className={styles.trophy} />}
-                  <div className={`${styles.podiumAvatar} ${styles["medal" + r.rank]}`}>{r.initials}</div>
-                  <div className={styles.podiumName}>{r.name}</div>
-                  <StatLine r={r} />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {rest.length > 0 && (
-            <div className={styles.restList}>
-              {rest.map((r) => (
-                <div className={styles.restRow} key={r.rank}>
-                  <span className={styles.restRank}>{r.rank}</span>
-                  <span className={styles.restName}>{r.name}</span>
-                  <StatLine r={r} />
-                </div>
-              ))}
-            </div>
-          )}
 
           <div className={styles.footerNote}>
             <AppIcon size={13} />
