@@ -20,7 +20,7 @@ import {
   reverseCounterSnapshot,
   teamNames,
 } from "../lib/session";
-import type { Court, Match, PauseReason, Player, ResultMode, SessionHistoryEntry, SkillLevel, Tab } from "../types";
+import type { Court, Match, PauseReason, Player, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion, Tab } from "../types";
 import type {
   CourtViewModel,
   ManagePlayerEntry,
@@ -742,13 +742,13 @@ export function useSessionStore() {
   // entering `state.sessionPin`. Requires Firebase to actually be configured
   // (see firebaseConfigured); this device's own session id/pin still exist
   // without it, they just wouldn't resolve to anything live.
+  const shareUrl = `${window.location.origin}${window.location.pathname}?view=${state.sessionId}`;
   const copyShareLink = useCallback(() => {
-    const url = `${window.location.origin}${window.location.pathname}?view=${state.sessionId}`;
     navigator.clipboard
-      .writeText(url)
+      .writeText(shareUrl)
       .then(() => showToast("Live link copied"))
-      .catch(() => showToast("Couldn't copy — copy it from the address shown"));
-  }, [state.sessionId, showToast]);
+      .catch(() => showToast("Couldn't copy — select the link below and copy it"));
+  }, [shareUrl, showToast]);
   const closeShareRankings = useCallback(() => setState((s) => ({ ...s, shareRankingsOpen: false })), []);
   const downloadRankingsImage = useCallback(async () => {
     const node = shareCardRef.current;
@@ -998,6 +998,14 @@ export function useSessionStore() {
     }));
   }, [livePlayers, setPlayerTier]);
 
+  // The tier-balance note names tiers, which the read-only Player view hides
+  // everywhere else — so it's dropped from the reason line there.
+  const hideTiers = isRemoteMode && remoteRole === "player";
+  const suggestionReason = useCallback(
+    (sug: Suggestion) => [...sug.reasons, ...(sug.balanceNote && !hideTiers ? [sug.balanceNote] : [])].join(" · "),
+    [hideTiers],
+  );
+
   const courtsVM = useMemo<CourtViewModel[]>(() => {
     const claimed: string[] = [];
     return state.courts.map((court) => {
@@ -1057,7 +1065,7 @@ export function useSessionStore() {
           ? {
               team1Label: suggestion.team1.map((p) => p.name).join(" & "),
               team2Label: suggestion.team2.map((p) => p.name).join(" & "),
-              reason: suggestion.reasons.join(" · "),
+              reason: suggestionReason(suggestion),
               onStart: () => startMatch(court.id),
               onRegenerate: () => rerollSuggestion(court.id),
             }
@@ -1083,6 +1091,7 @@ export function useSessionStore() {
     togglePauseCourt,
     quickWin,
     quickFinish,
+    suggestionReason,
   ]);
 
   // A preview of the next match once every court is occupied — otherwise
@@ -1101,10 +1110,10 @@ export function useSessionStore() {
     return {
       team1Label: sug.team1.map((p) => p.name).join(" & "),
       team2Label: sug.team2.map((p) => p.name).join(" & "),
-      reason: sug.reasons.join(" · "),
+      reason: suggestionReason(sug),
       onRegenerate: () => rerollSuggestion("upnext"),
     };
-  }, [state.courts, state.matches, livePlayers, state.suggestSeed, state.requestedPairs, rerollSuggestion]);
+  }, [state.courts, state.matches, livePlayers, state.suggestSeed, state.requestedPairs, rerollSuggestion, suggestionReason]);
 
   const managePlayersVM = useMemo<ManagePlayerEntry[]>(() => {
     return [...state.players]
@@ -1167,7 +1176,9 @@ export function useSessionStore() {
         level: p.level,
         reason:
           i === 0
-            ? "Waited " + p.skipped + (p.skipped === 1 ? " match" : " matches") + " — top priority"
+            ? p.skipped === 0
+              ? "First in line"
+              : "Waited " + p.skipped + (p.skipped === 1 ? " match" : " matches") + " — top priority"
             : p.consecutiveGames >= 2
               ? p.name + " played back-to-back"
               : p.games <= 3
@@ -1404,7 +1415,9 @@ export function useSessionStore() {
       onOpenSetup: openSetup,
       onEndSession: openEndConfirm,
       onResetSession: openResetConfirm,
+      resultMode: state.sessionResultMode,
       shareEnabled: firebaseConfigured,
+      shareUrl,
       sessionPin: state.sessionPin,
       onCopyShareLink: copyShareLink,
     },
@@ -1471,7 +1484,7 @@ export function useSessionStore() {
               `to finish ${activeMatchesCount > 1 ? "them" : "it"} first, or end anyway and cancel ${activeMatchesCount > 1 ? "them" : "it"}.`
             : "This closes the session and shows the final standings. You can start a new session afterward."
           : state.confirmAction === "reset"
-            ? "This clears every score and match, and rebuilds the roster fresh. Players and settings stay the same, but results can’t be recovered."
+            ? "Everyone stays on the roster, but all matches, scores and stats are erased and players go back to not checked in. This can't be undone."
             : pendingDeleteMatch?.status === "in_progress"
               ? `This frees up ${pendingDeleteCourtName} immediately and removes it from the match log. The score entered so far won't be saved.`
               : "This permanently removes the result from the match log and adjusts the completed count. It can't be undone.",
@@ -1500,9 +1513,10 @@ export function useSessionStore() {
       onScheduleChange: onSetupScheduleChange,
       reviewName: state.setupName.trim() || state.sessionName,
       reviewSchedule: state.setupSchedule.trim() || state.sessionSchedule,
+      reviewHasHistory: state.completedCount > 0 || state.players.some((p) => p.status !== "expected"),
       reviewConsequence:
-        `Starts fresh: today's ${state.completedCount} completed match${state.completedCount === 1 ? "" : "es"} will be archived, ` +
-        `and all ${state.players.length} players return to Expected.`,
+        `Starting fresh archives today's ${state.completedCount} completed ${state.completedCount === 1 ? "match" : "matches"} ` +
+        `and sets all ${state.players.length} ${state.players.length === 1 ? "player" : "players"} back to not checked in.`,
       canBack: state.setupStep > 0,
       isLast: state.setupStep === 3,
       close: closeSetup,
@@ -1543,6 +1557,7 @@ export function useSessionStore() {
       matchesCompleted: state.completedCount,
       playersCount: state.players.length,
       courtsCount: state.courts.length,
+      resultMode: state.sessionResultMode,
       rankingsVM,
       onStartNew: onStartNewFromReview,
     },

@@ -16,6 +16,7 @@ export function SetupWizardModal({
   reviewName,
   reviewSchedule,
   reviewConsequence,
+  reviewHasHistory,
   canBack,
   isLast,
   close,
@@ -142,16 +143,16 @@ export function SetupWizardModal({
             <div className={styles.stepTitle}>Review</div>
             <div className={styles.review}>
               <div>
-                {reviewName} · {reviewSchedule}
+                {reviewSchedule ? `${reviewName} · ${reviewSchedule}` : reviewName}
               </div>
               <div>
-                {playersCount} players · {courtsCount} courts
+                {playersCount} {playersCount === 1 ? "player" : "players"} · {courtsCount} {courtsCount === 1 ? "court" : "courts"}
               </div>
               <div>
                 {resultMode === "score" ? "21 points to win, win by 2" : resultMode === "winner" ? "Winner only — no points tracked" : "No score — just tracks who played"}
               </div>
             </div>
-            <div className={styles.consequence}>{reviewConsequence}</div>
+            {reviewHasHistory && <div className={styles.consequence}>{reviewConsequence}</div>}
           </div>
         )}
 

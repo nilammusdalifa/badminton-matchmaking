@@ -154,6 +154,7 @@ export function buildSuggestion(
           `${a.name} & ${b.name} — requested partners`,
           `${fillers.map((p) => p.name).join(" & ")} filled in by priority`,
         ],
+        balanceNote: null,
       };
     }
   }
@@ -174,11 +175,15 @@ export function buildSuggestion(
   }
   const split = pickBalancedFoursome(four, avoidPairs);
   const lead = ordered[0];
-  const reasons = [`${lead.name} waited ${lead.skipped} matches — top priority`];
+  const reasons = [
+    lead.skipped === 0
+      ? `${lead.name} is first in line`
+      : `${lead.name} has waited ${lead.skipped} ${lead.skipped === 1 ? "match" : "matches"} — top priority`,
+  ];
   const streak = four.find((p) => p.consecutiveGames >= 2);
   if (streak) reasons.push(`${streak.name} has played back-to-back — watch for fatigue`);
-  reasons.push(`Split by skill tier for balance (${four.map((p) => p.level).join("/")})`);
-  return { team1: split.team1, team2: split.team2, four, reasons };
+  const balanceNote = `Teams balanced by tier (${four.map((p) => p.level).join("/")})`;
+  return { team1: split.team1, team2: split.team2, four, reasons, balanceNote };
 }
 
 /** Every stat on Rankings (games/wins/losses/point diff/trend/favorite

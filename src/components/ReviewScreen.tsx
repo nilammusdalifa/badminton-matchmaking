@@ -3,7 +3,7 @@ import styles from "./ReviewScreen.module.css";
 
 type ReviewProps = SessionStore["review"];
 
-export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, playersCount, courtsCount, rankingsVM, onStartNew }: ReviewProps) {
+export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, playersCount, courtsCount, resultMode, rankingsVM, onStartNew }: ReviewProps) {
   return (
     <div className={styles.wrap}>
       <div className={styles.heading}>
@@ -33,7 +33,9 @@ export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, p
             <span className={styles.record}>
               {r.wins}W–{r.losses}L
             </span>
-            <span className={`${styles.diff} ${r.positiveDiff ? styles.positive : styles.negative}`}>{r.diffLabel} pts</span>
+            {resultMode === "score" && (
+              <span className={`${styles.diff} ${r.positiveDiff ? styles.positive : styles.negative}`}>{r.diffLabel} pts</span>
+            )}
           </div>
         ))}
       </div>

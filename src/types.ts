@@ -91,6 +91,10 @@ export interface Suggestion {
   team2: [Player, Player];
   four: Player[];
   reasons: string[];
+  /** Tier-split explanation, kept apart from `reasons` so the read-only
+   * Player view (which hides tiers) can leave it out. Null when teams were
+   * fixed by a partner request rather than balanced by tier. */
+  balanceNote: string | null;
 }
 
 export interface SessionHistoryEntry {
