@@ -28,7 +28,7 @@ export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, p
       <div className={styles.list}>
         {rankingsVM.map((r) => (
           <div className={styles.row} key={r.id}>
-            <span className={styles.rank}>{r.rank}</span>
+            <span className={styles.rank}>{r.rank ?? "—"}</span>
             <span className={styles.name}>{r.name}</span>
             <span className={styles.record}>
               {r.wins}W–{r.losses}L

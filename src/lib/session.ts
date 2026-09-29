@@ -290,7 +290,9 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
         const worstRate = worst ? worst[1].losses / worst[1].games : -1;
         if (!worst || rate > worstRate || (rate === worstRate && entry[1].games > worst[1].games)) worst = entry;
       }
-      if (worst) {
+      // Only someone they've actually lost to counts as "tough" — otherwise a
+      // spotless record would list an opponent with "0% loss".
+      if (worst && worst[1].losses > 0) {
         toughOpp = nameOf(worst[0]);
         toughOppLoss = Math.round((worst[1].losses / worst[1].games) * 100);
         toughOppGames = worst[1].games;
@@ -314,6 +316,18 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
       toughOppGames,
     };
   });
+}
+
+/** Leaderboard order. Only players who have played are ranked (1..n by
+ * rating, then wins, then name) — everyone still on their starting rating
+ * would otherwise sit above players who lost a game and take a medal for
+ * nothing. Players with no games follow, unranked (`rank: null`), by name. */
+export function rankPlayers(players: Player[]): { player: Player; rank: number | null }[] {
+  const played = players
+    .filter((p) => p.games > 0)
+    .sort((a, b) => b.rating - a.rating || b.wins - a.wins || a.name.localeCompare(b.name));
+  const unplayed = players.filter((p) => p.games === 0).sort((a, b) => a.name.localeCompare(b.name));
+  return [...played.map((player, i) => ({ player, rank: i + 1 })), ...unplayed.map((player) => ({ player, rank: null }))];
 }
 
 export function makeBlankPlayer(id: string, name: string, level: SkillLevel, status: PlayerStatus): Player {

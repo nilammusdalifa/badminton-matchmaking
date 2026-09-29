@@ -14,6 +14,7 @@ import {
   makeBlankPlayer,
   parseScheduleEndTime,
   playerPriority,
+  rankPlayers,
   readyPool as readyPoolFn,
   recomputePlayerStats,
   resetPlayersForNewSession,
@@ -970,10 +971,9 @@ export function useSessionStore() {
   // ------------------------------------------------------------------
 
   const rankingsVM = useMemo<RankingEntry[]>(() => {
-    const sorted = [...livePlayers].sort((a, b) => b.rating - a.rating);
-    return sorted.map((p, i) => ({
+    return rankPlayers(livePlayers).map(({ player: p, rank }) => ({
       id: p.id,
-      rank: i + 1,
+      rank,
       name: p.name,
       level: p.level,
       initials: initialsFor(p.name),
@@ -1323,15 +1323,18 @@ export function useSessionStore() {
 
   const shareRankingsTop = useMemo<ShareRankingEntry[]>(
     () =>
-      rankingsVM.slice(0, 5).map((r) => ({
-        rank: r.rank,
-        name: r.name,
-        initials: r.initials,
-        level: r.level,
-        wins: r.wins,
-        losses: r.losses,
-        winRate: r.wins + r.losses > 0 ? Math.round((r.wins / (r.wins + r.losses)) * 100) : 0,
-      })),
+      rankingsVM
+        .filter((r): r is typeof r & { rank: number } => r.rank !== null)
+        .slice(0, 5)
+        .map((r) => ({
+          rank: r.rank,
+          name: r.name,
+          initials: r.initials,
+          level: r.level,
+          wins: r.wins,
+          losses: r.losses,
+          winRate: r.wins + r.losses > 0 ? Math.round((r.wins / (r.wins + r.losses)) * 100) : 0,
+        })),
     [rankingsVM],
   );
 

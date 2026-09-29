@@ -80,7 +80,8 @@ export interface CourtViewModel {
 
 export interface RankingEntry {
   id: string;
-  rank: number;
+  /** null for a player who hasn't played yet — they aren't ranked. */
+  rank: number | null;
   name: string;
   level: SkillLevel;
   initials: string;

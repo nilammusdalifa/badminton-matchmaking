@@ -16,7 +16,7 @@ export function RankingsTab({ rankingsVM, onShareRankings, hideTier }: RankingsT
             <h1 className={styles.title}>Rankings</h1>
             {rankingsVM.length > 0 && <div className={styles.subtitle}>See how everyone's playing this session</div>}
           </div>
-          {rankingsVM.length > 0 && (
+          {rankingsVM.some((r) => r.rank !== null) && (
             <button className={styles.shareBtn} onClick={onShareRankings}>
               <ShareNodesIcon />
               Share Rankings
@@ -31,12 +31,12 @@ export function RankingsTab({ rankingsVM, onShareRankings, hideTier }: RankingsT
         {rankingsVM.map((r) => {
           const played = r.wins + r.losses;
           const winRate = played > 0 ? Math.round((r.wins / played) * 100) : null;
-          const topRank = r.rank <= 3 ? r.rank : null;
+          const topRank = r.rank !== null && r.rank <= 3 ? r.rank : null;
           return (
             <details className={`${styles.row} ${topRank ? styles["top" + topRank] : ""}`} key={r.id}>
               <summary className={styles.summary}>
                 <div className={styles.summaryTop}>
-                  <span className={styles.rank}>{topRank ? MEDAL[topRank] : r.rank}</span>
+                  <span className={styles.rank}>{topRank ? MEDAL[topRank] : (r.rank ?? "—")}</span>
                   <div className={`${styles.avatar} ${topRank ? styles["avatarTop" + topRank] : ""}`}>{r.initials}</div>
                   <span className={styles.name}>
                     {r.name} {!hideTier && <span className={styles.level}>Tier {r.level}</span>}
