@@ -66,15 +66,38 @@
 }
 .rosterRow {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 10px;
   padding: 9px 12px;
   background: var(--sm-scrim);
   border-radius: var(--radius-md);
-  flex-wrap: wrap;
 }
-.rosterName { font-weight: 700; font-size: 13px; }
+.rosterMain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.rosterInfo { min-width: 0; }
+.rosterEdit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--sm-border-soft);
+}
+.editInput {
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border);
+  background: var(--sm-surface);
+  color: var(--sm-text);
+  font-family: var(--font-body), sans-serif;
+}
+.editActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.editActions .removeBtn { margin-left: auto; overflow-wrap: anywhere; }
+.addBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.rosterName { font-weight: 700; font-size: 13px; overflow-wrap: anywhere; }
 .rosterLevel { font-weight: 500; font-size: 11px; color: var(--sm-text-4); }
 .rosterStatus { font-size: 11px; }
 .rosterStatus.default { color: var(--sm-text-2); }

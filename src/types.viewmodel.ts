@@ -104,7 +104,12 @@ export interface ManagePlayerEntry {
   level: SkillLevel;
   statusLabel: string;
   statusTone: "default" | "warning" | "accent";
+  /** At most one: the state change that fits where the player is right now. */
   actions: { label: string; onClick: () => void }[];
+  /** False when the change was refused (blank or duplicate name), so the editor stays open. */
+  onSave: (name: string, level: SkillLevel) => boolean;
+  /** Null while the player has games or matches on record. */
+  onRemove: (() => void) | null;
 }
 
 export interface RequestedPairEntry {

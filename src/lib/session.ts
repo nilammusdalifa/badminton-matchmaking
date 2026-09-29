@@ -23,6 +23,22 @@ export function applyLiveScore(matches: Match[], matchId: string, s1: number, s2
   return matches.map((m) => (m.id === matchId && m.status === "in_progress" ? { ...m, s1, s2 } : m));
 }
 
+/** True when another roster entry already uses this name (trimmed,
+ * case-insensitive). `exceptId` lets a player keep their own name while
+ * being edited. */
+export function nameTaken(players: Player[], name: string, exceptId?: string): boolean {
+  const key = name.trim().toLowerCase();
+  return players.some((p) => p.id !== exceptId && p.name.trim().toLowerCase() === key);
+}
+
+/** A player can only be deleted outright while nothing refers to them — no
+ * games played and no match (live or finished) listing them. Anyone else
+ * would leave stats and history pointing at a person who no longer exists;
+ * they can "Leave" instead, which keeps their record. */
+export function canRemovePlayer(player: Player, matches: Match[]): boolean {
+  return player.games === 0 && !matches.some((m) => m.t1.includes(player.id) || m.t2.includes(player.id));
+}
+
 export function isOverTarget(s1: number, s2: number): boolean {
   return (s1 >= 21 && s1 - s2 >= 2) || (s2 >= 21 && s2 - s1 >= 2) || s1 >= 30 || s2 >= 30;
 }

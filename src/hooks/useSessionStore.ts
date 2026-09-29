@@ -6,6 +6,7 @@ import { load, loadIdentity, save, saveIdentity, type PersistedState } from "../
 import {
   applyLiveScore,
   buildCounterSnapshot,
+  canRemovePlayer,
   buildSessionSummary,
   buildSuggestion,
   formatElapsed,
@@ -13,6 +14,7 @@ import {
   isOverTarget,
   isPlaying as isPlayingFn,
   makeBlankPlayer,
+  nameTaken,
   parseScheduleEndTime,
   playerPriority,
   rankPlayers,
@@ -713,7 +715,7 @@ export function useSessionStore() {
       // attendance/stats across two roster entries with no way to tell them
       // apart in a dropdown — better to ask for a quick disambiguator now
       // than untangle two players' worth of games afterward.
-      if (state.players.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+      if (nameTaken(state.players, name)) {
         showToast(`${name} is already on the roster — add a last initial to tell them apart`);
         return;
       }
@@ -755,6 +757,36 @@ export function useSessionStore() {
       showToast("Tier updated");
     },
     [showToast],
+  );
+
+  const updatePlayer = useCallback(
+    (id: string, name: string, level: SkillLevel): boolean => {
+      const trimmed = name.trim();
+      if (!trimmed) return false;
+      if (nameTaken(state.players, trimmed, id)) {
+        showToast(`${trimmed} is already on the roster — add a last initial to tell them apart`);
+        return false;
+      }
+      setState((s) => ({ ...s, players: s.players.map((p) => (p.id === id ? { ...p, name: trimmed, level } : p)) }));
+      showToast("Player updated");
+      return true;
+    },
+    [state.players, showToast],
+  );
+  const removePlayer = useCallback(
+    (id: string) => {
+      const p = livePlayers.find((x) => x.id === id);
+      if (!p || !canRemovePlayer(p, state.matches)) return;
+      setState((s) => ({
+        ...s,
+        players: s.players.filter((x) => x.id !== id),
+        requestedPairs: s.requestedPairs.filter(([a, b]) => a !== id && b !== id),
+        requestA: s.requestA === id ? "" : s.requestA,
+        requestB: s.requestB === id ? "" : s.requestB,
+      }));
+      showToast(`${p.name} removed`);
+    },
+    [livePlayers, state.matches, showToast],
   );
 
   // ---- sharing ------------------------------------------------------
@@ -1163,29 +1195,29 @@ export function useSessionStore() {
           // Waiting/Playing/Resting/Left model names it); other pause
           // reasons are less common exceptions, so they keep the explicit label.
           statusLabel = p.pauseReason === "rest" || !p.pauseReason ? "Resting" : "Resting · " + (PAUSE_LABELS[p.pauseReason] || "Rest");
-          actions = [
-            { label: "Back to Waiting", onClick: () => resumePlayer(p.id) },
-            { label: "Leave", onClick: () => leavePlayer(p.id) },
-          ];
+          actions = [{ label: "Back to Waiting", onClick: () => resumePlayer(p.id) }];
         } else if (p.skipNextRound) {
           statusLabel = "Sitting out next";
           statusTone = "warning";
-          actions = [
-            { label: "Cancel Sit Out", onClick: () => cancelSkip(p.id) },
-            { label: "Leave", onClick: () => leavePlayer(p.id) },
-          ];
+          actions = [{ label: "Cancel Sit Out", onClick: () => cancelSkip(p.id) }];
         } else {
           statusLabel = "Waited " + p.skipped + (p.skipped === 1 ? " match" : " matches");
           statusTone = "warning";
-          actions = [
-            { label: "Sit Out Next", onClick: () => skipNext(p.id) },
-            { label: "Rest", onClick: () => pausePlayer(p.id, "rest") },
-            { label: "Leave", onClick: () => leavePlayer(p.id) },
-          ];
+          actions = [{ label: "Leave", onClick: () => leavePlayer(p.id) }];
         }
-        return { id: p.id, name: p.name, level: p.level, statusLabel, statusTone, actions };
+        const live = livePlayers.find((x) => x.id === p.id) ?? p;
+        return {
+          id: p.id,
+          name: p.name,
+          level: p.level,
+          statusLabel,
+          statusTone,
+          actions,
+          onSave: (name: string, level: SkillLevel) => updatePlayer(p.id, name, level),
+          onRemove: canRemovePlayer(live, state.matches) ? () => removePlayer(p.id) : null,
+        };
       });
-  }, [state.players, isPlaying, rejoinPlayer, checkIn, resumePlayer, leavePlayer, cancelSkip, skipNext, pausePlayer]);
+  }, [state.players, state.matches, livePlayers, isPlaying, rejoinPlayer, checkIn, resumePlayer, leavePlayer, cancelSkip, updatePlayer, removePlayer]);
 
   const readyPlayers = useMemo(() => readyPool(), [readyPool]);
   const orderedReady = useMemo(() => playerPriority(readyPlayers), [readyPlayers]);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { applyLiveScore, makeBlankPlayer, rankPlayers, recomputePlayerStats } from "./session";
+import { applyLiveScore, canRemovePlayer, makeBlankPlayer, nameTaken, rankPlayers, recomputePlayerStats } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -49,5 +49,23 @@ describe("live scoring", () => {
 
   it("applyLiveScore leaves completed matches untouched", () => {
     expect(applyLiveScore([done], done.id, 30, 0)[0]).toMatchObject({ s1: 21, s2: 15, status: "completed" });
+  });
+});
+
+describe("roster editing", () => {
+  const players = ["Andi", "Budi", "Eka"].map(player);
+  const [andi, , eka] = players;
+
+  it("nameTaken matches case-insensitively and trims", () => {
+    expect(nameTaken(players, " andi ")).toBe(true);
+    expect(nameTaken(players, "Andi", andi.id)).toBe(false);
+    expect(nameTaken(players, "Andi S")).toBe(false);
+  });
+
+  it("canRemovePlayer refuses players with any match", () => {
+    const live: Match = { ...completed("live", ["andi", "budi"], ["x", "y"], 0, 0), status: "in_progress" };
+    expect(canRemovePlayer(eka, [live])).toBe(true);
+    expect(canRemovePlayer(andi, [live])).toBe(false);
+    expect(canRemovePlayer({ ...eka, games: 1 }, [])).toBe(false);
   });
 });
