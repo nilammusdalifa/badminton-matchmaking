@@ -36,7 +36,11 @@
   background: linear-gradient(160deg, #0e1420 0%, #10241f 55%, #0d2a24 100%);
   border: 1px solid var(--sm-accent-border);
   border-radius: 22px;
-  padding: 26px 18px 16px;
+  /* Symmetric now that the footer (which the old 26/16 split was balancing
+     against) is gone — centering the wordmark+list block via cardBody's
+     justify-content:center only reads as centered if the card's own padding
+     doesn't add extra weight to one side first. */
+  padding: 20px 18px;
   font-family: var(--font-body), sans-serif;
   color: var(--sm-text);
   box-sizing: border-box;
