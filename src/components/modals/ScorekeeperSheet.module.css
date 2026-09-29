@@ -91,6 +91,7 @@
 }
 .plusBtn.a { background: var(--sm-accent); color: var(--sm-accent-on); }
 .plusBtn.b { background: var(--sm-accent-2); color: var(--sm-accent-2-on); }
+.plusBtn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .gameOverNote {
   margin-top: 12px;

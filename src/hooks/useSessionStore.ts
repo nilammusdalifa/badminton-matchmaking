@@ -4,6 +4,7 @@ import { auth, ensureAnonymousAuth, firebaseConfigured } from "../lib/firebase";
 import { claimUmpireAccess, type FirebasePayload, generateSessionPin, pushSessionOwnership, pushSessionToFirebase, subscribeToRemoteSession } from "../lib/firebaseSync";
 import { load, loadIdentity, save, saveIdentity, type PersistedState } from "../lib/persistence";
 import {
+  applyLiveScore,
   buildCounterSnapshot,
   buildSessionSummary,
   buildSuggestion,
@@ -415,23 +416,45 @@ export function useSessionStore() {
     setState((s) => {
       const t1 = team === 1 ? s.scorekeeperT1 + 1 : s.scorekeeperT1;
       const t2 = team === 2 ? s.scorekeeperT2 + 1 : s.scorekeeperT2;
-      return { ...s, scorekeeperT1: t1, scorekeeperT2: t2, scorekeeperHistory: [...s.scorekeeperHistory, { t1, t2 }] };
+      return {
+        ...s,
+        scorekeeperT1: t1,
+        scorekeeperT2: t2,
+        scorekeeperHistory: [...s.scorekeeperHistory, { t1, t2 }],
+        matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", t1, t2),
+      };
     });
   }, []);
   const skSetT1 = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const v = Math.max(0, Math.min(99, parseInt(e.target.value, 10) || 0));
-    setState((s) => ({ ...s, scorekeeperT1: v, scorekeeperHistory: [...s.scorekeeperHistory, { t1: v, t2: s.scorekeeperT2 }] }));
+    setState((s) => ({
+      ...s,
+      scorekeeperT1: v,
+      scorekeeperHistory: [...s.scorekeeperHistory, { t1: v, t2: s.scorekeeperT2 }],
+      matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", v, s.scorekeeperT2),
+    }));
   }, []);
   const skSetT2 = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const v = Math.max(0, Math.min(99, parseInt(e.target.value, 10) || 0));
-    setState((s) => ({ ...s, scorekeeperT2: v, scorekeeperHistory: [...s.scorekeeperHistory, { t1: s.scorekeeperT1, t2: v }] }));
+    setState((s) => ({
+      ...s,
+      scorekeeperT2: v,
+      scorekeeperHistory: [...s.scorekeeperHistory, { t1: s.scorekeeperT1, t2: v }],
+      matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", s.scorekeeperT1, v),
+    }));
   }, []);
   const skUndo = useCallback(() => {
     setState((s) => {
       if (s.scorekeeperHistory.length <= 1) return s;
       const h = s.scorekeeperHistory.slice(0, -1);
       const last = h[h.length - 1];
-      return { ...s, scorekeeperHistory: h, scorekeeperT1: last.t1, scorekeeperT2: last.t2 };
+      return {
+        ...s,
+        scorekeeperHistory: h,
+        scorekeeperT1: last.t1,
+        scorekeeperT2: last.t2,
+        matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", last.t1, last.t2),
+      };
     });
   }, []);
   const skSaveFinal = useCallback(() => {

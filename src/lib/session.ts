@@ -15,6 +15,14 @@ export function parseScheduleEndTime(schedule: string): { hour: number; minute: 
   return { hour, minute };
 }
 
+/** Writes points entered in the scorekeeper onto the match itself while it's
+ * still being played, so closing the sheet (or a viewer watching) doesn't
+ * lose them. A completed match is only ever changed by an explicit save —
+ * otherwise retyping a score while fixing it would rewrite rankings live. */
+export function applyLiveScore(matches: Match[], matchId: string, s1: number, s2: number): Match[] {
+  return matches.map((m) => (m.id === matchId && m.status === "in_progress" ? { ...m, s1, s2 } : m));
+}
+
 export function isOverTarget(s1: number, s2: number): boolean {
   return (s1 >= 21 && s1 - s2 >= 2) || (s2 >= 21 && s2 - s1 >= 2) || s1 >= 30 || s2 >= 30;
 }

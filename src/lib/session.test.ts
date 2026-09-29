@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { makeBlankPlayer, rankPlayers, recomputePlayerStats } from "./session";
+import { applyLiveScore, makeBlankPlayer, rankPlayers, recomputePlayerStats } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -36,5 +36,18 @@ describe("rankings", () => {
   it("recomputePlayerStats shows no tough opponent without a loss", () => {
     expect(stats.find((p) => p.name === "Ana")!.toughOpp).toBe("—");
     expect(stats.find((p) => p.name === "Cy")!.toughOpp).not.toBe("—");
+  });
+});
+
+describe("live scoring", () => {
+  const live: Match = { ...completed("live", ["ana", "bo"], ["cy", "di"], 0, 0), status: "in_progress" };
+  const done = completed("done", ["ana", "bo"], ["cy", "di"], 21, 15);
+
+  it("applyLiveScore writes points to an in-progress match", () => {
+    expect(applyLiveScore([live], live.id, 3, 1).find((m) => m.id === live.id)).toMatchObject({ s1: 3, s2: 1, status: "in_progress" });
+  });
+
+  it("applyLiveScore leaves completed matches untouched", () => {
+    expect(applyLiveScore([done], done.id, 30, 0)[0]).toMatchObject({ s1: 21, s2: 15, status: "completed" });
   });
 });
