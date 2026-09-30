@@ -18,6 +18,9 @@ import {
   makeBlankPlayer,
   nameTaken,
   photoReminderMinutes,
+  courtCloseReminders,
+  courtCloseKey,
+  parseClockTime,
   playerPriority,
   rankPlayers,
   readyPool as readyPoolFn,
@@ -58,6 +61,10 @@ interface AppState {
   sessionResultMode: ResultMode;
   history: SessionHistoryEntry[];
   photoReminderShown: boolean;
+  /** `courtCloseKey`s whose "pause this court" banner was dismissed on this
+   * device. Deliberately not persisted or synced: a dismissal is one device's
+   * choice, and a reload simply asks again. */
+  dismissedCourtReminders: string[];
   scorekeeperMatchId: string | null;
   scorekeeperT1: number;
   scorekeeperT2: number;
@@ -109,6 +116,7 @@ function initialState(): AppState {
     sessionResultMode: "score",
     history: [],
     photoReminderShown: false,
+    dismissedCourtReminders: [],
     scorekeeperMatchId: null,
     scorekeeperT1: 0,
     scorekeeperT2: 0,
@@ -398,6 +406,19 @@ export function useSessionStore() {
   // with a racket in hand. Only for devices that run the session.
   const photoMinutesLeft = photoReminderMinutes(state.sessionSchedule, new Date());
   const dismissPhotoReminder = useCallback(() => setState((s) => ({ ...s, photoReminderShown: true })), []);
+
+  // "Pause this court" nudge for courts whose closing time is near or past.
+  // Derived from the clock each second like the photo reminder, and only for
+  // devices that run the session. Dismissal is per court + closing time.
+  const courtReminders = useMemo(
+    () =>
+      state.sessionEnded || (isRemoteMode && remoteRole !== "umpire")
+        ? []
+        : courtCloseReminders(state.courts, state.matches, new Date(), state.dismissedCourtReminders),
+    // state.tick re-evaluates the clock every second
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.courts, state.matches, state.sessionEnded, state.dismissedCourtReminders, isRemoteMode, remoteRole, state.tick],
+  );
 
   const isPlaying = useCallback((id: string, matches?: Match[]) => isPlayingFn(id, matches ?? state.matches), [state.matches]);
 
@@ -909,6 +930,22 @@ export function useSessionStore() {
     [state.courts, state.matches, showToast],
   );
 
+  // A court's closing time only feeds the "pause this court" reminder banner —
+  // it never pauses anything itself. Empty (or malformed) input clears it.
+  const setCourtClosesAt = useCallback((courtId: string, value: string) => {
+    const closesAt = parseClockTime(value) === null ? undefined : value;
+    setState((s) => ({
+      ...s,
+      courts: s.courts.map((c) => {
+        if (c.id !== courtId) return c;
+        const next = { ...c, closesAt };
+        // an absent key, not `undefined` — Firebase rejects undefined values
+        if (!closesAt) delete next.closesAt;
+        return next;
+      }),
+    }));
+  }, []);
+
   // ---- session lifecycle ------------------------------------------------
   const openEndConfirm = useCallback(() => setState((s) => ({ ...s, confirmAction: "end" })), []);
   const openResetConfirm = useCallback(() => setState((s) => ({ ...s, confirmAction: "reset" })), []);
@@ -941,6 +978,7 @@ export function useSessionStore() {
           requestedPairs: [],
           suggestSeed: {},
           photoReminderShown: false,
+          dismissedCourtReminders: [],
           confirmAction: null,
         };
       }
@@ -1020,6 +1058,7 @@ export function useSessionStore() {
         requestedPairs: [],
         suggestSeed: {},
         photoReminderShown: false,
+        dismissedCourtReminders: [],
         history: [...s.history, summary],
       };
     });
@@ -1457,6 +1496,8 @@ export function useSessionStore() {
       requestedPairsVM,
       onAddCourt,
       onRemoveCourt,
+      courtHours: state.courts.map((c) => ({ id: c.id, name: c.name, closesAt: c.closesAt ?? "" })),
+      onSetCourtClosesAt: setCourtClosesAt,
       onOpenSetup: openSetup,
       onEndSession: openEndConfirm,
       onResetSession: openResetConfirm,
@@ -1602,6 +1643,18 @@ export function useSessionStore() {
       photoMinutesLeft !== null && !state.photoReminderShown && !state.sessionEnded && state.courts.length > 0 && (!isRemoteMode || remoteRole === "umpire")
         ? { minutesLeft: photoMinutesLeft, onDismiss: dismissPhotoReminder }
         : null,
+
+    courtCloseReminders: courtReminders.map((r) => ({
+      courtId: r.courtId,
+      message:
+        (r.minutesLeft > 0 ? `${r.name} closes at ${r.closesAt} (${r.minutesLeft} min).` : `${r.name} closed at ${r.closesAt}.`) +
+        (r.busy ? " Pause it after this match." : " Pause it now?"),
+      onPause: () => togglePauseCourt(r.courtId),
+      onDismiss: () => {
+        const court = state.courts.find((c) => c.id === r.courtId);
+        if (court) setState((s) => ({ ...s, dismissedCourtReminders: [...s.dismissedCourtReminders, courtCloseKey(court)] }));
+      },
+    })),
 
     review: {
       sessionName: state.sessionName,

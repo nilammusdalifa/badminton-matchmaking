@@ -27,6 +27,8 @@ export function ManageTab({
   requestedPairsVM,
   onAddCourt,
   onRemoveCourt,
+  courtHours,
+  onSetCourtClosesAt,
   onOpenSetup,
   onEndSession,
   onResetSession,
@@ -67,20 +69,38 @@ export function ManageTab({
       </div>
 
       <div className={styles.courtsPanel}>
-        <div>
-          <div className={styles.panelTitle}>Courts</div>
-          <div className={styles.courtsSub}>
-            {courtsCount} {courtsCount === 1 ? "court" : "courts"} · {rulesLabel}
+        <div className={styles.courtsHead}>
+          <div>
+            <div className={styles.panelTitle}>Courts</div>
+            <div className={styles.courtsSub}>
+              {courtsCount} {courtsCount === 1 ? "court" : "courts"} · {rulesLabel}
+            </div>
+          </div>
+          <div className={styles.courtsBtns}>
+            <button className={styles.roundBtn} onClick={onRemoveCourt} aria-label="Remove a court">
+              –
+            </button>
+            <button className={styles.roundBtn} onClick={onAddCourt} aria-label="Add a court">
+              +
+            </button>
           </div>
         </div>
-        <div className={styles.courtsBtns}>
-          <button className={styles.roundBtn} onClick={onRemoveCourt} aria-label="Remove a court">
-            –
-          </button>
-          <button className={styles.roundBtn} onClick={onAddCourt} aria-label="Add a court">
-            +
-          </button>
-        </div>
+        {courtHours.length > 0 && (
+          <>
+            <div className={styles.panelHint}>Set a closing time to get a reminder to pause the court.</div>
+            {courtHours.map((c) => (
+              <label className={styles.courtHoursRow} key={c.id}>
+                <span>{c.name} closes at</span>
+                <input
+                  className={styles.timeInput}
+                  type="time"
+                  value={c.closesAt}
+                  onChange={(e) => onSetCourtClosesAt(c.id, e.target.value)}
+                />
+              </label>
+            ))}
+          </>
+        )}
       </div>
 
       <div className={styles.panel}>

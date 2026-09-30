@@ -84,6 +84,10 @@ export interface Court {
    * `false` both mean "active"; optional so courts persisted before this
    * field existed still load correctly. */
   paused?: boolean;
+  /** When this court's booking ends, as "HH:MM" (24-hour, what a time input
+   * yields). Only drives a reminder to pause the court — nothing closes it
+   * automatically. Missing means no closing time was set. */
+  closesAt?: string;
 }
 
 export interface Suggestion {

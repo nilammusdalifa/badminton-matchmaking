@@ -192,9 +192,32 @@
   border-radius: var(--radius-lg);
   padding: 15px 16px;
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.courtsHead {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+.courtHoursRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.timeInput {
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text);
+  font-size: 14px;
+  font-family: var(--font-body), sans-serif;
 }
 .courtsSub {
   font-size: 13px;

@@ -58,6 +58,20 @@ function App() {
         </div>
       )}
 
+      {store.courtCloseReminders.map((r) => (
+        <div className={styles.photoBanner} key={r.courtId}>
+          <span>{r.message}</span>
+          <span className={styles.bannerActions}>
+            <button className={styles.photoBannerBtn} onClick={r.onPause}>
+              Pause
+            </button>
+            <button className={styles.photoBannerBtn} onClick={r.onDismiss}>
+              Dismiss
+            </button>
+          </span>
+        </div>
+      ))}
+
       {isReadOnlyPlayer && <div className={styles.readOnlyBanner}>View only. Ask the organizer to make changes.</div>}
 
       <div className={`${styles.main} ${isReadOnlyPlayer ? styles.readOnlyMain : ""}`}>

@@ -42,6 +42,60 @@ export function photoReminderMinutes(schedule: string, now: Date): number | null
   return null;
 }
 
+const COURT_CLOSE_LEAD_MINUTES = 10;
+/** How long after its closing time a court keeps nagging. Bounded so a court
+ * left unpaused at the end of the night doesn't flag itself again hours later. */
+const COURT_CLOSE_GRACE_MINUTES = 120;
+
+/** "HH:MM" as a time input yields it, as minutes after midnight; null when
+ * missing or malformed. */
+export function parseClockTime(value: string | undefined): number | null {
+  const m = value?.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const hour = parseInt(m[1], 10);
+  const minute = parseInt(m[2], 10);
+  return hour > 23 || minute > 59 ? null : hour * 60 + minute;
+}
+
+export interface CourtCloseReminder {
+  courtId: string;
+  name: string;
+  closesAt: string;
+  /** Whole minutes until closing; 0 or negative once it has passed. */
+  minutesLeft: number;
+  /** A match is still being played there, so it can't be paused yet. */
+  busy: boolean;
+}
+
+/** Courts whose closing time is within the next 10 minutes, or passed in the
+ * last two hours, and that haven't been paused — the ones the organizer
+ * should be reminded to pause. `dismissed` holds `courtCloseKey`s the
+ * organizer chose to leave running. Times are compared around the clock, so
+ * a court closing at 00:15 still counts at 00:05 and at 23:55. */
+export function courtCloseReminders(courts: Court[], matches: Match[], now: Date, dismissed: string[] = []): CourtCloseReminder[] {
+  const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const reminders: CourtCloseReminder[] = [];
+  for (const court of courts) {
+    const closeMin = parseClockTime(court.closesAt);
+    if (closeMin === null || court.paused || dismissed.includes(courtCloseKey(court))) continue;
+    const diff = ((((closeMin - nowMin + 720) % 1440) + 1440) % 1440) - 720; // (-720, 720]
+    if (diff > COURT_CLOSE_LEAD_MINUTES || diff <= -COURT_CLOSE_GRACE_MINUTES) continue;
+    reminders.push({
+      courtId: court.id,
+      name: court.name,
+      closesAt: court.closesAt!,
+      minutesLeft: Math.ceil(diff),
+      busy: matches.some((m) => m.status === "in_progress" && m.courtId === court.id),
+    });
+  }
+  return reminders;
+}
+
+/** Identity of a dismissed reminder: changing a court's closing time re-arms it. */
+export function courtCloseKey(court: Court): string {
+  return court.id + "@" + (court.closesAt ?? "");
+}
+
 /** Writes points entered in the scorekeeper onto the match itself while it's
  * still being played, so closing the sheet (or a viewer watching) doesn't
  * lose them. A completed match is only ever changed by an explicit save —

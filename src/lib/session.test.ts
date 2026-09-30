@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { applyLiveScore, canRemovePlayer, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import { applyLiveScore, canRemovePlayer, courtCloseKey, courtCloseReminders, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -173,5 +173,51 @@ describe("group photo reminder", () => {
     expect(photoReminderMinutes("Rabu malam", at(21, 40))).toBeNull();
     expect(photoReminderMinutes("Wed 12 Nov · 22:00", at(21, 40))).toBeNull();
     expect(photoReminderMinutes("25:00–26:00", at(21, 40))).toBeNull();
+  });
+});
+
+describe("court closing reminder", () => {
+  const at = (h: number, m: number) => new Date(2026, 8, 30, h, m, 0, 0);
+  const courtA = { id: "1", name: "Court A", closesAt: "22:00" };
+  const courtB = { id: "2", name: "Court B", closesAt: "21:00" };
+  const busyOnB: Match = { id: "m", round: 1, num: 1, courtId: "2", status: "in_progress", t1: ["a", "b"], t2: ["c", "d"], s1: 0, s2: 0, elapsedAtTick0: 0 };
+
+  it("only flags the court that is about to close", () => {
+    const r = courtCloseReminders([courtA, courtB], [], at(20, 55));
+    expect(r.map((x) => x.courtId)).toEqual(["2"]);
+    expect(r[0].minutesLeft).toBe(5);
+  });
+
+  it("stays quiet earlier than 10 minutes before closing", () => {
+    expect(courtCloseReminders([courtA, courtB], [], at(20, 45))).toEqual([]);
+  });
+
+  it("keeps flagging after closing, for a while", () => {
+    expect(courtCloseReminders([courtB], [], at(21, 20))[0].minutesLeft).toBeLessThanOrEqual(0);
+    expect(courtCloseReminders([courtB], [], at(23, 30))).toEqual([]);
+  });
+
+  it("says when a match is still being played there", () => {
+    expect(courtCloseReminders([courtB], [busyOnB], at(21, 0))[0].busy).toBe(true);
+    expect(courtCloseReminders([courtB], [], at(21, 0))[0].busy).toBe(false);
+  });
+
+  it("skips paused courts, courts without a time, and dismissed reminders", () => {
+    expect(courtCloseReminders([{ ...courtB, paused: true }], [], at(21, 0))).toEqual([]);
+    expect(courtCloseReminders([{ id: "3", name: "Court C" }], [], at(21, 0))).toEqual([]);
+    expect(courtCloseReminders([courtB], [], at(21, 0), [courtCloseKey(courtB)])).toEqual([]);
+    // a changed closing time asks again
+    expect(courtCloseReminders([{ ...courtB, closesAt: "21:05" }], [], at(21, 0), [courtCloseKey(courtB)])).toHaveLength(1);
+  });
+
+  it("works across midnight", () => {
+    const late = { id: "4", name: "Court D", closesAt: "00:05" };
+    expect(courtCloseReminders([late], [], at(23, 58))[0].minutesLeft).toBe(7);
+    expect(courtCloseReminders([late], [], at(23, 40))).toEqual([]);
+    expect(courtCloseReminders([late], [], at(0, 20))[0].minutesLeft).toBeLessThanOrEqual(0);
+  });
+
+  it("ignores a malformed time", () => {
+    expect(courtCloseReminders([{ ...courtB, closesAt: "25:00" }], [], at(21, 0))).toEqual([]);
   });
 });

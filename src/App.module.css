@@ -107,6 +107,11 @@
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
+.bannerActions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
 .readOnlyBanner {
   position: relative;
   z-index: 1;
