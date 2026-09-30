@@ -16,6 +16,7 @@ export function CourtCard({ court }: CourtCardProps) {
         <div className={styles.headLeft}>
           <div className={styles.courtBadge}>{court.id}</div>
           <div className={styles.courtName}>{court.name}</div>
+          {court.closesAt && state !== "paused" && <div className={styles.closesAt}>closes {court.closesAt}</div>}
         </div>
         <span className={`${styles.stateBadge} ${styles[state]}`}>
           <span className={`${styles.stateDot} ${state === "playing" ? styles.pulsing : ""}`} />
@@ -72,7 +73,19 @@ export function CourtCard({ court }: CourtCardProps) {
             )}
           </>
         )}
-        {state === "available" && (
+        {state === "available" && court.closingSoon && (
+          <>
+            <div className={styles.availableLabel}>Closing soon</div>
+            <div className={styles.noSuggestion}>Closes at {court.closingSoon.closesAt}. No new match will start here.</div>
+            <button className={styles.manualAssignBtn} onClick={court.closingSoon.onKeepOpen}>
+              Keep open and start a match
+            </button>
+            <button className={styles.pauseLink} onClick={court.onTogglePause}>
+              Pause this court
+            </button>
+          </>
+        )}
+        {state === "available" && !court.closingSoon && (
           <>
             <div className={styles.availableLabel}>Court is open</div>
             {suggestion ? (

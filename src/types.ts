@@ -85,9 +85,14 @@ export interface Court {
    * field existed still load correctly. */
   paused?: boolean;
   /** When this court's booking ends, as "HH:MM" (24-hour, what a time input
-   * yields). Only drives a reminder to pause the court — nothing closes it
-   * automatically. Missing means no closing time was set. */
+   * yields). Within 15 minutes of it the court stops being offered new
+   * matches, and once its last match is over it pauses itself. Missing means
+   * no closing time was set. */
   closesAt?: string;
+  /** The `closesAt` value the organizer chose to run this court past. It
+   * silences the closing-time handling (no "closing soon" block, no
+   * auto-pause) for that time only — changing `closesAt` re-arms it. */
+  keepOpenFor?: string;
 }
 
 export interface Suggestion {

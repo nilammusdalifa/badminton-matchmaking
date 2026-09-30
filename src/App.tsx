@@ -62,11 +62,13 @@ function App() {
         <div className={styles.photoBanner} key={r.courtId}>
           <span>{r.message}</span>
           <span className={styles.bannerActions}>
-            <button className={styles.photoBannerBtn} onClick={r.onPause}>
-              Pause
-            </button>
-            <button className={styles.photoBannerBtn} onClick={r.onDismiss}>
-              Dismiss
+            {r.onPause && (
+              <button className={styles.photoBannerBtn} onClick={r.onPause}>
+                Pause now
+              </button>
+            )}
+            <button className={styles.photoBannerBtn} onClick={r.onKeepOpen}>
+              Keep open
             </button>
           </span>
         </div>

@@ -32,6 +32,11 @@ export interface RecentResultEntry {
 export interface CourtViewModel {
   id: string;
   name: string;
+  /** "HH:MM" this court closes, when one was set. */
+  closesAt?: string;
+  /** Set on an open court too close to its closing time to start a match:
+   * no suggestion is offered, and `onKeepOpen` overrides that. */
+  closingSoon?: { closesAt: string; onKeepOpen: () => void };
   state: "playing" | "scoreNeeded" | "available" | "paused";
   match?: {
     matchNumber: number;

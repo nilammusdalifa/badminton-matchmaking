@@ -43,8 +43,11 @@ export function photoReminderMinutes(schedule: string, now: Date): number | null
 }
 
 const COURT_CLOSE_LEAD_MINUTES = 10;
-/** How long after its closing time a court keeps nagging. Bounded so a court
- * left unpaused at the end of the night doesn't flag itself again hours later. */
+/** From this long before its closing time a court stops being offered new
+ * matches — one started now wouldn't finish in time. */
+export const COURT_CLOSING_SOON_MINUTES = 15;
+/** How long after its closing time a court keeps being handled. Bounded so a
+ * court left over from a past session doesn't act up hours later. */
 const COURT_CLOSE_GRACE_MINUTES = 120;
 
 /** "HH:MM" as a time input yields it, as minutes after midnight; null when
@@ -55,6 +58,68 @@ export function parseClockTime(value: string | undefined): number | null {
   const hour = parseInt(m[1], 10);
   const minute = parseInt(m[2], 10);
   return hour > 23 || minute > 59 ? null : hour * 60 + minute;
+}
+
+/** Minutes until a court's closing time (negative once it has passed, down to
+ * two hours after); null when it has no valid closing time, or when that time
+ * is more than 12 hours away either way. Compared around the clock, so a court
+ * closing at 00:15 still counts at 23:55. */
+export function minutesToClose(court: Court, now: Date): number | null {
+  const closeMin = parseClockTime(court.closesAt);
+  if (closeMin === null) return null;
+  const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const diff = ((((closeMin - nowMin + 720) % 1440) + 1440) % 1440) - 720; // (-720, 720]
+  return diff <= -COURT_CLOSE_GRACE_MINUTES ? null : diff;
+}
+
+/** The organizer chose to run this court past its current closing time. */
+function keptOpen(court: Court): boolean {
+  return court.keepOpenFor !== undefined && court.keepOpenFor === court.closesAt;
+}
+
+/** Within 15 minutes of closing (or past it), still open, and not overridden:
+ * no new match should start here. */
+export function isCourtClosingSoon(court: Court, now: Date): boolean {
+  const left = minutesToClose(court, now);
+  return left !== null && left <= COURT_CLOSING_SOON_MINUTES && !court.paused && !keptOpen(court);
+}
+
+/** Courts that have reached their closing time with nothing being played on
+ * them, and should now pause themselves. */
+export function courtsDueToPause(courts: Court[], matches: Match[], now: Date): Court[] {
+  return courts.filter((court) => {
+    const left = minutesToClose(court, now);
+    if (left === null || left > 0 || court.paused || keptOpen(court)) return false;
+    return !matches.some((m) => m.status === "in_progress" && m.courtId === court.id);
+  });
+}
+
+/** Courts as a new session finds them: everything reopened, and last
+ * session's "keep open past closing" choices forgotten. Names and closing
+ * times carry over. */
+export function resetCourtsForNewSession(courts: Court[]): Court[] {
+  return courts.map((court) => {
+    const next = { ...court };
+    delete next.paused;
+    delete next.keepOpenFor;
+    return next;
+  });
+}
+
+/** Resuming a court inside its closing window means "keep it open past
+ * closing" — otherwise it would pause itself again on the next tick. Outside
+ * the window (resuming at 19:30 for a 21:00 close) nothing is overridden. */
+export function resumeCourt(court: Court, now: Date): Court {
+  const left = minutesToClose(court, now);
+  const next = { ...court };
+  delete next.paused;
+  if (left !== null && left <= COURT_CLOSING_SOON_MINUTES && court.closesAt) next.keepOpenFor = court.closesAt;
+  return next;
+}
+
+/** The organizer chose to run this court past its closing time. */
+export function keepCourtOpen(court: Court): Court {
+  return court.closesAt ? { ...court, keepOpenFor: court.closesAt } : court;
 }
 
 export interface CourtCloseReminder {
@@ -68,32 +133,22 @@ export interface CourtCloseReminder {
 }
 
 /** Courts whose closing time is within the next 10 minutes, or passed in the
- * last two hours, and that haven't been paused — the ones the organizer
- * should be reminded to pause. `dismissed` holds `courtCloseKey`s the
- * organizer chose to leave running. Times are compared around the clock, so
- * a court closing at 00:15 still counts at 00:05 and at 23:55. */
-export function courtCloseReminders(courts: Court[], matches: Match[], now: Date, dismissed: string[] = []): CourtCloseReminder[] {
-  const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+ * last two hours, and that are still open and not overridden — the ones the
+ * organizer should hear about. */
+export function courtCloseReminders(courts: Court[], matches: Match[], now: Date): CourtCloseReminder[] {
   const reminders: CourtCloseReminder[] = [];
   for (const court of courts) {
-    const closeMin = parseClockTime(court.closesAt);
-    if (closeMin === null || court.paused || dismissed.includes(courtCloseKey(court))) continue;
-    const diff = ((((closeMin - nowMin + 720) % 1440) + 1440) % 1440) - 720; // (-720, 720]
-    if (diff > COURT_CLOSE_LEAD_MINUTES || diff <= -COURT_CLOSE_GRACE_MINUTES) continue;
+    const left = minutesToClose(court, now);
+    if (left === null || left > COURT_CLOSE_LEAD_MINUTES || court.paused || keptOpen(court)) continue;
     reminders.push({
       courtId: court.id,
       name: court.name,
       closesAt: court.closesAt!,
-      minutesLeft: Math.ceil(diff),
+      minutesLeft: Math.ceil(left),
       busy: matches.some((m) => m.status === "in_progress" && m.courtId === court.id),
     });
   }
   return reminders;
-}
-
-/** Identity of a dismissed reminder: changing a court's closing time re-arms it. */
-export function courtCloseKey(court: Court): string {
-  return court.id + "@" + (court.closesAt ?? "");
 }
 
 /** Writes points entered in the scorekeeper onto the match itself while it's
@@ -158,8 +213,15 @@ export function isOverTarget(s1: number, s2: number): boolean {
   return (s1 >= 21 && s1 - s2 >= 2) || (s2 >= 21 && s2 - s1 >= 2) || s1 >= 30 || s2 >= 30;
 }
 
+/** Two characters for an avatar. Two-word names use both first letters
+ * ("Budi Santoso" → BS); a name ending in a number keeps it, so "P01" and
+ * "P02" stay apart (P1, P2); anything else is its first two letters. */
 export function initialsFor(name: string): string {
-  return (name || "?").substring(0, 2).toUpperCase();
+  const words = (name || "?").trim().split(/\s+/);
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+  const numbered = words[0].match(/^(\D)\D*0*(\d+)$/);
+  if (numbered) return (numbered[1] + numbered[2]).toUpperCase();
+  return words[0].substring(0, 2).toUpperCase();
 }
 
 export function isPlaying(playerId: string, matches: Match[]): boolean {
@@ -223,23 +285,39 @@ function pairKey(aId: string, bId: string): string {
   return [aId, bId].sort().join("|");
 }
 
-/** Splits a foursome into two teams by skill tier (highest+lowest vs. the
- * middle pair by default) so the average skill on each side of the net is
- * close. Deliberately keyed on the organizer-set tier, not a
- * performance-derived rating — the audit backing this rework calls out
- * result-driven rating as a live matchmaking input as hard to trust/explain;
- * tier is visible, organizer-controlled, and doesn't drift mid-session.
+/** How many times each pair has shared a match this session, as opponents or
+ * partners (`meet`) and as partners only (`partner`). Counts matches that are
+ * still being played too — they're part of tonight's history already. */
+export function pairCounts(matches: Match[]): { meet: Map<string, number>; partner: Map<string, number> } {
+  const meet = new Map<string, number>();
+  const partner = new Map<string, number>();
+  const bump = (map: Map<string, number>, a: string, b: string) => map.set(pairKey(a, b), (map.get(pairKey(a, b)) || 0) + 1);
+  for (const m of matches) {
+    const four = [...m.t1, ...m.t2];
+    for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) bump(meet, four[i], four[j]);
+    bump(partner, m.t1[0], m.t1[1]);
+    bump(partner, m.t2[0], m.t2[1]);
+  }
+  return { meet, partner };
+}
+
+/** Splits a foursome into two teams by skill tier so the average skill on
+ * each side of the net is close. Deliberately keyed on the organizer-set
+ * tier, not a performance-derived rating — the audit backing this rework
+ * calls out result-driven rating as a live matchmaking input as hard to
+ * trust/explain; tier is visible, organizer-controlled, and doesn't drift
+ * mid-session.
  *
- * `avoidPairs` — partnerships (by id, order-independent) to steer away from
- * recreating, typically the partnerships from the last match or two. Of the
- * 3 ways to split 4 people into two pairs, this picks whichever repeats the
- * fewest of them, breaking ties by skill balance — the extremes-vs-middle
- * split is listed first so it still wins when nothing needs avoiding, same
- * as before this had any history-awareness at all. Without this, the same
- * two players could be teamed together again the very next match. */
+ * `partnerCount` — how often each pair (by id, order-independent) has been
+ * partners this session. Of the 3 ways to split 4 people into two pairs, this
+ * picks whichever repeats the fewest partnerships, then the smallest skill
+ * gap. Only splits within one tier point of the best balance are considered,
+ * so avoiding a repeat never means putting both strongest players against
+ * both weakest. The extremes-vs-middle split is listed first so it still wins
+ * a full tie. */
 export function pickBalancedFoursome(
   four: Player[],
-  avoidPairs: Set<string> = new Set(),
+  partnerCount: Map<string, number> = new Map(),
 ): { team1: [Player, Player]; team2: [Player, Player] } {
   const [a, b, c, d] = [...four].sort((x, y) => LEVEL_RANK[y.level] - LEVEL_RANK[x.level]);
   const candidates: [[Player, Player], [Player, Player]][] = [
@@ -250,15 +328,64 @@ export function pickBalancedFoursome(
   const skillGap = (t1: [Player, Player], t2: [Player, Player]) =>
     Math.abs(LEVEL_RANK[t1[0].level] + LEVEL_RANK[t1[1].level] - (LEVEL_RANK[t2[0].level] + LEVEL_RANK[t2[1].level]));
   const repeatCount = (t1: [Player, Player], t2: [Player, Player]) =>
-    (avoidPairs.has(pairKey(t1[0].id, t1[1].id)) ? 1 : 0) + (avoidPairs.has(pairKey(t2[0].id, t2[1].id)) ? 1 : 0);
-  const best = candidates
-    .map(([team1, team2]) => ({ team1, team2, repeats: repeatCount(team1, team2), gap: skillGap(team1, team2) }))
-    .sort((x, y) => x.repeats - y.repeats || x.gap - y.gap)[0];
+    (partnerCount.get(pairKey(t1[0].id, t1[1].id)) || 0) + (partnerCount.get(pairKey(t2[0].id, t2[1].id)) || 0);
+  const scored = candidates.map(([team1, team2]) => ({ team1, team2, repeats: repeatCount(team1, team2), gap: skillGap(team1, team2) }));
+  const bestGap = Math.min(...scored.map((x) => x.gap));
+  const best = scored.filter((x) => x.gap <= bestGap + 1).sort((x, y) => x.repeats - y.repeats || x.gap - y.gap)[0];
   return { team1: best.team1, team2: best.team2 };
 }
 
 export function readyPool(players: Player[], matches: Match[]): Player[] {
   return players.filter((p) => p.status === "ready" && !p.skipNextRound && !isPlaying(p.id, matches));
+}
+
+function combinations<T>(items: T[], k: number): T[][] {
+  if (k === 0) return [[]];
+  const out: T[][] = [];
+  items.forEach((item, i) => {
+    for (const rest of combinations(items.slice(i + 1), k - 1)) out.push([item, ...rest]);
+  });
+  return out;
+}
+
+/** Waiting this many matches makes a player a must-play. */
+const MUST_PLAY_SKIPPED = 2;
+/** Nobody is picked for a third match in a row while others are available. */
+const MAX_CONSECUTIVE = 2;
+/** How many of the highest-priority players are weighed against each other. */
+const CANDIDATE_WINDOW = 8;
+/** How many of the best-scoring groups Shuffle cycles through. */
+const SHUFFLE_CHOICES = 6;
+
+/** Picks who plays next from the ready pool. Rules, in order:
+ *  1. Anyone who has waited 2+ matches must play (at most 4, by priority).
+ *  2. Nobody plays a third match in a row, unless too few others are ready.
+ *  3. The rest are chosen from the next 8 by priority: every combination is
+ *     costed as `8 × familiarity − Σ priority + 6 × Σ (games − fewest games)`,
+ *     where familiarity is how often each pair of the four has already shared
+ *     a match tonight. Lowest cost wins; `seed` (Shuffle) steps through the
+ *     next-best few. So four people who just finished together get split up
+ *     rather than sent straight back out as the same group. */
+export function pickFour(pool: Player[], meet: Map<string, number>, seed = 0): Player[] | null {
+  if (pool.length < 4) return null;
+  const sorted = playerPriority(pool);
+  const must = sorted.filter((p) => p.skipped >= MUST_PLAY_SKIPPED).slice(0, 4);
+  let rest = sorted.filter((p) => !must.includes(p));
+  const rested = rest.filter((p) => p.consecutiveGames < MAX_CONSECUTIVE);
+  if (rested.length >= 4 - must.length) rest = rested;
+  rest = rest.slice(0, CANDIDATE_WINDOW);
+
+  const minGames = Math.min(...pool.map((p) => p.games));
+  const ranked = combinations(rest, 4 - must.length)
+    .map((combo) => {
+      const four = [...must, ...combo];
+      let familiarity = 0;
+      for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) familiarity += meet.get(pairKey(four[i].id, four[j].id)) || 0;
+      const cost = 8 * familiarity - four.reduce((sum, p) => sum + priorityScore(p), 0) + 6 * four.reduce((sum, p) => sum + (p.games - minGames), 0);
+      return { four, familiarity, cost };
+    })
+    .sort((x, y) => x.cost - y.cost);
+  return ranked[seed % Math.min(ranked.length, SHUFFLE_CHOICES)].four;
 }
 
 export function buildSuggestion(
@@ -271,6 +398,7 @@ export function buildSuggestion(
   const pool = readyPool(players, matches).filter((p) => !excludeIds.includes(p.id));
   if (pool.length < 4) return null;
   const ordered = playerPriority(pool);
+  const { meet, partner } = pairCounts(matches);
 
   const reqPair = requestedPairs.find(
     ([a, b]) => ordered.some((p) => p.id === a) && ordered.some((p) => p.id === b),
@@ -298,31 +426,65 @@ export function buildSuggestion(
     }
   }
 
-  const top3 = ordered.slice(0, 3);
-  const restPool = ordered.slice(3);
-  const fourth = restPool.length ? restPool[seed % restPool.length] : null;
-  const four = [...top3, fourth].filter((p): p is Player => Boolean(p));
-  if (four.length < 4) return null;
-  // Steer the team split away from repeating who was partnered with whom in
-  // the last couple of completed matches — otherwise, with a small ready
-  // pool, the same two players can easily get teamed together again
-  // back-to-back with no variation at all.
-  const avoidPairs = new Set<string>();
-  for (const m of [...matches].filter((m) => m.status === "completed").sort((a, b) => b.num - a.num).slice(0, 2)) {
-    avoidPairs.add(pairKey(m.t1[0], m.t1[1]));
-    avoidPairs.add(pairKey(m.t2[0], m.t2[1]));
-  }
-  const split = pickBalancedFoursome(four, avoidPairs);
-  const lead = ordered[0];
+  const four = pickFour(pool, meet, seed);
+  if (!four) return null;
+  const split = pickBalancedFoursome(four, partner);
+
+  // What actually drove the pick, not how the teams were split.
+  const lead = playerPriority(four)[0];
   const reasons = [
     lead.skipped === 0
       ? `${lead.name} is first in line`
       : `${lead.name} has waited ${lead.skipped} ${lead.skipped === 1 ? "match" : "matches"}`,
   ];
+  let familiarity = 0;
+  for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) familiarity += meet.get(pairKey(four[i].id, four[j].id)) || 0;
+  if (matches.length > 0 && familiarity === 0) reasons.push("New group");
   const streak = four.find((p) => p.consecutiveGames >= 2);
   if (streak) reasons.push(`${streak.name} is playing back-to-back`);
-  const balanceNote = `Balanced by tier (${four.map((p) => p.level).join("/")})`;
+  const levels = (team: [Player, Player]) => team.map((p) => p.level).join("+");
+  const balanceNote = `Teams balanced by tier (${levels(split.team1)} vs ${levels(split.team2)})`;
   return { team1: split.team1, team2: split.team2, four, reasons, balanceNote };
+}
+
+/** Suggestions for every court that can take a match right now, keyed by
+ * court id — computed once so the court card, "Start Match", the manual-assign
+ * modal and auto-fill all show and start the same four. A court's suggestion
+ * excludes whoever earlier courts already claimed. A court that is paused,
+ * busy or closing soon has no entry; `null` means it's open but too few
+ * players are waiting. */
+export function courtSuggestions(
+  courts: Court[],
+  players: Player[],
+  matches: Match[],
+  requestedPairs: [string, string][],
+  seeds: Record<string, number>,
+  now: Date,
+): Record<string, Suggestion | null> {
+  const claimed: string[] = [];
+  const out: Record<string, Suggestion | null> = {};
+  for (const court of courts) {
+    if (court.paused || isCourtClosingSoon(court, now)) continue;
+    if (matches.some((m) => m.status === "in_progress" && m.courtId === court.id)) continue;
+    const suggestion = buildSuggestion(players, matches, requestedPairs, claimed, seeds[court.id] || 0);
+    out[court.id] = suggestion;
+    if (suggestion) claimed.push(...suggestion.four.map((p) => p.id));
+  }
+  return out;
+}
+
+/** The rotation counters after `four` start a match: they reset their wait
+ * and add a game in a row; every other ready player who isn't on a court
+ * waits one more. `matches` is the list BEFORE the new match is added. */
+export function applyMatchStart(players: Player[], matches: Match[], four: readonly string[]): Player[] {
+  return players.map((p) => {
+    if (four.includes(p.id)) {
+      const consecutiveGames = (p.consecutiveGames || 0) + 1;
+      return { ...p, skipped: 0, consecutiveGames, skipNextRound: false, maxConsecutive: Math.max(p.maxConsecutive || 0, consecutiveGames) };
+    }
+    if (p.status === "ready" && !isPlaying(p.id, matches)) return { ...p, skipped: p.skipped + 1, consecutiveGames: 0, skipNextRound: false };
+    return p;
+  });
 }
 
 /** Every stat on Rankings (games/wins/losses/point diff/trend/favorite

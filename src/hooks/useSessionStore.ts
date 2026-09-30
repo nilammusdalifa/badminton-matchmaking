@@ -5,13 +5,18 @@ import { claimUmpireAccess, type FirebasePayload, generateSessionPin, pushSessio
 import { load, loadIdentity, save, saveIdentity, type PersistedState } from "../lib/persistence";
 import {
   applyLiveScore,
+  applyMatchStart,
   buildCounterSnapshot,
   canRemovePlayer,
   buildSessionSummary,
   buildSuggestion,
+  courtSuggestions,
+  courtsDueToPause,
   formatElapsed,
   initialsFor,
+  isCourtClosingSoon,
   isFirstRun,
+  keepCourtOpen,
   isOverTarget,
   isPlaying as isPlayingFn,
   liveScoreFor,
@@ -19,13 +24,14 @@ import {
   nameTaken,
   photoReminderMinutes,
   courtCloseReminders,
-  courtCloseKey,
   parseClockTime,
   playerPriority,
   rankPlayers,
   readyPool as readyPoolFn,
   recomputePlayerStats,
+  resetCourtsForNewSession,
   resetPlayersForNewSession,
+  resumeCourt,
   reverseCounterSnapshot,
   syncFingerprint,
   teamNames,
@@ -61,10 +67,6 @@ interface AppState {
   sessionResultMode: ResultMode;
   history: SessionHistoryEntry[];
   photoReminderShown: boolean;
-  /** `courtCloseKey`s whose "pause this court" banner was dismissed on this
-   * device. Deliberately not persisted or synced: a dismissal is one device's
-   * choice, and a reload simply asks again. */
-  dismissedCourtReminders: string[];
   scorekeeperMatchId: string | null;
   scorekeeperT1: number;
   scorekeeperT2: number;
@@ -116,7 +118,6 @@ function initialState(): AppState {
     sessionResultMode: "score",
     history: [],
     photoReminderShown: false,
-    dismissedCourtReminders: [],
     scorekeeperMatchId: null,
     scorekeeperT1: 0,
     scorekeeperT2: 0,
@@ -407,17 +408,39 @@ export function useSessionStore() {
   const photoMinutesLeft = photoReminderMinutes(state.sessionSchedule, new Date());
   const dismissPhotoReminder = useCallback(() => setState((s) => ({ ...s, photoReminderShown: true })), []);
 
-  // "Pause this court" nudge for courts whose closing time is near or past.
-  // Derived from the clock each second like the photo reminder, and only for
-  // devices that run the session. Dismissal is per court + closing time.
+  // Closing-time handling only runs on devices that run the session.
+  const runsSession = !isRemoteMode || remoteRole === "umpire";
+
+  // Reminder banner for courts whose closing time is near or past. Derived
+  // from the clock each second like the photo reminder.
   const courtReminders = useMemo(
-    () =>
-      state.sessionEnded || (isRemoteMode && remoteRole !== "umpire")
-        ? []
-        : courtCloseReminders(state.courts, state.matches, new Date(), state.dismissedCourtReminders),
+    () => (state.sessionEnded || !runsSession ? [] : courtCloseReminders(state.courts, state.matches, new Date())),
     // state.tick re-evaluates the clock every second
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.courts, state.matches, state.sessionEnded, state.dismissedCourtReminders, isRemoteMode, remoteRole, state.tick],
+    [state.courts, state.matches, state.sessionEnded, runsSession, state.tick],
+  );
+
+  // At closing time a court with nothing being played on it pauses itself, so
+  // the players flow to the courts still open. A court still mid-match waits
+  // for that match to finish. Pausing (not toggling) is idempotent, so an
+  // organizer's and an umpire's device can both do it without fighting.
+  useEffect(() => {
+    if (state.sessionEnded || !runsSession) return;
+    const due = courtsDueToPause(state.courts, state.matches, new Date());
+    if (due.length === 0) return;
+    const ids = due.map((c) => c.id);
+    setState((s) => ({ ...s, courts: s.courts.map((c) => (ids.includes(c.id) ? { ...c, paused: true } : c)) }));
+    showToast(due.map((c) => c.name).join(" and ") + (due.length === 1 ? " closed and is paused" : " closed and are paused"));
+  }, [state.tick, state.courts, state.matches, state.sessionEnded, runsSession, showToast]);
+
+  // One suggestion per open court, computed once per render so the court card,
+  // Start Match, the manual-assign modal and auto-fill always agree on who
+  // plays where.
+  const suggestions = useMemo(
+    () => courtSuggestions(state.courts, livePlayers, state.matches, state.requestedPairs, state.suggestSeed, new Date()),
+    // state.tick moves the closing-soon cut-off along with the clock
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.courts, livePlayers, state.matches, state.requestedPairs, state.suggestSeed, state.tick],
   );
 
   const isPlaying = useCallback((id: string, matches?: Match[]) => isPlayingFn(id, matches ?? state.matches), [state.matches]);
@@ -584,14 +607,7 @@ export function useSessionStore() {
           // this match later can put everyone back exactly where they were.
           counterSnapshot: buildCounterSnapshot(s.players, s.matches, four),
         };
-        const players = s.players.map((p) => {
-          if (four.includes(p.id)) {
-            const consecutiveGames = (p.consecutiveGames || 0) + 1;
-            return { ...p, skipped: 0, consecutiveGames, skipNextRound: false, maxConsecutive: Math.max(p.maxConsecutive || 0, consecutiveGames) };
-          }
-          if (p.status === "ready" && !isPlayingFn(p.id, s.matches)) return { ...p, skipped: p.skipped + 1, consecutiveGames: 0, skipNextRound: false };
-          return p;
-        });
+        const players = applyMatchStart(s.players, s.matches, four);
         const requestedPairs = s.requestedPairs.filter(
           ([a, b]) => !((ids1.includes(a) && ids1.includes(b)) || (ids2.includes(a) && ids2.includes(b))),
         );
@@ -604,12 +620,13 @@ export function useSessionStore() {
 
   const startMatch = useCallback(
     (courtId: string) => {
-      const seed = state.suggestSeed[courtId] || 0;
-      const sug = buildSuggestion(livePlayers, state.matches, state.requestedPairs, [], seed);
+      // The very four the court card shows — not a fresh calculation that
+      // ignores what earlier courts have already claimed.
+      const sug = suggestions[courtId];
       if (!sug) return;
       startMatchWithPlayers(courtId, [sug.team1[0].id, sug.team1[1].id], [sug.team2[0].id, sug.team2[1].id]);
     },
-    [state.suggestSeed, livePlayers, state.matches, state.requestedPairs, startMatchWithPlayers],
+    [suggestions, startMatchWithPlayers],
   );
 
   const rerollSuggestion = useCallback(
@@ -629,8 +646,7 @@ export function useSessionStore() {
   // players before letting the match start).
   const openEdit = useCallback(
     (courtId: string) => {
-      const seed = state.suggestSeed[courtId] || 0;
-      const sug = buildSuggestion(livePlayers, state.matches, state.requestedPairs, [], seed);
+      const sug = suggestions[courtId];
       setState((s) => ({
         ...s,
         editCourtId: courtId,
@@ -640,7 +656,7 @@ export function useSessionStore() {
         editT2B: sug ? sug.team2[1].id : "",
       }));
     },
-    [state.suggestSeed, livePlayers, state.matches, state.requestedPairs],
+    [suggestions],
   );
   // Refills all 4 pickers with a fresh balanced suggestion — the same logic
   // behind "Shuffle", but reachable from inside the manual-assign modal so
@@ -650,8 +666,7 @@ export function useSessionStore() {
   const autoFillEdit = useCallback(() => {
     const courtId = state.editCourtId;
     if (!courtId) return;
-    const seed = state.suggestSeed[courtId] || 0;
-    const sug = buildSuggestion(livePlayers, state.matches, state.requestedPairs, [], seed);
+    const sug = suggestions[courtId];
     if (!sug) {
       showToast("Not enough waiting players to auto-fill");
       return;
@@ -664,7 +679,7 @@ export function useSessionStore() {
       editT2B: sug.team2[1].id,
       suggestSeed: { ...s.suggestSeed, [courtId]: (s.suggestSeed[courtId] || 0) + 1 },
     }));
-  }, [state.editCourtId, state.suggestSeed, livePlayers, state.matches, state.requestedPairs, showToast]);
+  }, [state.editCourtId, suggestions, showToast]);
   const closeEdit = useCallback(() => setState((s) => ({ ...s, editCourtId: null })), []);
   const onEditStart = useCallback(() => {
     const { editCourtId, editT1A, editT1B, editT2A, editT2B } = state;
@@ -924,14 +939,19 @@ export function useSessionStore() {
           return;
         }
       }
-      setState((s) => ({ ...s, courts: s.courts.map((c) => (c.id === courtId ? { ...c, paused: !c.paused } : c)) }));
+      setState((s) => ({
+        ...s,
+        courts: s.courts.map((c) => (c.id !== courtId ? c : c.paused ? resumeCourt(c, new Date()) : { ...c, paused: true })),
+      }));
       showToast(court.paused ? court.name + " resumed" : court.name + " paused");
     },
     [state.courts, state.matches, showToast],
   );
 
-  // A court's closing time only feeds the "pause this court" reminder banner —
-  // it never pauses anything itself. Empty (or malformed) input clears it.
+  // A court's closing time: within 15 minutes of it the court stops being
+  // offered new matches, and once its last match is over it pauses itself.
+  // Empty (or malformed) input clears it; any change drops an earlier "keep
+  // open" choice, which was about the old time.
   const setCourtClosesAt = useCallback((courtId: string, value: string) => {
     const closesAt = parseClockTime(value) === null ? undefined : value;
     setState((s) => ({
@@ -939,11 +959,16 @@ export function useSessionStore() {
       courts: s.courts.map((c) => {
         if (c.id !== courtId) return c;
         const next = { ...c, closesAt };
+        delete next.keepOpenFor;
         // an absent key, not `undefined` — Firebase rejects undefined values
         if (!closesAt) delete next.closesAt;
         return next;
       }),
     }));
+  }, []);
+
+  const keepOpenPastClosing = useCallback((courtId: string) => {
+    setState((s) => ({ ...s, courts: s.courts.map((c) => (c.id === courtId ? keepCourtOpen(c) : c)) }));
   }, []);
 
   // ---- session lifecycle ------------------------------------------------
@@ -978,7 +1003,6 @@ export function useSessionStore() {
           requestedPairs: [],
           suggestSeed: {},
           photoReminderShown: false,
-          dismissedCourtReminders: [],
           confirmAction: null,
         };
       }
@@ -1058,7 +1082,9 @@ export function useSessionStore() {
         requestedPairs: [],
         suggestSeed: {},
         photoReminderShown: false,
-        dismissedCourtReminders: [],
+        // a court paused (by hand or at closing time) or kept open past its
+        // closing time last session starts this one as normal
+        courts: resetCourtsForNewSession(s.courts),
         history: [...s.history, summary],
       };
     });
@@ -1108,6 +1134,7 @@ export function useSessionStore() {
 
   const courtsVM = useMemo<CourtViewModel[]>(() => {
     const claimed: string[] = [];
+    const now = new Date();
     return state.courts.map((court) => {
       const activeMatch = state.matches.find((m) => m.status === "in_progress" && m.courtId === court.id);
       if (activeMatch) {
@@ -1121,6 +1148,7 @@ export function useSessionStore() {
         return {
           id: court.id,
           name: court.name,
+          closesAt: court.closesAt,
           state: over ? "scoreNeeded" : "playing",
           match: {
             matchNumber: activeMatch.num,
@@ -1144,13 +1172,26 @@ export function useSessionStore() {
         return {
           id: court.id,
           name: court.name,
+          closesAt: court.closesAt,
           state: "paused",
           suggestion: null,
           onTogglePause: () => togglePauseCourt(court.id),
         };
       }
-      const seed = state.suggestSeed[court.id] || 0;
-      const suggestion = buildSuggestion(livePlayers, state.matches, state.requestedPairs, claimed, seed);
+      if (isCourtClosingSoon(court, now)) {
+        // Too close to closing for a new match to finish; it claims nobody, so
+        // the other courts get those players. Starting anyway is the organizer's call.
+        return {
+          id: court.id,
+          name: court.name,
+          closesAt: court.closesAt,
+          state: "available",
+          suggestion: null,
+          closingSoon: { closesAt: court.closesAt ?? "", onKeepOpen: () => keepOpenPastClosing(court.id) },
+          onTogglePause: () => togglePauseCourt(court.id),
+        };
+      }
+      const suggestion = suggestions[court.id] ?? null;
       if (suggestion) claimed.push(...suggestion.four.map((p) => p.id));
       // Same pool buildSuggestion itself computes (ready, unskipped, not
       // already playing, minus whoever earlier courts already claimed) —
@@ -1160,6 +1201,7 @@ export function useSessionStore() {
       return {
         id: court.id,
         name: court.name,
+        closesAt: court.closesAt,
         state: "available",
         suggestion: suggestion
           ? {
@@ -1181,9 +1223,9 @@ export function useSessionStore() {
     state.courts,
     state.matches,
     livePlayers,
-    state.suggestSeed,
-    state.requestedPairs,
+    suggestions,
     state.tick,
+    keepOpenPastClosing,
     openScorekeeper,
     startMatch,
     rerollSuggestion,
@@ -1202,7 +1244,8 @@ export function useSessionStore() {
   // right now. Recomputes automatically as availability/results change.
   const upNext = useMemo<UpNextEntry | null>(() => {
     if (state.courts.length === 0) return null;
-    const anyCourtFree = state.courts.some((c) => !c.paused && !state.matches.some((m) => m.status === "in_progress" && m.courtId === c.id));
+    const now = new Date();
+    const anyCourtFree = state.courts.some((c) => !c.paused && !isCourtClosingSoon(c, now) && !state.matches.some((m) => m.status === "in_progress" && m.courtId === c.id));
     if (anyCourtFree) return null; // a free court's own card already shows this suggestion
     const seed = state.suggestSeed["upnext"] || 0;
     const sug = buildSuggestion(livePlayers, state.matches, state.requestedPairs, [], seed);
@@ -1213,7 +1256,9 @@ export function useSessionStore() {
       reason: suggestionReason(sug),
       onRegenerate: () => rerollSuggestion("upnext"),
     };
-  }, [state.courts, state.matches, livePlayers, state.suggestSeed, state.requestedPairs, rerollSuggestion, suggestionReason]);
+    // state.tick moves the closing-soon cut-off along with the clock
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.courts, state.matches, livePlayers, state.suggestSeed, state.requestedPairs, state.tick, rerollSuggestion, suggestionReason]);
 
   const managePlayersVM = useMemo<ManagePlayerEntry[]>(() => {
     return [...state.players]
@@ -1647,13 +1692,12 @@ export function useSessionStore() {
     courtCloseReminders: courtReminders.map((r) => ({
       courtId: r.courtId,
       message:
-        (r.minutesLeft > 0 ? `${r.name} closes at ${r.closesAt} (${r.minutesLeft} min).` : `${r.name} closed at ${r.closesAt}.`) +
-        (r.busy ? " Pause it after this match." : " Pause it now?"),
-      onPause: () => togglePauseCourt(r.courtId),
-      onDismiss: () => {
-        const court = state.courts.find((c) => c.id === r.courtId);
-        if (court) setState((s) => ({ ...s, dismissedCourtReminders: [...s.dismissedCourtReminders, courtCloseKey(court)] }));
-      },
+        r.minutesLeft > 0
+          ? `${r.name} closes at ${r.closesAt} (${r.minutesLeft} min). It pauses once idle.`
+          : `${r.name} closed at ${r.closesAt}. It pauses after this match.`,
+      // Can't pause under a running match; it pauses by itself when that ends.
+      onPause: r.busy ? null : () => togglePauseCourt(r.courtId),
+      onKeepOpen: () => keepOpenPastClosing(r.courtId),
     })),
 
     review: {
