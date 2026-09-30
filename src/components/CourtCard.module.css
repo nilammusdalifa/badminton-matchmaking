@@ -45,6 +45,12 @@
   color: var(--sm-accent-hover);
   flex-shrink: 0;
 }
+.keptOpen {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sm-accent);
+}
 .closesAt {
   flex-shrink: 0;
   font-size: 12px;

@@ -35,6 +35,10 @@ export interface Player {
   toughOppGames: number;
   avgWait: number;
   maxConsecutive: number;
+  /** A host sits out the first round (one match on every open court), then
+   * joins the rotation normally. Saved with the player, so it carries over
+   * to the next session. Missing means not a host. */
+  isHost?: boolean;
 }
 
 /** A player's rotation-fairness fields, captured just before a match-start
@@ -89,10 +93,13 @@ export interface Court {
    * matches, and once its last match is over it pauses itself. Missing means
    * no closing time was set. */
   closesAt?: string;
-  /** The `closesAt` value the organizer chose to run this court past. It
-   * silences the closing-time handling (no "closing soon" block, no
-   * auto-pause) for that time only — changing `closesAt` re-arms it. */
+  /** The `closesAt` value the organizer chose to run this court past, for
+   * one more match (see `keepOpenBase`). Changing `closesAt` drops it. */
   keepOpenFor?: string;
+  /** How many matches had been started on this court when it was kept open.
+   * Keeping open allows exactly one more: once a match beyond this count has
+   * started, the court closes normally when that match is over. */
+  keepOpenBase?: number;
 }
 
 export interface Suggestion {

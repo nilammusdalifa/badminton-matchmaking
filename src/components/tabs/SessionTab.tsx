@@ -21,6 +21,7 @@ export function SessionTab({
   notInRotationVM,
   recentResultsVM,
   sessionHealth,
+  fewPlayersHint,
   hideTier,
   readOnly,
   onSeeAllMatches,
@@ -39,6 +40,7 @@ export function SessionTab({
           <span className={`${styles.chip} ${styles.chipWaiting}`}>Waiting {readyWaitingCount}</span>
           <span className={`${styles.chip} ${styles.chipPaused}`}>Resting {pausedCount}</span>
         </div>
+        {fewPlayersHint && !readOnly && <div className={styles.hintNote}>{fewPlayersHint}</div>}
         {hasExpected && (
           <div className={styles.checkInBanner}>
             <span className={styles.checkInText}>{expectedCount} not checked in</span>
@@ -104,6 +106,7 @@ export function SessionTab({
                       {i === 0 && "Next up · "}Waited {w.skipped} {w.skipped === 1 ? "match" : "matches"} · {w.games} {w.games === 1 ? "game" : "games"} played
                       {w.hasStreak ? ` · back-to-back x${w.consec}` : ""}
                     </div>
+                    {w.note && <div className={styles.waitingMeta}>{w.note}</div>}
                   </div>
                 </div>
                 <div className={styles.waitingActions}>

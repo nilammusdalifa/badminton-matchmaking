@@ -47,6 +47,7 @@ export function ManageTab({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
   const [draftLevel, setDraftLevel] = useState<SkillLevel>("B");
+  const [draftHost, setDraftHost] = useState(false);
 
   return (
     <>
@@ -68,55 +69,59 @@ export function ManageTab({
         />
       </div>
 
-      <div className={styles.courtsPanel}>
-        <div className={styles.courtsHead}>
-          <div>
-            <div className={styles.panelTitle}>Courts</div>
-            <div className={styles.courtsSub}>
-              {courtsCount} {courtsCount === 1 ? "court" : "courts"} · {rulesLabel}
+      {isOwner && (
+        <div className={styles.courtsPanel}>
+          <div className={styles.courtsHead}>
+            <div>
+              <div className={styles.panelTitle}>Courts</div>
+              <div className={styles.courtsSub}>
+                {courtsCount} {courtsCount === 1 ? "court" : "courts"} · {rulesLabel}
+              </div>
+            </div>
+            <div className={styles.courtsBtns}>
+              <button className={styles.roundBtn} onClick={onRemoveCourt} aria-label="Remove a court">
+                –
+              </button>
+              <button className={styles.roundBtn} onClick={onAddCourt} aria-label="Add a court">
+                +
+              </button>
             </div>
           </div>
-          <div className={styles.courtsBtns}>
-            <button className={styles.roundBtn} onClick={onRemoveCourt} aria-label="Remove a court">
-              –
+          {courtHours.length > 0 && (
+            <>
+              <div className={styles.panelHint}>Set a closing time to get a reminder to pause the court.</div>
+              {courtHours.map((c) => (
+                <label className={styles.courtHoursRow} key={c.id}>
+                  <span>{c.name} closes at</span>
+                  <input
+                    className={styles.timeInput}
+                    type="time"
+                    value={c.closesAt}
+                    onChange={(e) => onSetCourtClosesAt(c.id, e.target.value)}
+                  />
+                </label>
+              ))}
+            </>
+        )}
+      </div>
+      )}
+
+      {isOwner && (
+        <div className={styles.panel}>
+          <div className={styles.panelTitle}>Session</div>
+          <div className={styles.dangerZone}>
+            <button className={styles.zoneBtn} onClick={onOpenSetup}>
+              + New Session
             </button>
-            <button className={styles.roundBtn} onClick={onAddCourt} aria-label="Add a court">
-              +
+            <button className={`${styles.zoneBtn} ${styles.danger}`} onClick={onEndSession}>
+              End &amp; See Results
+            </button>
+            <button className={`${styles.zoneBtn} ${styles.dangerSolid}`} onClick={onResetSession}>
+              Erase Results &amp; Restart
             </button>
           </div>
         </div>
-        {courtHours.length > 0 && (
-          <>
-            <div className={styles.panelHint}>Set a closing time to get a reminder to pause the court.</div>
-            {courtHours.map((c) => (
-              <label className={styles.courtHoursRow} key={c.id}>
-                <span>{c.name} closes at</span>
-                <input
-                  className={styles.timeInput}
-                  type="time"
-                  value={c.closesAt}
-                  onChange={(e) => onSetCourtClosesAt(c.id, e.target.value)}
-                />
-              </label>
-            ))}
-          </>
-        )}
-      </div>
-
-      <div className={styles.panel}>
-        <div className={styles.panelTitle}>Session</div>
-        <div className={styles.dangerZone}>
-          <button className={styles.zoneBtn} onClick={onOpenSetup}>
-            + New Session
-          </button>
-          <button className={`${styles.zoneBtn} ${styles.danger}`} onClick={onEndSession}>
-            End &amp; See Results
-          </button>
-          <button className={`${styles.zoneBtn} ${styles.dangerSolid}`} onClick={onResetSession}>
-            Erase Results &amp; Restart
-          </button>
-        </div>
-      </div>
+      )}
 
       {shareEnabled && (
         <div className={styles.panel}>
@@ -195,30 +200,33 @@ export function ManageTab({
                         {a.label}
                       </button>
                     ))}
-                    <button
-                      className={styles.pillBtn}
-                      aria-expanded={editing}
-                      onClick={() => {
-                        if (editing) {
-                          setEditingId(null);
-                          return;
-                        }
-                        setEditingId(p.id);
-                        setDraftName(p.name);
-                        setDraftLevel(p.level);
-                      }}
-                    >
-                      Edit
-                    </button>
+                    {isOwner && (
+                      <button
+                        className={styles.pillBtn}
+                        aria-expanded={editing}
+                        onClick={() => {
+                          if (editing) {
+                            setEditingId(null);
+                            return;
+                          }
+                          setEditingId(p.id);
+                          setDraftName(p.name);
+                          setDraftLevel(p.level);
+                          setDraftHost(p.isHost);
+                        }}
+                      >
+                        Edit
+                      </button>
+                    )}
                   </div>
                 </div>
-                {editing && (
+                {editing && isOwner && (
                   <form
                     className={styles.rosterEdit}
                     onSubmit={(e) => {
                       e.preventDefault();
                       if (!draftName.trim()) return;
-                      if (p.onSave(draftName, draftLevel)) setEditingId(null);
+                      if (p.onSave(draftName, draftLevel, draftHost)) setEditingId(null);
                     }}
                   >
                     <input
@@ -232,6 +240,15 @@ export function ManageTab({
                       enterKeyHint="done"
                     />
                     <LevelPicker value={draftLevel} onChange={setDraftLevel} />
+                    <label className={styles.hostToggle}>
+                      <input type="checkbox" checked={draftHost} disabled={p.hostLocked} onChange={(e) => setDraftHost(e.target.checked)} />
+                      <span>
+                        <span className={styles.hostToggleTitle}>Host · plays later</span>
+                        <span className={styles.hostToggleHint}>
+                          {p.hostLocked ? "Round 1 has started, so this only applies to the next session." : "Sits out the first round, then joins the rotation normally."}
+                        </span>
+                      </span>
+                    </label>
                     <div className={styles.editActions}>
                       <button type="submit" className={styles.addBtn} disabled={!draftName.trim()}>
                         Save

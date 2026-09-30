@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { applyLiveScore, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, initialsFor, isCourtClosingSoon, keepCourtOpen, pairCounts, pickBalancedFoursome, resetCourtsForNewSession, resumeCourt, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import { applyLiveScore, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -180,63 +180,58 @@ describe("court closing", () => {
   const at = (h: number, m: number) => new Date(2026, 8, 30, h, m, 0, 0);
   const courtA = { id: "1", name: "Court A", closesAt: "22:00" };
   const courtB = { id: "2", name: "Court B", closesAt: "21:00" };
-  const busyOnB: Match = { id: "m", round: 0, num: 1, courtId: "2", status: "in_progress", t1: ["a", "b"], t2: ["c", "d"], s1: 0, s2: 0, elapsedAtTick0: 0 };
+  const onB = (status: Match["status"], num = 1): Match => ({ id: "m" + num, round: 0, num, courtId: "2", status, t1: ["a", "b"], t2: ["c", "d"], s1: 0, s2: 0, elapsedAtTick0: 0 });
+  const busyOnB = onB("in_progress");
+  const none: Match[] = [];
 
   describe("reminder", () => {
     it("only flags the court that is about to close", () => {
-      const r = courtCloseReminders([courtA, courtB], [], at(20, 55));
+      const r = courtCloseReminders([courtA, courtB], none, at(20, 55));
       expect(r.map((x) => x.courtId)).toEqual(["2"]);
       expect(r[0].minutesLeft).toBe(5);
     });
 
     it("stays quiet earlier than 10 minutes before closing", () => {
-      expect(courtCloseReminders([courtA, courtB], [], at(20, 45))).toEqual([]);
+      expect(courtCloseReminders([courtA, courtB], none, at(20, 45))).toEqual([]);
     });
 
     it("keeps flagging after closing, for a while", () => {
-      expect(courtCloseReminders([courtB], [], at(21, 20))[0].minutesLeft).toBeLessThanOrEqual(0);
-      expect(courtCloseReminders([courtB], [], at(23, 30))).toEqual([]);
+      expect(courtCloseReminders([courtB], none, at(21, 20))[0].minutesLeft).toBeLessThanOrEqual(0);
+      expect(courtCloseReminders([courtB], none, at(23, 30))).toEqual([]);
     });
 
     it("says when a match is still being played there", () => {
       expect(courtCloseReminders([courtB], [busyOnB], at(21, 0))[0].busy).toBe(true);
-      expect(courtCloseReminders([courtB], [], at(21, 0))[0].busy).toBe(false);
+      expect(courtCloseReminders([courtB], none, at(21, 0))[0].busy).toBe(false);
     });
 
-    it("skips paused courts, courts without a time, and courts kept open", () => {
-      expect(courtCloseReminders([{ ...courtB, paused: true }], [], at(21, 0))).toEqual([]);
-      expect(courtCloseReminders([{ id: "3", name: "Court C" }], [], at(21, 0))).toEqual([]);
-      expect(courtCloseReminders([keepCourtOpen(courtB)], [], at(21, 0))).toEqual([]);
+    it("skips paused courts and courts without a time", () => {
+      expect(courtCloseReminders([{ ...courtB, paused: true }], none, at(21, 0))).toEqual([]);
+      expect(courtCloseReminders([{ id: "3", name: "Court C" }], none, at(21, 0))).toEqual([]);
     });
 
     it("works across midnight", () => {
       const late = { id: "4", name: "Court D", closesAt: "00:05" };
-      expect(courtCloseReminders([late], [], at(23, 58))[0].minutesLeft).toBe(7);
-      expect(courtCloseReminders([late], [], at(23, 40))).toEqual([]);
-      expect(courtCloseReminders([late], [], at(0, 20))[0].minutesLeft).toBeLessThanOrEqual(0);
+      expect(courtCloseReminders([late], none, at(23, 58))[0].minutesLeft).toBe(7);
+      expect(courtCloseReminders([late], none, at(23, 40))).toEqual([]);
+      expect(courtCloseReminders([late], none, at(0, 20))[0].minutesLeft).toBeLessThanOrEqual(0);
     });
 
     it("ignores a malformed time", () => {
-      expect(courtCloseReminders([{ ...courtB, closesAt: "25:00" }], [], at(21, 0))).toEqual([]);
+      expect(courtCloseReminders([{ ...courtB, closesAt: "25:00" }], none, at(21, 0))).toEqual([]);
     });
   });
 
   describe("closing soon", () => {
     it("starts 15 minutes before closing", () => {
-      expect(isCourtClosingSoon(courtB, at(20, 44))).toBe(false);
-      expect(isCourtClosingSoon(courtB, at(20, 45))).toBe(true);
-      expect(isCourtClosingSoon(courtA, at(20, 45))).toBe(false);
+      expect(isCourtClosingSoon(courtB, none, at(20, 44))).toBe(false);
+      expect(isCourtClosingSoon(courtB, none, at(20, 45))).toBe(true);
+      expect(isCourtClosingSoon(courtA, none, at(20, 45))).toBe(false);
     });
 
-    it("does not apply to a paused court, one without a time, or one kept open", () => {
-      expect(isCourtClosingSoon({ ...courtB, paused: true }, at(20, 50))).toBe(false);
-      expect(isCourtClosingSoon({ id: "3", name: "C" }, at(20, 50))).toBe(false);
-      expect(isCourtClosingSoon(keepCourtOpen(courtB), at(20, 50))).toBe(false);
-    });
-
-    it("a kept-open choice is about that closing time only", () => {
-      const kept = keepCourtOpen(courtB);
-      expect(isCourtClosingSoon({ ...kept, closesAt: "21:30" }, at(21, 20))).toBe(true);
+    it("does not apply to a paused court or one without a time", () => {
+      expect(isCourtClosingSoon({ ...courtB, paused: true }, none, at(20, 50))).toBe(false);
+      expect(isCourtClosingSoon({ id: "3", name: "C" }, none, at(20, 50))).toBe(false);
     });
 
     it("withholds suggestions from a closing court and lets the others use its players", () => {
@@ -247,10 +242,57 @@ describe("court closing", () => {
     });
   });
 
+  describe("keep open", () => {
+    it("allows exactly one more match, then the court closes", () => {
+      const kept = keepCourtOpen(courtB, none);
+      expect(isCourtClosingSoon(kept, none, at(20, 50))).toBe(false);
+      expect(isCourtKeptOpen(kept, none, at(20, 50))).toBe(true);
+      // the extra match starts: the court is busy, and once it is over it is no longer kept open
+      expect(isCourtKeptOpen(kept, [onB("in_progress")], at(21, 10))).toBe(false);
+      expect(courtsDueToPause([kept], [onB("in_progress")], at(21, 10))).toEqual([]);
+      expect(courtsDueToPause([kept], [onB("completed")], at(21, 10)).map((c) => c.id)).toEqual(["2"]);
+    });
+
+    it("counts matches already played on the court, not just the extra one", () => {
+      const played = [onB("completed", 1), onB("completed", 2)];
+      const kept = keepCourtOpen(courtB, played);
+      expect(courtsDueToPause([kept], played, at(21, 5))).toEqual([]);
+      expect(courtsDueToPause([kept], [...played, onB("completed", 3)], at(21, 30)).map((c) => c.id)).toEqual(["2"]);
+    });
+
+    it("can be extended again while the extra match runs", () => {
+      const running = [onB("completed", 1), onB("in_progress", 2)];
+      const kept = keepCourtOpen(keepCourtOpen(courtB, [onB("completed", 1)]), running);
+      expect(courtsDueToPause([kept], [onB("completed", 1), onB("completed", 2)], at(21, 30))).toEqual([]);
+    });
+
+    it("also works on a paused court past closing, and reopens it", () => {
+      const kept = keepCourtOpen({ ...courtB, paused: true }, [onB("completed")]);
+      expect(kept.paused).toBeUndefined();
+      expect(courtsDueToPause([kept], [onB("completed")], at(21, 30))).toEqual([]);
+    });
+
+    it("hides the closing reminder while it applies, and shows it again after", () => {
+      const kept = keepCourtOpen(courtB, none);
+      expect(courtCloseReminders([kept], none, at(20, 55))).toEqual([]);
+      expect(courtCloseReminders([kept], [onB("in_progress")], at(21, 5))).toHaveLength(1);
+    });
+
+    it("is about that closing time only", () => {
+      const kept = keepCourtOpen(courtB, none);
+      expect(isCourtClosingSoon({ ...kept, closesAt: "21:30" }, none, at(21, 20))).toBe(true);
+    });
+
+    it("does nothing for a court without a closing time", () => {
+      const c = { id: "3", name: "C" };
+      expect(keepCourtOpen(c, none)).toEqual(c);
+    });
+  });
+
   describe("auto-pause", () => {
     it("pauses an idle court once its closing time is reached", () => {
-      expect(courtsDueToPause([courtA, courtB], [], at(20, 59))).toEqual([]);
-      expect(courtsDueToPause([courtA, courtB], [], at(21, 0)).map((c) => c.id)).toEqual(["2"]);
+      expect(courtsDueToPause([courtA, courtB], none, at(20, 59))).toEqual([]);
+      expect(courtsDueToPause([courtA, courtB], none, at(21, 0)).map((c) => c.id)).toEqual(["2"]);
     });
 
     it("waits for the match on a court to finish", () => {
@@ -258,27 +300,53 @@ describe("court closing", () => {
       expect(courtsDueToPause([courtB], [{ ...busyOnB, status: "completed" }], at(21, 10)).map((c) => c.id)).toEqual(["2"]);
     });
 
-    it("leaves paused, kept-open and time-less courts alone", () => {
-      expect(courtsDueToPause([{ ...courtB, paused: true }, keepCourtOpen(courtB), { id: "3", name: "C" }], [], at(21, 5))).toEqual([]);
+    it("leaves paused and time-less courts alone", () => {
+      expect(courtsDueToPause([{ ...courtB, paused: true }, { id: "3", name: "C" }], none, at(21, 5))).toEqual([]);
     });
 
-    it("does not re-pause a court resumed after closing", () => {
-      const paused = { ...courtB, paused: true };
-      const resumed = resumeCourt(paused, at(21, 10));
+    it("resuming only unpauses: it does not keep the court open", () => {
+      const resumed = resumeCourt({ ...courtB, paused: true });
       expect(resumed.paused).toBeUndefined();
-      expect(courtsDueToPause([resumed], [], at(21, 11))).toEqual([]);
-    });
-
-    it("resuming well before closing keeps the closing time in force", () => {
-      const resumed = resumeCourt({ ...courtB, paused: true }, at(19, 30));
       expect(resumed.keepOpenFor).toBeUndefined();
-      expect(courtsDueToPause([resumed], [], at(21, 0))).toHaveLength(1);
+      // near closing it shows "closing soon" like any other court…
+      expect(isCourtClosingSoon(resumed, none, at(20, 50))).toBe(true);
+      expect(courtCloseReminders([resumed], none, at(20, 52))).toHaveLength(1);
+      // …and past closing it would pause again, which is what Keep open is for
+      expect(courtsDueToPause([resumed], none, at(21, 10))).toHaveLength(1);
+      expect(isCourtPastClosing(resumed, at(21, 10))).toBe(true);
+      expect(isCourtPastClosing(resumed, at(20, 50))).toBe(false);
     });
 
     it("a new session reopens courts and forgets overrides but keeps closing times", () => {
-      const [c] = resetCourtsForNewSession([{ ...keepCourtOpen(courtB), paused: true }]);
+      const [c] = resetCourtsForNewSession([{ ...keepCourtOpen(courtB, [onB("completed")]), paused: true }]);
       expect(c).toEqual({ id: "2", name: "Court B", closesAt: "21:00" });
     });
+  });
+});
+
+describe("schedule end time", () => {
+  it("reads the end of a schedule", () => {
+    expect(scheduleEndTime("Rabu · 19:00–22:00")).toBe("22:00");
+    expect(scheduleEndTime("7pm-9:30pm")).toBe("21:30");
+    expect(scheduleEndTime("22:00–00:30")).toBe("00:30");
+  });
+  it("is null without a start and an end", () => {
+    expect(scheduleEndTime("")).toBeNull();
+    expect(scheduleEndTime("Rabu malam")).toBeNull();
+    expect(scheduleEndTime("Wed 12 Nov · 22:00")).toBeNull();
+  });
+});
+
+describe("few players hint", () => {
+  it("suggests fewer courts below 4 per court plus 2", () => {
+    expect(fewPlayersHint(9, 2)).toBe("Only 9 players ready. Consider 1 court for now.");
+    expect(fewPlayersHint(13, 3)).toBe("Only 13 players ready. Consider 2 courts for now.");
+  });
+  it("stays quiet with enough players, one court, or hardly anyone yet", () => {
+    expect(fewPlayersHint(10, 2)).toBeNull();
+    expect(fewPlayersHint(5, 1)).toBeNull();
+    expect(fewPlayersHint(3, 2)).toBeNull();
+    expect(fewPlayersHint(0, 2)).toBeNull();
   });
 });
 
@@ -347,6 +415,70 @@ describe("who plays where", () => {
     const s = buildSuggestion(roster(12), [], [], [], 0)!;
     expect(s.reasons[0]).toMatch(/first in line|has waited/);
     expect(s.balanceNote).toMatch(/^Teams balanced by tier \(/);
+  });
+});
+
+describe("rotation rules", () => {
+  const roster = (n: number) => Array.from({ length: n }, (_, i) => makeBlankPlayer("p" + i, "P" + String(i + 1).padStart(2, "0"), "B", "ready"));
+  const done = (id: string, ids: string[]): Match => ({ id, round: 0, num: 1, courtId: "1", status: "completed", t1: [ids[0], ids[1]], t2: [ids[2], ids[3]], s1: 21, s2: 10, elapsedAtTick0: 0 });
+  const twoCourts = [{ id: "1", name: "Court 1" }, { id: "2", name: "Court 2" }];
+  const at7 = new Date(2026, 8, 30, 19, 0);
+
+  it("does not force the whole waiting group back on when everyone has waited a while", () => {
+    // 16 ready, all waited 2 matches: a fixed cap of 2 would make all 16 must-plays and
+    // take the first four in roster order, whoever they last played with
+    const players = roster(16).map((p) => ({ ...p, skipped: 2 }));
+    const meet = new Map<string, number>();
+    for (const [a, b] of [["p0", "p1"], ["p0", "p2"], ["p0", "p3"], ["p1", "p2"], ["p1", "p3"], ["p2", "p3"]]) meet.set([a, b].sort().join("|"), 5);
+    const four = pickFour(players, meet)!.map((p) => p.id);
+    expect(four.filter((id) => ["p0", "p1", "p2", "p3"].includes(id)).length).toBeLessThanOrEqual(1);
+  });
+
+  it("still makes someone who has waited a quarter of the pool play", () => {
+    const players = roster(8).map((p, i) => ({ ...p, skipped: i === 7 ? 2 : 0 }));
+    expect(pickFour(players, new Map())!.map((p) => p.id)).toContain("p7");
+  });
+
+  it("holds hosts out of the first round while enough others can play", () => {
+    const players = roster(10).map((p, i) => (i < 2 ? { ...p, isHost: true } : p));
+    const s = courtSuggestions(twoCourts, players, [], [], {}, at7);
+    const played = [...s["1"]!.four, ...s["2"]!.four].map((p) => p.id);
+    expect(played).toHaveLength(8);
+    expect(played).not.toContain("p0");
+    expect(played).not.toContain("p1");
+  });
+
+  it("lets hosts in once every open court has started a match", () => {
+    const players = roster(12).map((p, i) => (i < 2 ? { ...p, isHost: true } : p));
+    const started: Match[] = [done("a", ["p2", "p3", "p4", "p5"]), done("b", ["p6", "p7", "p8", "p9"])].map((m) => ({ ...m, status: "in_progress" as const }));
+    // everyone else is on court; only the hosts and two others are left
+    expect(hostsHolding(twoCourts, started)).toBe(false);
+    const s = buildSuggestion(players, started, [], [], 0, { holdHosts: hostsHolding(twoCourts, started) })!;
+    expect(s.four.map((p) => p.id).sort()).toEqual(["p0", "p1", "p10", "p11"]);
+  });
+
+  it("never leaves a court empty for a host: with too few others, hosts play", () => {
+    const players = roster(6).map((p, i) => (i < 3 ? { ...p, isHost: true } : p));
+    expect(buildSuggestion(players, [], [], [], 0, { holdHosts: true })).not.toBeNull();
+  });
+
+  it("holds hosts only until each open court has a match", () => {
+    expect(hostsHolding(twoCourts, [])).toBe(true);
+    expect(hostsHolding(twoCourts, [done("a", ["p0", "p1", "p2", "p3"])])).toBe(true);
+    expect(hostsHolding(twoCourts, [done("a", ["p0", "p1", "p2", "p3"]), done("b", ["p4", "p5", "p6", "p7"])])).toBe(false);
+    // a paused court doesn't need a match of its own
+    expect(hostsHolding([twoCourts[0], { ...twoCourts[1], paused: true }], [done("a", ["p0", "p1", "p2", "p3"])])).toBe(false);
+  });
+
+  it("says 'New group' only once everyone ready has played", () => {
+    const groups = [["p0", "p1", "p2", "p3"], ["p4", "p5", "p6", "p7"], ["p8", "p9", "p10", "p11"], ["p12", "p13", "p14", "p15"]];
+    // one player from each earlier group has waited the longest, so they come up together
+    const players = roster(16).map((p) => (["p0", "p4", "p8", "p12"].includes(p.id) ? { ...p, skipped: 3 } : p));
+    const all = buildSuggestion(players, groups.map((g, i) => done("m" + i, g)), [], [], 0)!;
+    expect(all.four.map((p) => p.id).sort()).toEqual(["p0", "p12", "p4", "p8"].sort());
+    expect(all.reasons).toContain("New group");
+    const someNeverPlayed = buildSuggestion(players, groups.slice(0, 3).map((g, i) => done("m" + i, g)), [], [], 0)!;
+    expect(someNeverPlayed.reasons).not.toContain("New group");
   });
 });
 

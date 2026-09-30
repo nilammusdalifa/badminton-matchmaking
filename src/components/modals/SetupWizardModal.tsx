@@ -34,6 +34,8 @@ export function SetupWizardModal({
   rosterNames,
   onAddCourt,
   onRemoveCourt,
+  courtHours,
+  onSetCourtClosesAt,
   resultMode,
   onSetResultMode,
 }: SetupProps) {
@@ -124,6 +126,18 @@ export function SetupWizardModal({
               </div>
             </div>
             {courtsCount === 0 && <div className={styles.warnNote}>Add a court to start matches.</div>}
+            {courtHours.length > 0 && (
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Closing time</span>
+                {courtHours.map((c) => (
+                  <label className={styles.hoursRow} key={c.id}>
+                    <span>{c.name} closes at</span>
+                    <input className={styles.timeInput} type="time" value={c.closesAt} onChange={(e) => onSetCourtClosesAt(c.id, e.target.value)} />
+                  </label>
+                ))}
+                <div className={styles.rulesNote}>No new match starts in the last 15 minutes, and the court pauses when its match ends. Leave empty for no closing time.</div>
+              </div>
+            )}
             <div className={styles.field}>
               <span className={styles.fieldLabel}>How to record results</span>
               <div className={styles.modeGroup}>
@@ -166,6 +180,9 @@ export function SetupWizardModal({
               <div>
                 {playersCount} {playersCount === 1 ? "player" : "players"} · {courtsCount} {courtsCount === 1 ? "court" : "courts"}
               </div>
+              {courtHours.some((c) => c.closesAt) && (
+                <div>{courtHours.map((c) => (c.closesAt ? `${c.name} until ${c.closesAt}` : `${c.name} no closing time`)).join(" · ")}</div>
+              )}
               <div>
                 {resultMode === "score" ? "21 points to win, win by 2" : resultMode === "winner" ? "Winner only" : "No score"}
               </div>

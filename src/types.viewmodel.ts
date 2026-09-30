@@ -9,6 +9,8 @@ export interface WaitingEntry {
   games: number;
   hasStreak: boolean;
   consec: number;
+  /** "Host · plays after round 1" while a host is still being held back. */
+  note?: string;
   onSkip: () => void;
   onPause: () => void;
 }
@@ -37,6 +39,11 @@ export interface CourtViewModel {
   /** Set on an open court too close to its closing time to start a match:
    * no suggestion is offered, and `onKeepOpen` overrides that. */
   closingSoon?: { closesAt: string; onKeepOpen: () => void };
+  /** Set on a paused court whose closing time has passed: resuming would only
+   * pause it again, so the card offers Keep open (one more match) instead. */
+  pastClosing?: { closesAt: string; onKeepOpen: () => void };
+  /** Open past its closing window on the organizer's say-so, with one more match to start. */
+  keptOpen?: boolean;
   state: "playing" | "scoreNeeded" | "available" | "paused";
   match?: {
     matchNumber: number;
@@ -108,8 +115,11 @@ export interface ManagePlayerEntry {
   statusTone: "default" | "warning" | "accent";
   /** At most one: the state change that fits where the player is right now. */
   actions: { label: string; onClick: () => void }[];
+  isHost: boolean;
+  /** Round 1 has started, so a host flag set now would change nothing this session. */
+  hostLocked: boolean;
   /** False when the change was refused (blank or duplicate name), so the editor stays open. */
-  onSave: (name: string, level: SkillLevel) => boolean;
+  onSave: (name: string, level: SkillLevel, isHost: boolean) => boolean;
   /** Null while the player has games or matches on record. */
   onRemove: (() => void) | null;
 }

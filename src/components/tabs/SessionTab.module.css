@@ -260,3 +260,12 @@
   letter-spacing: 0.05em;
   color: var(--sm-text-3);
 }
+
+.hintNote {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--sm-accent-soft);
+  font-size: 12px;
+  color: var(--sm-text-2);
+}

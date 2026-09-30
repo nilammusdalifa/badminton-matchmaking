@@ -12,9 +12,13 @@ import {
   buildSuggestion,
   courtSuggestions,
   courtsDueToPause,
+  fewPlayersHint,
+  hostsHolding,
   formatElapsed,
   initialsFor,
   isCourtClosingSoon,
+  isCourtKeptOpen,
+  isCourtPastClosing,
   isFirstRun,
   keepCourtOpen,
   isOverTarget,
@@ -23,6 +27,7 @@ import {
   makeBlankPlayer,
   nameTaken,
   photoReminderMinutes,
+  scheduleEndTime,
   courtCloseReminders,
   parseClockTime,
   playerPriority,
@@ -410,6 +415,9 @@ export function useSessionStore() {
 
   // Closing-time handling only runs on devices that run the session.
   const runsSession = !isRemoteMode || remoteRole === "umpire";
+  // Only the organizer's own device may change the setup: roster tiers, courts,
+  // and starting or ending sessions. An umpire runs the night, nothing more.
+  const isOwner = !isRemoteMode;
 
   // Reminder banner for courts whose closing time is near or past. Derived
   // from the clock each second like the photo reminder.
@@ -799,30 +807,42 @@ export function useSessionStore() {
 
   const setPlayerTier = useCallback(
     (id: string, level: SkillLevel) => {
+      if (!isOwner) return;
       setState((s) => ({ ...s, players: s.players.map((p) => (p.id === id ? { ...p, level } : p)) }));
       showToast("Tier updated");
     },
-    [showToast],
+    [isOwner, showToast],
   );
 
   const updatePlayer = useCallback(
-    (id: string, name: string, level: SkillLevel): boolean => {
+    (id: string, name: string, level: SkillLevel, isHost: boolean): boolean => {
+      if (!isOwner) return false;
       const trimmed = name.trim();
       if (!trimmed) return false;
       if (nameTaken(state.players, trimmed, id)) {
         showToast(`${trimmed} is already on the roster. Add a last initial.`);
         return false;
       }
-      setState((s) => ({ ...s, players: s.players.map((p) => (p.id === id ? { ...p, name: trimmed, level } : p)) }));
+      setState((s) => ({
+        ...s,
+        players: s.players.map((p) => {
+          if (p.id !== id) return p;
+          const next: Player = { ...p, name: trimmed, level };
+          // an absent key, not `false` or `undefined`, for a player who isn't a host
+          if (isHost) next.isHost = true;
+          else delete next.isHost;
+          return next;
+        }),
+      }));
       showToast("Player updated");
       return true;
     },
-    [state.players, showToast],
+    [isOwner, state.players, showToast],
   );
   const removePlayer = useCallback(
     (id: string) => {
       const p = livePlayers.find((x) => x.id === id);
-      if (!p || !canRemovePlayer(p, state.matches)) return;
+      if (!isOwner || !p || !canRemovePlayer(p, state.matches)) return;
       setState((s) => ({
         ...s,
         players: s.players.filter((x) => x.id !== id),
@@ -832,7 +852,7 @@ export function useSessionStore() {
       }));
       showToast(`${p.name} removed`);
     },
-    [livePlayers, state.matches, showToast],
+    [isOwner, livePlayers, state.matches, showToast],
   );
 
   // ---- sharing ------------------------------------------------------
@@ -904,15 +924,18 @@ export function useSessionStore() {
 
   // ---- courts ---------------------------------------------------------
   const onAddCourt = useCallback(() => {
+    if (!isOwner) return;
     setState((s) => {
       if (s.courts.length >= MAX_COURTS) return s;
       const n = s.courts.length + 1;
-      return { ...s, courts: [...s.courts, { id: String(n), name: "Court " + n }] };
+      // A new court closes when the session's schedule ends, unless told otherwise.
+      const closesAt = scheduleEndTime((s.setupOpen ? s.setupSchedule.trim() : "") || s.sessionSchedule);
+      return { ...s, courts: [...s.courts, closesAt ? { id: String(n), name: "Court " + n, closesAt } : { id: String(n), name: "Court " + n }] };
     });
     showToast("Court added");
-  }, [showToast]);
+  }, [isOwner, showToast]);
   const onRemoveCourt = useCallback(() => {
-    if (state.courts.length <= 1) return;
+    if (!isOwner || state.courts.length <= 1) return;
     const last = state.courts[state.courts.length - 1];
     const busy = state.matches.some((m) => m.status === "in_progress" && m.courtId === last.id);
     if (busy) {
@@ -921,7 +944,7 @@ export function useSessionStore() {
     }
     setState((s) => ({ ...s, courts: s.courts.slice(0, -1) }));
     showToast(last.name + " removed");
-  }, [state.courts, state.matches, showToast]);
+  }, [isOwner, state.courts, state.matches, showToast]);
 
   // Temporarily takes a court out of rotation (wet floor, net down) without
   // losing it outright the way Remove would — its name/id/history stay put,
@@ -938,10 +961,15 @@ export function useSessionStore() {
           showToast("Finish or cancel the match on " + court.name + " first");
           return;
         }
+      } else if (isCourtPastClosing(court, new Date())) {
+        // Resuming a court past its closing time would only pause it again on
+        // the next tick; running it later takes an explicit Keep open.
+        showToast(court.name + " closed at " + court.closesAt + ". Use Keep open for one more match.");
+        return;
       }
       setState((s) => ({
         ...s,
-        courts: s.courts.map((c) => (c.id !== courtId ? c : c.paused ? resumeCourt(c, new Date()) : { ...c, paused: true })),
+        courts: s.courts.map((c) => (c.id !== courtId ? c : c.paused ? resumeCourt(c) : { ...c, paused: true })),
       }));
       showToast(court.paused ? court.name + " resumed" : court.name + " paused");
     },
@@ -953,6 +981,7 @@ export function useSessionStore() {
   // Empty (or malformed) input clears it; any change drops an earlier "keep
   // open" choice, which was about the old time.
   const setCourtClosesAt = useCallback((courtId: string, value: string) => {
+    if (!isOwner) return;
     const closesAt = parseClockTime(value) === null ? undefined : value;
     setState((s) => ({
       ...s,
@@ -960,20 +989,27 @@ export function useSessionStore() {
         if (c.id !== courtId) return c;
         const next = { ...c, closesAt };
         delete next.keepOpenFor;
+        delete next.keepOpenBase;
         // an absent key, not `undefined` — Firebase rejects undefined values
         if (!closesAt) delete next.closesAt;
         return next;
       }),
     }));
-  }, []);
+  }, [isOwner]);
 
+  // Keep open: one more match may start on this court; when it is over the
+  // court closes as scheduled. Pressing it again while that match runs allows another.
   const keepOpenPastClosing = useCallback((courtId: string) => {
-    setState((s) => ({ ...s, courts: s.courts.map((c) => (c.id === courtId ? keepCourtOpen(c) : c)) }));
+    setState((s) => ({ ...s, courts: s.courts.map((c) => (c.id === courtId ? keepCourtOpen(c, s.matches) : c)) }));
   }, []);
 
   // ---- session lifecycle ------------------------------------------------
-  const openEndConfirm = useCallback(() => setState((s) => ({ ...s, confirmAction: "end" })), []);
-  const openResetConfirm = useCallback(() => setState((s) => ({ ...s, confirmAction: "reset" })), []);
+  const openEndConfirm = useCallback(() => {
+    if (isOwner) setState((s) => ({ ...s, confirmAction: "end" }));
+  }, [isOwner]);
+  const openResetConfirm = useCallback(() => {
+    if (isOwner) setState((s) => ({ ...s, confirmAction: "reset" }));
+  }, [isOwner]);
   const openDeleteMatchConfirm = useCallback(
     (matchId: string) => setState((s) => ({ ...s, confirmAction: "deleteMatch", pendingDeleteMatchId: matchId })),
     [],
@@ -1035,6 +1071,7 @@ export function useSessionStore() {
   }, [state.confirmAction, showToast]);
 
   const openSetup = useCallback(() => {
+    if (!isOwner) return;
     setState((s) => ({
       ...s,
       setupOpen: true,
@@ -1046,9 +1083,19 @@ export function useSessionStore() {
       setupSchedule: s.courts.length > 0 ? s.sessionSchedule : "",
       setupResultMode: s.sessionResultMode,
     }));
-  }, []);
+  }, [isOwner]);
   const closeSetup = useCallback(() => setState((s) => ({ ...s, setupOpen: false })), []);
-  const setupNext = useCallback(() => setState((s) => ({ ...s, setupStep: Math.min(3, s.setupStep + 1) as AppState["setupStep"] })), []);
+  const setupNext = useCallback(
+    () =>
+      setState((s) => {
+        const step = Math.min(3, s.setupStep + 1) as AppState["setupStep"];
+        if (step !== 2) return { ...s, setupStep: step };
+        // Arriving at Courts: any court without a closing time gets the schedule's end time.
+        const closesAt = scheduleEndTime(s.setupSchedule.trim() || s.sessionSchedule);
+        return { ...s, setupStep: step, courts: closesAt ? s.courts.map((c) => (c.closesAt ? c : { ...c, closesAt })) : s.courts };
+      }),
+    [],
+  );
   const setupBack = useCallback(() => setState((s) => ({ ...s, setupStep: Math.max(0, s.setupStep - 1) as AppState["setupStep"] })), []);
   const onSetupNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setState((s) => ({ ...s, setupName: e.target.value })), []);
   const onSetupScheduleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setState((s) => ({ ...s, setupSchedule: e.target.value })), []);
@@ -1175,10 +1222,13 @@ export function useSessionStore() {
           closesAt: court.closesAt,
           state: "paused",
           suggestion: null,
+          // Past closing time a plain resume would just pause again; the way
+          // back is Keep open, for one more match.
+          pastClosing: isCourtPastClosing(court, now) ? { closesAt: court.closesAt ?? "", onKeepOpen: () => keepOpenPastClosing(court.id) } : undefined,
           onTogglePause: () => togglePauseCourt(court.id),
         };
       }
-      if (isCourtClosingSoon(court, now)) {
+      if (isCourtClosingSoon(court, state.matches, now)) {
         // Too close to closing for a new match to finish; it claims nobody, so
         // the other courts get those players. Starting anyway is the organizer's call.
         return {
@@ -1203,6 +1253,7 @@ export function useSessionStore() {
         name: court.name,
         closesAt: court.closesAt,
         state: "available",
+        keptOpen: isCourtKeptOpen(court, state.matches, now),
         suggestion: suggestion
           ? {
               team1Label: suggestion.team1.map((p) => p.name).join(" & "),
@@ -1245,7 +1296,7 @@ export function useSessionStore() {
   const upNext = useMemo<UpNextEntry | null>(() => {
     if (state.courts.length === 0) return null;
     const now = new Date();
-    const anyCourtFree = state.courts.some((c) => !c.paused && !isCourtClosingSoon(c, now) && !state.matches.some((m) => m.status === "in_progress" && m.courtId === c.id));
+    const anyCourtFree = state.courts.some((c) => !c.paused && !isCourtClosingSoon(c, state.matches, now) && !state.matches.some((m) => m.status === "in_progress" && m.courtId === c.id));
     if (anyCourtFree) return null; // a free court's own card already shows this suggestion
     const seed = state.suggestSeed["upnext"] || 0;
     const sug = buildSuggestion(livePlayers, state.matches, state.requestedPairs, [], seed);
@@ -1259,6 +1310,9 @@ export function useSessionStore() {
     // state.tick moves the closing-soon cut-off along with the clock
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.courts, state.matches, livePlayers, state.suggestSeed, state.requestedPairs, state.tick, rerollSuggestion, suggestionReason]);
+
+  // Hosts wait out the first round: until every open court has started a match.
+  const holdingHosts = hostsHolding(state.courts, state.matches);
 
   const managePlayersVM = useMemo<ManagePlayerEntry[]>(() => {
     return [...state.players]
@@ -1292,7 +1346,7 @@ export function useSessionStore() {
           statusTone = "warning";
           actions = [{ label: "Cancel Sit Out", onClick: () => cancelSkip(p.id) }];
         } else {
-          statusLabel = "Waited " + p.skipped + (p.skipped === 1 ? " match" : " matches");
+          statusLabel = p.isHost && holdingHosts ? "Host · plays after round 1" : "Waited " + p.skipped + (p.skipped === 1 ? " match" : " matches");
           statusTone = "warning";
           actions = [{ label: "Leave", onClick: () => leavePlayer(p.id) }];
         }
@@ -1304,11 +1358,13 @@ export function useSessionStore() {
           statusLabel,
           statusTone,
           actions,
-          onSave: (name: string, level: SkillLevel) => updatePlayer(p.id, name, level),
+          isHost: Boolean(p.isHost),
+          hostLocked: !holdingHosts,
+          onSave: (name: string, level: SkillLevel, isHost: boolean) => updatePlayer(p.id, name, level, isHost),
           onRemove: canRemovePlayer(live, state.matches) ? () => removePlayer(p.id) : null,
         };
       });
-  }, [state.players, state.matches, livePlayers, isPlaying, rejoinPlayer, checkIn, resumePlayer, leavePlayer, cancelSkip, updatePlayer, removePlayer]);
+  }, [state.players, state.matches, livePlayers, holdingHosts, isPlaying, rejoinPlayer, checkIn, resumePlayer, leavePlayer, cancelSkip, updatePlayer, removePlayer]);
 
   const readyPlayers = useMemo(() => readyPool(), [readyPool]);
   const orderedReady = useMemo(() => playerPriority(readyPlayers), [readyPlayers]);
@@ -1324,10 +1380,11 @@ export function useSessionStore() {
         games: p.games,
         hasStreak: p.consecutiveGames >= 2,
         consec: p.consecutiveGames,
+        note: p.isHost && holdingHosts ? "Host · plays after round 1" : undefined,
         onSkip: () => skipNext(p.id),
         onPause: () => pausePlayer(p.id, "rest"),
       })),
-    [orderedReady, skipNext, pausePlayer],
+    [orderedReady, holdingHosts, skipNext, pausePlayer],
   );
 
   const notInRotationVM = useMemo<NotInRotationEntry[]>(() => {
@@ -1442,6 +1499,11 @@ export function useSessionStore() {
     };
   }, [livePlayers, readyPlayers]);
   const expectedCount = useMemo(() => state.players.filter((p) => p.status === "expected").length, [state.players]);
+  // Too few players for the courts open: advice, not a rule.
+  const playersHint = fewPlayersHint(
+    state.players.filter((p) => p.status === "ready").length,
+    state.courts.filter((c) => !c.paused && !isCourtClosingSoon(c, state.matches, new Date())).length,
+  );
   const activeMatchesCount = useMemo(() => state.matches.filter((m) => m.status === "in_progress").length, [state.matches]);
   const pendingDeleteMatch = state.pendingDeleteMatchId ? state.matches.find((m) => m.id === state.pendingDeleteMatchId) : null;
   const pendingDeleteCourtName = pendingDeleteMatch ? state.courts.find((c) => c.id === pendingDeleteMatch.courtId)?.name || "the court" : "";
@@ -1512,6 +1574,7 @@ export function useSessionStore() {
       notInRotationVM,
       recentResultsVM,
       sessionHealth,
+      fewPlayersHint: playersHint,
     },
 
     matches: {
@@ -1547,7 +1610,7 @@ export function useSessionStore() {
       onEndSession: openEndConfirm,
       onResetSession: openResetConfirm,
       resultMode: state.sessionResultMode,
-      isOwner: !isRemoteMode,
+      isOwner,
       shareEnabled: firebaseConfigured,
       shareUrl,
       sessionPin: state.sessionPin,
@@ -1664,6 +1727,8 @@ export function useSessionStore() {
       onAddPlayers: (names: string[]) => addPlayers(names, "expected"),
       onAddCourt,
       onRemoveCourt,
+      courtHours: state.courts.map((c) => ({ id: c.id, name: c.name, closesAt: c.closesAt ?? "" })),
+      onSetCourtClosesAt: setCourtClosesAt,
       resultMode: state.setupResultMode,
       onSetResultMode: setSetupResultMode,
     },

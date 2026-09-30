@@ -88,6 +88,7 @@ export function CourtCard({ court }: CourtCardProps) {
         {state === "available" && !court.closingSoon && (
           <>
             <div className={styles.availableLabel}>Court is open</div>
+            {court.keptOpen && <div className={styles.keptOpen}>Kept open for 1 more match</div>}
             {suggestion ? (
               <>
                 <div className={styles.suggestion}>
@@ -133,10 +134,21 @@ export function CourtCard({ court }: CourtCardProps) {
         )}
         {state === "paused" && (
           <>
-            <div className={styles.pausedNote}>Court paused. No matches until resumed.</div>
-            <button className={styles.startBtn} onClick={court.onTogglePause}>
-              Resume Court
-            </button>
+            {court.pastClosing ? (
+              <>
+                <div className={styles.pausedNote}>Closed at {court.pastClosing.closesAt}.</div>
+                <button className={styles.startBtn} onClick={court.pastClosing.onKeepOpen}>
+                  Keep open for 1 more match
+                </button>
+              </>
+            ) : (
+              <>
+                <div className={styles.pausedNote}>Court paused. No matches until resumed.</div>
+                <button className={styles.startBtn} onClick={court.onTogglePause}>
+                  Resume Court
+                </button>
+              </>
+            )}
           </>
         )}
       </div>

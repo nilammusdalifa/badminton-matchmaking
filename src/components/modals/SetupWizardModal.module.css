@@ -190,3 +190,25 @@
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
+
+.hoursRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.timeInput {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text);
+  font-size: 14px;
+  font-family: var(--font-body), sans-serif;
+}
