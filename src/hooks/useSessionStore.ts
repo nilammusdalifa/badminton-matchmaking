@@ -31,7 +31,9 @@ import {
   courtCloseReminders,
   parseClockTime,
   playerPriority,
-  rankPlayers,
+  buildStandings,
+  pointsShare,
+  winRate,
   readyPool as readyPoolFn,
   recomputePlayerStats,
   resetCourtsForNewSession,
@@ -1146,16 +1148,26 @@ export function useSessionStore() {
   // Derived view models
   // ------------------------------------------------------------------
 
+  const standings = useMemo(() => buildStandings(livePlayers, state.sessionResultMode), [livePlayers, state.sessionResultMode]);
+
   const rankingsVM = useMemo<RankingEntry[]>(() => {
-    return rankPlayers(livePlayers, state.sessionResultMode).map(({ player: p, rank }) => ({
+    return standings.rows.map(({ player: p, rank, medal, fewGames }) => ({
       id: p.id,
       rank,
+      medal,
+      fewGames,
       name: p.name,
       level: p.level,
       initials: initialsFor(p.name),
       played: p.games,
+      mostGames: standings.maxGames,
       wins: p.wins,
       losses: p.losses,
+      winPct: Math.round(winRate(p) * 100),
+      pointsPct: state.sessionResultMode === "score" ? Math.round(pointsShare(p) * 100) : null,
+      pointsFor: p.pointsFor,
+      pointsAgainst: p.pointsAgainst,
+      partnersCount: p.partnersCount,
       diffLabel: p.diff >= 0 ? "+" + p.diff : String(p.diff),
       positiveDiff: p.diff >= 0,
       trendLabel: p.trend > 0 ? "▲" + p.trend : p.trend < 0 ? "▼" + Math.abs(p.trend) : "—",
@@ -1169,7 +1181,7 @@ export function useSessionStore() {
       toughOppGames: p.toughOppGames,
       onSetLevel: (level) => setPlayerTier(p.id, level),
     }));
-  }, [livePlayers, state.sessionResultMode, setPlayerTier]);
+  }, [standings, state.sessionResultMode, setPlayerTier]);
 
   // The tier-balance note names tiers, which the read-only Player view hides
   // everywhere else — so it's dropped from the reason line there.
@@ -1515,11 +1527,13 @@ export function useSessionStore() {
         .slice(0, 5)
         .map((r) => ({
           rank: r.rank,
+          medal: r.medal,
           name: r.name,
           initials: r.initials,
           level: r.level,
           wins: r.wins,
           losses: r.losses,
+          winPct: r.winPct,
         })),
     [rankingsVM],
   );
@@ -1582,7 +1596,7 @@ export function useSessionStore() {
       matchLogVM,
     },
 
-    rankings: { rankingsVM, resultMode: state.sessionResultMode, onShareRankings },
+    rankings: { rankingsVM, resultMode: state.sessionResultMode, early: standings.early, onShareRankings },
 
     manage: {
       playersCount: state.players.length,
@@ -1736,6 +1750,7 @@ export function useSessionStore() {
     shareRankings: {
       open: state.shareRankingsOpen,
       top: shareRankingsTop,
+      early: standings.early,
       sessionName: state.sessionName,
       sessionSchedule: state.sessionSchedule,
       playersCount: state.players.length,

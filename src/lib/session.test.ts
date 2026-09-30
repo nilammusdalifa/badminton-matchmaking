@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { applyLiveScore, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import { applyLiveScore, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -48,26 +48,124 @@ describe("rankings", () => {
     expect(twice.find((p) => p.name === "Eka")!.favPartner).toBe("—");
   });
 
-  it("rankPlayers orders by wins first, then point difference", () => {
-    const ppl = ["X", "P", "Q", "Y", "R", "S"].map(player);
-    const s = recomputePlayerStats(ppl, [
-      completed("m1", ["x", "p"], ["q", "r"], 21, 20), // X wins by 1
-      completed("m2", ["x", "p"], ["q", "r"], 21, 20), // X wins by 1
-      completed("m3", ["x", "q"], ["p", "r"], 11, 21), // X loses by 10 -> X: 2 wins, 1 loss, diff -8
-      completed("m4", ["y", "s"], ["r", "q"], 21, 2), //  Y wins by 19 -> Y: 1 win, 0 losses, diff +19
-    ]);
-    const order = rankPlayers(s).map((r) => r.player.name);
-    // the old hidden rating put Y (1172) above X (1096); wins come first now
-    expect(order.indexOf("X")).toBeLessThan(order.indexOf("Y"));
-    // equal wins: the bigger point difference ranks higher (P and Y both won once... P won 2)
-    const eq = rankPlayers(s).filter((r) => r.player.wins === 1).map((r) => r.player.name);
-    expect(eq).toEqual([...eq].sort((a, b) => s.find((p) => p.name === b)!.diff - s.find((p) => p.name === a)!.diff));
-  });
-
   it("rankPlayers leaves everyone unranked when the session doesn't record results", () => {
     const ppl = ["Ana", "Bo"].map(player);
     const s = recomputePlayerStats(ppl, [completed("a", ["ana", "bo"], ["x", "y"], 0, 0)]);
     expect(rankPlayers(s, "none").map((r) => r.rank)).toEqual([null, null]);
+  });
+
+  it("tracks points for and against, and how many different partners", () => {
+    const ppl = ["Ana", "Bo", "Cy", "Di"].map(player);
+    const s = recomputePlayerStats(ppl, [
+      completed("m1", ["ana", "bo"], ["cy", "di"], 21, 15),
+      completed("m2", ["ana", "cy"], ["bo", "di"], 18, 21),
+    ]);
+    const ana = s.find((p) => p.name === "Ana")!;
+    expect([ana.pointsFor, ana.pointsAgainst, ana.partnersCount]).toEqual([39, 36, 2]);
+  });
+});
+
+describe("standings", () => {
+  // a player with a given record and points, in the rotation unless said otherwise
+  const stat = (name: string, wins: number, losses: number, pf = 0, pa = 0, status: Player["status"] = "ready"): Player => ({
+    ...makeBlankPlayer(name.toLowerCase(), name, "B", status),
+    games: wins + losses,
+    wins,
+    losses,
+    pointsFor: pf,
+    pointsAgainst: pa,
+  });
+  const order = (ps: Player[], mode: "score" | "winner" | "none" = "score") => rankPlayers(ps, mode).map((r) => r.player.name);
+
+  it("smooths the win rate: everyone starts at 1 win, 1 loss", () => {
+    expect(winRate({ wins: 1, games: 1 })).toBeCloseTo(2 / 3);
+    expect(winRate({ wins: 4, games: 5 })).toBeCloseTo(5 / 7);
+    expect(pointsShare({ pointsFor: 0, pointsAgainst: 0 })).toBe(0.5);
+  });
+
+  it("1W-0L ranks below 4W-1L, and 2W-0L above 2W-1L", () => {
+    expect(order([stat("One", 1, 0), stat("Four", 4, 1)])).toEqual(["Four", "One"]);
+    expect(order([stat("Two1", 2, 1), stat("Two0", 2, 0)])).toEqual(["Two0", "Two1"]);
+  });
+
+  it("the old order (most wins) no longer decides: 2W-0L beats 2W-1L and 3W-1L", () => {
+    expect(order([stat("Achmad", 2, 1), stat("Mario", 3, 1), stat("Raden", 2, 0)])).toEqual(["Raden", "Mario", "Achmad"]);
+  });
+
+  it("equal records: the bigger share of points won ranks higher", () => {
+    const close = stat("Close", 2, 1, 60, 58);
+    const big = stat("Big", 2, 1, 63, 40);
+    expect(order([close, big])).toEqual(["Big", "Close"]);
+  });
+
+  it("a win rate equal to 4 decimals is a tie, not a lead", () => {
+    // same record, same points: falls to games, then name
+    expect(order([stat("Zed", 2, 2, 80, 80), stat("Amy", 2, 2, 80, 80)])).toEqual(["Amy", "Zed"]);
+  });
+
+  it("winner-only sessions ignore points and fall back to games played", () => {
+    const fewer = stat("Fewer", 1, 0, 1, 0);
+    const more = stat("More", 2, 0, 2, 0);
+    expect(fewer.wins / fewer.games).toBe(more.wins / more.games);
+    // 2W-0L is 75%, 1W-0L is 67%: win rate already separates them
+    expect(order([fewer, more], "winner")).toEqual(["More", "Fewer"]);
+    // same win rate, wildly different "points": points don't count, games do
+    const a = stat("A", 2, 2, 1, 2);
+    const b = stat("B", 1, 1, 500, 0);
+    expect(order([b, a], "winner")).toEqual(["A", "B"]);
+    expect(order([b, a], "score")).toEqual(["B", "A"]);
+  });
+
+  it("a session without results has no ranking at all", () => {
+    const rows = rankPlayers([stat("A", 2, 0), stat("B", 0, 1)], "none");
+    expect(rows.map((r) => [r.rank, r.medal])).toEqual([[null, null], [null, null]]);
+    expect(buildStandings([stat("A", 0, 0)], "none").early).toBe(false);
+  });
+
+  describe("medals", () => {
+    it("go to the top three once everyone has played 2 and they have 3+ games", () => {
+      const ps = [stat("A", 3, 0, 63, 30), stat("B", 2, 1, 60, 50), stat("C", 2, 1, 58, 52), stat("D", 1, 2, 40, 60), stat("E", 0, 3, 30, 63)];
+      const rows = rankPlayers(ps);
+      expect(rows.map((r) => r.medal)).toEqual([1, 2, 3, null, null]);
+    });
+
+    it("skip a first-place player with too few games, who keeps their place and is tagged", () => {
+      // Late arrives, wins both games: listed 1st, no medal; medals go to the next three qualified
+      const ps = [stat("Late", 2, 0, 42, 20), stat("A", 3, 1, 84, 60), stat("B", 3, 1, 80, 62), stat("C", 2, 2, 70, 70), stat("D", 1, 3, 50, 80)];
+      const { rows } = buildStandings(ps);
+      expect(rows[0].player.name).toBe("Late");
+      expect(rows[0].rank).toBe(1);
+      expect(rows[0].medal).toBeNull();
+      expect(rows[0].fewGames).toBe(true);
+      expect(rows.slice(1).map((r) => [r.player.name, r.medal])).toEqual([["A", 1], ["B", 2], ["C", 3], ["D", null]]);
+    });
+
+    it("need 60% of the most games anyone has played", () => {
+      const ps = [stat("Busy", 4, 2, 120, 100), stat("Half", 3, 0, 63, 30)]; // 3 of 6 games = 50%
+      const rows = rankPlayers(ps);
+      expect(rows.find((r) => r.player.name === "Half")!.medal).toBeNull();
+      expect(rows.find((r) => r.player.name === "Half")!.fewGames).toBe(true);
+      const enough = rankPlayers([stat("Busy", 4, 1, 100, 80), stat("Ok", 3, 0, 63, 30)]); // 3 of 5 = 60%
+      expect(enough.find((r) => r.player.name === "Ok")!.fewGames).toBe(false);
+    });
+
+    it("wait for a settled night: none while someone in the rotation has played fewer than 2", () => {
+      const ps = [stat("A", 3, 0), stat("B", 2, 1), stat("C", 2, 1), stat("D", 1, 0)]; // D has 1 game
+      const s = buildStandings(ps);
+      expect(s.early).toBe(true);
+      expect(s.rows.map((r) => r.medal)).toEqual([null, null, null, null]);
+    });
+
+    it("are not held up by someone who left or hasn't arrived", () => {
+      const ps = [stat("A", 3, 0), stat("B", 2, 1), stat("C", 2, 1), stat("Gone", 1, 0, 0, 0, "left"), stat("Later", 0, 0, 0, 0, "expected")];
+      const s = buildStandings(ps);
+      expect(s.early).toBe(false);
+      expect(s.rows.filter((r) => r.medal).length).toBe(3);
+    });
+
+    it("are not early before anything has been played", () => {
+      expect(buildStandings([stat("A", 0, 0), stat("B", 0, 0)]).early).toBe(false);
+    });
   });
 });
 

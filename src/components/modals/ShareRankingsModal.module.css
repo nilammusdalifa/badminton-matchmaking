@@ -232,3 +232,11 @@
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
+
+.footer {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--sm-text-3);
+}

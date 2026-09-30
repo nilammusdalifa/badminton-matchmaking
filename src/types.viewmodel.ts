@@ -85,14 +85,27 @@ export interface CourtViewModel {
 
 export interface RankingEntry {
   id: string;
-  /** null for a player who hasn't played yet — they aren't ranked. */
+  /** Position in the list; null for a player who hasn't played yet — they aren't ranked. */
   rank: number | null;
+  /** 1–3 for a medal, when the player qualifies for one (see buildStandings). */
+  medal: 1 | 2 | 3 | null;
+  /** Played, but not enough games yet for a medal. */
+  fewGames: boolean;
   name: string;
   level: SkillLevel;
   initials: string;
   played: number;
+  /** The most games anyone has played, for "Played 3 of 5". */
+  mostGames: number;
   wins: number;
   losses: number;
+  /** Smoothed win rate as a whole percentage — the number the order is decided on. */
+  winPct: number;
+  /** Smoothed share of points won, as a whole percentage; null when scores aren't recorded. */
+  pointsPct: number | null;
+  pointsFor: number;
+  pointsAgainst: number;
+  partnersCount: number;
   diffLabel: string;
   positiveDiff: boolean;
   trendLabel: string;
@@ -131,11 +144,13 @@ export interface RequestedPairEntry {
 
 export interface ShareRankingEntry {
   rank: number;
+  medal: 1 | 2 | 3 | null;
   name: string;
   initials: string;
   level: SkillLevel;
   wins: number;
   losses: number;
+  winPct: number;
 }
 
 export interface EditablePlayerOption {

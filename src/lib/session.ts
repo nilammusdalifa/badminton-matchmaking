@@ -590,6 +590,8 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
   const wins = new Map<string, number>();
   const losses = new Map<string, number>();
   const diff = new Map<string, number>();
+  const pointsFor = new Map<string, number>();
+  const pointsAgainst = new Map<string, number>();
   const recent = new Map<string, number[]>();
   const partner = new Map<string, Map<string, PartnerStat>>();
   const opp = new Map<string, Map<string, OppStat>>();
@@ -600,6 +602,8 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
     for (const id of ids) {
       bump(games, id, 1);
       bump(diff, id, own - oppScore);
+      bump(pointsFor, id, own);
+      bump(pointsAgainst, id, oppScore);
       if (won) bump(wins, id, 1);
       else if (lost) bump(losses, id, 1);
       if (!tie) {
@@ -689,6 +693,9 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
       wins: w,
       losses: l,
       diff: d,
+      pointsFor: pointsFor.get(p.id) || 0,
+      pointsAgainst: pointsAgainst.get(p.id) || 0,
+      partnersCount: partner.get(p.id)?.size ?? 0,
       rating: 1100 + d * 3 + w * 15 - l * 10,
       trend,
       recentForm,
@@ -702,20 +709,93 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
   });
 }
 
-/** Leaderboard order, in words anyone can check: most wins first, then the
- * bigger point difference, then fewer losses, then name. Only players who
- * have played are ranked; the rest follow, unranked (`rank: null`), by name.
- * A session that doesn't record results ("none") has nothing to rank by, so
- * nobody is ranked and the list just shows who played most. */
-export function rankPlayers(players: Player[], resultMode: ResultMode = "score"): { player: Player; rank: number | null }[] {
+/** Win rate that starts everyone at "1 win, 1 loss": 1W–0L (67%) doesn't
+ * jump above 4W–1L (71%), and games played doesn't decide the order alone. */
+export function winRate(p: Pick<Player, "wins" | "games">): number {
+  return (p.wins + 1) / (p.games + 2);
+}
+
+/** Share of all points won, pulled towards 50% by 40 points each way so a
+ * couple of games can't produce an extreme figure. The tie-breaker between
+ * equal records: it counts every rally, not just the win or the loss. */
+export function pointsShare(p: Pick<Player, "pointsFor" | "pointsAgainst">): number {
+  return (p.pointsFor + 40) / (p.pointsFor + p.pointsAgainst + 80);
+}
+
+/** Medals need at least this many games… */
+const MEDAL_MIN_GAMES = 3;
+/** …and this share of the most games anyone has played. */
+const MEDAL_MIN_SHARE = 0.6;
+/** Standings are "early" until everyone in the rotation has played this many. */
+const SETTLED_GAMES = 2;
+
+export interface RankedPlayer {
+  player: Player;
+  /** Position in the list (1-based); null for a player who hasn't played, or in a session that doesn't record results. */
+  rank: number | null;
+  /** 🥇🥈🥉 go to the first three players who qualify, wherever they sit in the list. */
+  medal: 1 | 2 | 3 | null;
+  /** Played, but too few games (or too few against the busiest player) for a medal yet. */
+  fewGames: boolean;
+}
+
+export interface Standings {
+  rows: RankedPlayer[];
+  /** Not everyone in the rotation has played 2 games yet: no medals, and the list says so. */
+  early: boolean;
+  /** Most games anyone has played. */
+  maxGames: number;
+}
+
+const key4 = (x: number) => Math.round(x * 10000);
+
+/** Leaderboard, in words anyone can check: best smoothed win rate first, then
+ * — where scores are recorded — the bigger share of points won, then more
+ * games played, then name. Only players who have played are ranked; the rest
+ * follow, unranked, by name. A session that doesn't record results ("none")
+ * has nothing to rank by, so nobody is ranked and the list shows who played
+ * most. Win rates compare to 4 decimals, so equal records tie exactly and
+ * fall to the tie-breaker.
+ *
+ * Medals are kept apart from the order: they need a settled night (everyone
+ * in the rotation has played 2), 3+ games and 60% of the most games anyone
+ * has played. A player who doesn't qualify keeps their place in the list but
+ * gets no medal; the medals go to the next players who do. */
+export function buildStandings(players: Player[], resultMode: ResultMode = "score"): Standings {
+  const maxGames = Math.max(0, ...players.map((p) => p.games));
   if (resultMode === "none") {
-    return [...players].sort((a, b) => b.games - a.games || a.name.localeCompare(b.name)).map((player) => ({ player, rank: null }));
+    const rows = [...players]
+      .sort((a, b) => b.games - a.games || a.name.localeCompare(b.name))
+      .map((player) => ({ player, rank: null, medal: null, fewGames: false }));
+    return { rows, early: false, maxGames };
   }
   const played = players
     .filter((p) => p.games > 0)
-    .sort((a, b) => b.wins - a.wins || b.diff - a.diff || a.losses - b.losses || a.name.localeCompare(b.name));
+    .sort(
+      (a, b) =>
+        key4(winRate(b)) - key4(winRate(a)) ||
+        (resultMode === "score" ? key4(pointsShare(b)) - key4(pointsShare(a)) : 0) ||
+        b.games - a.games ||
+        a.name.localeCompare(b.name),
+    );
   const unplayed = players.filter((p) => p.games === 0).sort((a, b) => a.name.localeCompare(b.name));
-  return [...played.map((player, i) => ({ player, rank: i + 1 })), ...unplayed.map((player) => ({ player, rank: null }))];
+  const settled = players.filter((p) => p.status === "ready").every((p) => p.games >= SETTLED_GAMES);
+  const enoughGames = (p: Player) => p.games >= MEDAL_MIN_GAMES && p.games >= MEDAL_MIN_SHARE * maxGames;
+  let medals = 0;
+  const rows: RankedPlayer[] = played.map((player, i) => {
+    const medal = settled && medals < 3 && enoughGames(player) ? ((++medals) as 1 | 2 | 3) : null;
+    return { player, rank: i + 1, medal, fewGames: !enoughGames(player) };
+  });
+  return {
+    rows: [...rows, ...unplayed.map((player) => ({ player, rank: null, medal: null, fewGames: false }))],
+    early: !settled && played.length > 0,
+    maxGames,
+  };
+}
+
+/** The ordered list without the extras, for callers that only need who came where. */
+export function rankPlayers(players: Player[], resultMode: ResultMode = "score"): RankedPlayer[] {
+  return buildStandings(players, resultMode).rows;
 }
 
 export function makeBlankPlayer(id: string, name: string, level: SkillLevel, status: PlayerStatus): Player {
@@ -727,6 +807,9 @@ export function makeBlankPlayer(id: string, name: string, level: SkillLevel, sta
     wins: 0,
     losses: 0,
     diff: 0,
+    pointsFor: 0,
+    pointsAgainst: 0,
+    partnersCount: 0,
     rating: 1100,
     trend: 0,
     recentForm: [],
@@ -757,6 +840,9 @@ export function resetPlayersForNewSession(players: Player[]): Player[] {
     wins: 0,
     losses: 0,
     diff: 0,
+    pointsFor: 0,
+    pointsAgainst: 0,
+    partnersCount: 0,
     rating: 1100,
     trend: 0,
     recentForm: [],

@@ -16,6 +16,23 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+.titleLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.infoBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text-2);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
 .title {
   margin: 0;
   font-family: var(--font-heading);
@@ -198,3 +215,80 @@
   margin-top: 3px;
 }
 .tierLabel { font-size: 12px; color: var(--sm-text-3); }
+
+.earlyNote {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--sm-accent-soft);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sm-text-2);
+}
+.rates {
+  font-family: var(--sm-font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--sm-accent-hover);
+}
+.fewTag {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sm-text-3);
+  white-space: nowrap;
+}
+.fewNote { color: var(--sm-text-2); }
+
+.sheetBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.sheet {
+  width: 100%;
+  max-width: 520px;
+  box-sizing: border-box;
+  padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
+  border-radius: 20px 20px 0 0;
+  background: var(--sm-surface);
+  border: 1px solid var(--sm-border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sheetTitle {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  color: var(--sm-text);
+}
+.sheetList {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--sm-text-2);
+  line-height: 1.45;
+}
+.sheetList strong { color: var(--sm-text); }
+.sheetNote { font-size: 12px; color: var(--sm-text-3); }
+.sheetClose {
+  align-self: stretch;
+  padding: 12px;
+  border-radius: 999px;
+  border: none;
+  background: var(--sm-accent);
+  color: var(--sm-accent-on);
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}

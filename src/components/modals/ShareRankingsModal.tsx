@@ -23,7 +23,7 @@ function splitWordmark(name: string): [string, string] {
   return [name, ""];
 }
 
-export function ShareRankingsModal({ open, top, sessionName, close, download, cardRef }: ShareRankingsProps) {
+export function ShareRankingsModal({ open, top, early, sessionName, playersCount, matchesCompleted, close, download, cardRef }: ShareRankingsProps) {
   if (!open) return null;
   const [wordA, wordB] = splitWordmark(sessionName);
 
@@ -44,7 +44,7 @@ export function ShareRankingsModal({ open, top, sessionName, close, download, ca
             </div>
             <div className={styles.subheading}>
               <TrophyIcon className={styles.subheadingIcon} />
-              Top {top.length} Rankings
+              {early ? "Early standings" : `Top ${top.length} Rankings`}
             </div>
 
             {/* A single uniform-height row per rank — every row has the exact
@@ -56,24 +56,27 @@ export function ShareRankingsModal({ open, top, sessionName, close, download, ca
                fine on screen. Uniform rows have nothing uneven to get wrong. */}
             <div className={styles.list}>
               {top.map((r) => (
-                <div className={`${styles.row} ${r.rank === 1 ? styles.rowFirst : ""}`} key={r.rank}>
-                  <span className={styles.rankBadge}>{MEDAL[r.rank] ?? r.rank}</span>
+                <div className={`${styles.row} ${r.medal === 1 ? styles.rowFirst : ""}`} key={r.rank}>
+                  <span className={styles.rankBadge}>{r.medal ? MEDAL[r.medal] : r.rank}</span>
                   <span className={styles.rowName}>{r.name}</span>
                   <div className={styles.statLine}>
-                    {/* Colors alone carry the win/loss distinction here — no
-                       "W"/"L" suffix. html2canvas silently substitutes a
-                       plain "I" glyph for capital "L" in this capture
-                       environment, reproducibly, in every font tried
-                       (custom webfont, system sans, system monospace) — a
-                       font-independent bug, not the earlier webfont-specific
-                       one. Numbers-only sidesteps it instead of chasing it
-                       further. */}
-                    <span className={styles.win}>{r.wins}</span>
+                    {/* W/L letters: an earlier version dropped them because
+                       html2canvas rendered a capital "L" as "I" in one capture
+                       environment. With this system-sans stat line the exported
+                       PNG shows them correctly (checked by exporting the card).
+                       If they ever come out wrong on a device, drop the letters
+                       and let the colours carry the win/loss distinction. */}
+                    <span className={styles.win}>{r.wins}W</span>
                     <span className={styles.statDash}>–</span>
-                    <span className={styles.loss}>{r.losses}</span>
+                    <span className={styles.loss}>{r.losses}L</span>
+                    <span className={styles.statDash}>·</span>
+                    <span>{r.winPct}%</span>
                   </div>
                 </div>
               ))}
+            </div>
+            <div className={styles.footer}>
+              Tonight&apos;s standings · {playersCount} players · {matchesCompleted} matches
             </div>
           </div>
         </div>

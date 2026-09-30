@@ -3,6 +3,8 @@ import styles from "./ReviewScreen.module.css";
 
 type ReviewProps = SessionStore["review"];
 
+const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
 export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, playersCount, courtsCount, resultMode, rankingsVM, onShareRankings, onStartNew }: ReviewProps) {
   return (
     <div className={styles.wrap}>
@@ -28,13 +30,15 @@ export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, p
       <div className={styles.list}>
         {rankingsVM.map((r) => (
           <div className={styles.row} key={r.id}>
-            <span className={styles.rank}>{r.rank ?? "—"}</span>
+            <span className={styles.rank}>{r.medal ? MEDAL[r.medal] : (r.rank ?? "—")}</span>
             <span className={styles.name}>{r.name}</span>
             <span className={styles.record}>
               {r.wins}W–{r.losses}L
             </span>
-            {resultMode === "score" && (
-              <span className={`${styles.diff} ${r.positiveDiff ? styles.positive : styles.negative}`}>{r.diffLabel} pts</span>
+            {resultMode !== "none" && r.played > 0 && (
+              <span className={`${styles.diff} ${styles.positive}`}>
+                {r.winPct}%{r.pointsPct !== null && ` · ${r.pointsPct}% pts`}
+              </span>
             )}
           </div>
         ))}

@@ -16,6 +16,11 @@ export interface Player {
   wins: number;
   losses: number;
   diff: number;
+  /** Points scored / conceded across completed matches (real scores only). */
+  pointsFor: number;
+  pointsAgainst: number;
+  /** How many different partners they have had. */
+  partnersCount: number;
   rating: number;
   trend: number;
   /** Last 5 completed (non-tie) match results, oldest first: 1 = win, -1 =
