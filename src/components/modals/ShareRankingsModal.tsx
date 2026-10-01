@@ -54,8 +54,11 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
     <div className={styles.backdrop}>
       <div className={styles.wrap}>
         <div className={styles.card} ref={cardRef}>
+          {/* the app's own backdrop: soft teal, sage and peach glows over a faint dot grid */}
           <div className={styles.glow1} />
           <div className={styles.glow2} />
+          <div className={styles.glow3} />
+          <div className={styles.dots} />
 
           <div className={styles.cardBody}>
             <div className={styles.wordmarkRow}>
@@ -80,21 +83,25 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
                fine on screen. Uniform rows have nothing uneven to get wrong. */}
             <div className={styles.list}>
               {top.map((r) => (
-                <div className={`${styles.row} ${r.medal === 1 ? styles.rowFirst : ""}`} key={r.rank}>
+                <div className={`${styles.row} ${r.medal ? styles["medal" + r.medal] : ""}`} key={r.rank}>
                   <span className={styles.rankBadge}>{r.medal ? MEDAL[r.medal] : r.rank}</span>
+                  <span className={`${styles.avatar} ${r.medal ? styles["avatar" + r.medal] : ""}`}>
+                    <span className={styles.avatarText}>{r.initials}</span>
+                  </span>
                   <span className={styles.rowName}>{r.name}</span>
-                  <div className={styles.statLine}>
+                  <div className={styles.statBlock}>
                     {/* W/L letters: an earlier version dropped them because
                        html2canvas rendered a capital "L" as "I" in one capture
                        environment. With this system-sans stat line the exported
                        PNG shows them correctly (checked by exporting the card).
                        If they ever come out wrong on a device, drop the letters
                        and let the colours carry the win/loss distinction. */}
-                    <span className={styles.win}>{r.wins}W</span>
-                    <span className={styles.statDash}>–</span>
-                    <span className={styles.loss}>{r.losses}L</span>
-                    <span className={styles.statDash}>·</span>
-                    <span>{r.winPct}%</span>
+                    <div className={styles.statLine}>
+                      <span className={styles.win}>{r.wins}W</span>
+                      <span className={styles.statDash}>–</span>
+                      <span className={styles.loss}>{r.losses}L</span>
+                    </div>
+                    <div className={styles.statPct}>{r.winPct}%</div>
                   </div>
                 </div>
               ))}

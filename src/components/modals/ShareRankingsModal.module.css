@@ -33,9 +33,12 @@
   position: relative;
   width: min(270px, calc(100vw - 64px));
   height: 480px;
-  background: linear-gradient(160deg, #0e1420 0%, #10241f 55%, #0d2a24 100%);
-  border: 1px solid var(--sm-accent-border);
-  border-radius: 22px;
+  /* The app's own look: the warm dark brown page colour with its teal, sage and
+     peach glows and dot grid, so the picture reads as the same product as the
+     app it was taken from. */
+  background: var(--sm-bg);
+  border: 1px solid var(--sm-border-soft);
+  border-radius: 24px;
   /* Symmetric now that the footer (which the old 26/16 split was balancing
      against) is gone — centering the wordmark+list block via cardBody's
      justify-content:center only reads as centered if the card's own padding
@@ -52,20 +55,36 @@
 .glow1 {
   position: absolute;
   top: -90px;
-  right: -70px;
-  width: 260px;
-  height: 260px;
+  right: -90px;
+  width: 280px;
+  height: 280px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(63, 182, 168, 0.18), transparent 70%);
+  background: radial-gradient(circle, rgba(63, 182, 168, 0.16), transparent 70%);
 }
 .glow2 {
   position: absolute;
-  bottom: -100px;
-  left: -80px;
-  width: 240px;
-  height: 240px;
+  bottom: -60px;
+  left: -100px;
+  width: 260px;
+  height: 260px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(63, 182, 168, 0.12), transparent 70%);
+  background: radial-gradient(circle, rgba(174, 191, 146, 0.14), transparent 70%);
+}
+.glow3 {
+  position: absolute;
+  top: 120px;
+  left: -40px;
+  width: 350px;
+  height: 350px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 198, 165, 0.06), transparent 65%);
+}
+.dots {
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  background-image: radial-gradient(rgba(249, 244, 237, 0.06) 1px, transparent 1px);
+  background-size: 22px 22px;
 }
 
 /* The tall 9:16 frame has more room than the content strictly needs, so
@@ -127,33 +146,12 @@
   font-size: 14px;
 }
 
-/* ---- shared win/loss stat line ---- */
-.statLine {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 9.5px;
-  font-weight: 700;
-  color: var(--sm-text-2);
-  /* Not monospace: html2canvas clips glyphs (W, L) under bold monospace
-     fonts specifically — system, JetBrains, doesn't matter — same bug class
-     as the earlier Figtree corruption, just a different codepath. The
-     system sans stack used everywhere else in this card is the one proven
-     clean across repeated real downloads, so stat text uses it too. */
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  margin-top: 2px;
-  white-space: nowrap;
-}
-.statDash { color: var(--sm-text-4); }
-.win { color: var(--sm-accent); }
-.loss { color: #ff8a8a; }
-
 /* ---- ranked list — every row shares the exact same structure/height ---- */
 .list {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  margin-top: 26px;
+  margin-top: 24px;
 }
 /* Fixed height + line-height matched to it, instead of vertical padding +
    align-items:center. html2canvas's flex cross-axis centering measurably
@@ -162,48 +160,112 @@
    it worse, clipping glyphs outright since their rendered extent exceeded
    that shrunk line box). Giving each text child a line-height equal to the
    row's own content height gets it close, but a real downloaded capture
-   still measured every text child (name AND stat line, whether centered via
-   line-height or via this row's own align-items:center) sitting ~5px lower
-   than the pill's true center, by the same amount either way — html2canvas
-   has its own baseline-vs-line-top offset for text that doesn't match the
-   real browser's. A small negative margin-top on each text child is the
-   direct, measured correction for that residual bias. */
+   still measured every text child sitting ~5px lower than the pill's true
+   center — html2canvas has its own baseline-vs-line-top offset for text that
+   doesn't match the real browser's. A small negative margin-top on each text
+   child is the direct, measured correction for that residual bias.
+
+   Rows are the app's own: the brown surface colour, and for the top three the
+   same gold / silver / bronze tint and ring as the Rankings tab. */
 .row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   height: 42px;
-  padding: 0 12px;
-  border-radius: 13px;
-  background: rgba(255, 255, 255, 0.05);
+  padding: 0 10px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  background: var(--sm-surface);
+  border: 1px solid transparent;
 }
-.rowFirst {
-  background: rgba(255, 215, 94, 0.12);
-  border: 1px solid rgba(255, 215, 94, 0.3);
+.medal1 {
+  background: linear-gradient(135deg, rgba(232, 164, 48, 0.14), #3a362c 55%);
+  border-color: rgba(232, 164, 48, 0.35);
 }
-.row .statLine {
-  margin-top: -5px;
+.medal2 {
+  background: linear-gradient(135deg, rgba(184, 190, 199, 0.12), #3a362c 55%);
+  border-color: rgba(184, 190, 199, 0.3);
+}
+.medal3 {
+  background: linear-gradient(135deg, rgba(181, 112, 58, 0.14), #3a362c 55%);
+  border-color: rgba(181, 112, 58, 0.3);
 }
 .rankBadge {
-  width: 18px;
+  width: 16px;
   text-align: center;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-weight: 700;
   font-size: 12px;
-  line-height: 42px;
+  line-height: 40px;
   margin-top: -5px;
   color: var(--sm-text-3);
   flex-shrink: 0;
 }
+.avatar {
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--sm-fill);
+  border: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Same measured correction as the other text in the row (see above): the
+   exported picture draws text lower than the browser does. */
+.avatarText {
+  margin-top: -5px;
+  color: var(--sm-text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 700;
+  font-size: 9.5px;
+  line-height: 20px;
+}
+.avatar1 { border-color: rgba(232, 164, 48, 0.6); }
+.avatar2 { border-color: rgba(184, 190, 199, 0.55); }
+.avatar3 { border-color: rgba(181, 112, 58, 0.55); }
 .rowName {
   flex: 1;
+  min-width: 0;
   font-weight: 700;
   font-size: 12.5px;
-  line-height: 42px;
+  line-height: 40px;
   margin-top: -5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+/* record over win %: the same two numbers as the Rankings tab, stacked so a
+   name has room */
+.statBlock {
+  flex-shrink: 0;
+  text-align: right;
+  margin-top: -5px;
+}
+.statLine {
+  font-size: 10.5px;
+  line-height: 14px;
+  font-weight: 700;
+  color: var(--sm-text-2);
+  /* Not monospace: html2canvas clips glyphs (W, L) under bold monospace
+     fonts specifically — system, JetBrains, doesn't matter — same bug class
+     as the earlier Figtree corruption, just a different codepath. The
+     system sans stack used everywhere else in this card is the one proven
+     clean across repeated real downloads, so stat text uses it too. */
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  white-space: nowrap;
+}
+.statDash { color: var(--sm-text-4); }
+.win { color: var(--sm-accent); }
+.loss { color: var(--sm-danger-text); }
+.statPct {
+  font-size: 9.5px;
+  line-height: 13px;
+  font-weight: 700;
+  color: var(--sm-accent-hover);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
