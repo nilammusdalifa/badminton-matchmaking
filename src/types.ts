@@ -12,7 +12,11 @@ export interface Player {
   id: string;
   name: string;
   level: SkillLevel;
+  /** Every completed match they played, whether or not its result counts:
+   * rotation (who is due next) works from this. */
   games: number;
+  /** Games whose result counts (not "ended early"): what rankings use. */
+  rankGames: number;
   wins: number;
   losses: number;
   diff: number;
@@ -44,6 +48,12 @@ export interface Player {
    * joins the rotation normally. Saved with the player, so it carries over
    * to the next session. Missing means not a host. */
   isHost?: boolean;
+  /** False for a player who plays but shouldn't compete for a place (a host,
+   * a guest). Saved with the player. Missing means counted. */
+  inRankings?: boolean;
+  /** Set while they are on court: what to do the moment their match is saved
+   * or cancelled. */
+  afterMatch?: "rest" | "left";
 }
 
 /** A player's rotation-fairness fields, captured just before a match-start
@@ -75,6 +85,12 @@ export interface Match {
    * field existed, which is exactly what "score" (the original, only,
    * behavior) means for them. */
   resultMode?: ResultMode;
+  /** Stopped before it finished (injury, time up). The score so far is kept. */
+  endedEarly?: boolean;
+  /** False when the result is kept for the log but doesn't count towards
+   * wins, losses, points or rankings. The match still counts as a game
+   * played for rotation. Missing means counted. */
+  counted?: boolean;
   /** Every player's skipped/consecutiveGames/skipNextRound/maxConsecutive
    * right before this match started touched them (the four joining players,
    * plus every other ready player whose skipped count bumped). Cancelling

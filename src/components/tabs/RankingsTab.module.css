@@ -230,16 +230,6 @@
   font-size: 12px;
   color: var(--sm-accent-hover);
 }
-.fewTag {
-  margin-left: 6px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  border: 1px solid var(--sm-border);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--sm-text-3);
-  white-space: nowrap;
-}
 .fewNote { color: var(--sm-text-2); }
 
 .sheetBackdrop {
@@ -289,6 +279,28 @@
   color: var(--sm-accent-on);
   font-weight: 800;
   font-size: 13px;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+
+.groupLabel {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--sm-text-2);
+}
+.countBtn {
+  align-self: flex-start;
+  margin-top: 3px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text-2);
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }

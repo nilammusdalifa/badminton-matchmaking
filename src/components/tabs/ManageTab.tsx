@@ -48,6 +48,7 @@ export function ManageTab({
   const [draftName, setDraftName] = useState("");
   const [draftLevel, setDraftLevel] = useState<SkillLevel>("B");
   const [draftHost, setDraftHost] = useState(false);
+  const [draftCounted, setDraftCounted] = useState(true);
 
   return (
     <>
@@ -192,7 +193,7 @@ export function ManageTab({
                     <div className={styles.rosterName}>
                       {p.name} <span className={styles.rosterLevel}>Tier {p.level}</span>
                     </div>
-                    <div className={`${styles.rosterStatus} ${styles[p.statusTone]}`}>{p.statusLabel}</div>
+                    <div className={`${styles.rosterStatus} ${styles[p.statusTone]}`}>{p.statusLabel} · {p.gamesLabel}</div>
                   </div>
                   <div className={styles.rosterActions}>
                     {p.actions.map((a) => (
@@ -213,6 +214,7 @@ export function ManageTab({
                           setDraftName(p.name);
                           setDraftLevel(p.level);
                           setDraftHost(p.isHost);
+                          setDraftCounted(p.inRankings);
                         }}
                       >
                         Edit
@@ -226,7 +228,7 @@ export function ManageTab({
                     onSubmit={(e) => {
                       e.preventDefault();
                       if (!draftName.trim()) return;
-                      if (p.onSave(draftName, draftLevel, draftHost)) setEditingId(null);
+                      if (p.onSave(draftName, draftLevel, draftHost, draftCounted)) setEditingId(null);
                     }}
                   >
                     <input
@@ -241,12 +243,28 @@ export function ManageTab({
                     />
                     <LevelPicker value={draftLevel} onChange={setDraftLevel} />
                     <label className={styles.hostToggle}>
-                      <input type="checkbox" checked={draftHost} disabled={p.hostLocked} onChange={(e) => setDraftHost(e.target.checked)} />
+                      <input
+                        type="checkbox"
+                        checked={draftHost}
+                        disabled={p.hostLocked}
+                        onChange={(e) => {
+                          setDraftHost(e.target.checked);
+                          // A host usually isn't competing; the box below can switch it back on.
+                          if (e.target.checked) setDraftCounted(false);
+                        }}
+                      />
                       <span>
                         <span className={styles.hostToggleTitle}>Host · plays later</span>
                         <span className={styles.hostToggleHint}>
                           {p.hostLocked ? "Round 1 has started, so this only applies to the next session." : "Sits out the first round, then joins the rotation normally."}
                         </span>
+                      </span>
+                    </label>
+                    <label className={styles.hostToggle}>
+                      <input type="checkbox" checked={draftCounted} onChange={(e) => setDraftCounted(e.target.checked)} />
+                      <span>
+                        <span className={styles.hostToggleTitle}>Count in rankings</span>
+                        <span className={styles.hostToggleHint}>Off: still plays, but is listed under &quot;Not ranked&quot; and doesn&apos;t change anyone else&apos;s record.</span>
                       </span>
                     </label>
                     <div className={styles.editActions}>

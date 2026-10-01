@@ -269,3 +269,72 @@
   font-size: 12px;
   color: var(--sm-text-2);
 }
+
+.healthLink {
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+.gamesHead {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+  text-align: left;
+}
+.gamesTitle {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sm-text-2);
+}
+.gamesAvg {
+  font-size: 12px;
+  color: var(--sm-text-3);
+  white-space: nowrap;
+}
+.gamesList {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.gamesRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+}
+.gamesCount {
+  width: 18px;
+  flex-shrink: 0;
+  text-align: right;
+  font-family: var(--sm-font-mono);
+  font-weight: 800;
+  color: var(--sm-text);
+}
+.gamesNames {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--sm-text-2);
+}
+.gamesStatus {
+  font-size: 12px;
+  color: var(--sm-text-3);
+}
+.gamesWarn { color: var(--color-accent-2-300); }

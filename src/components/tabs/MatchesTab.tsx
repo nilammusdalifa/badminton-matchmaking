@@ -29,7 +29,7 @@ export function MatchesTab({ matchLogVM, courtsCount, readOnly }: MatchesTabProp
                 <span className={styles.matchNum}>#{m.matchNumber}</span>
               </div>
               <span className={`${styles.badge} ${m.status === "in_progress" ? styles.inProgress : styles.completed}`}>
-                {m.status === "in_progress" ? "Live" : "Final"}
+                {m.status === "in_progress" ? "Live" : m.notCounted ? "Ended early" : "Final"}
               </span>
             </div>
             <div className={styles.teams}>
@@ -44,6 +44,7 @@ export function MatchesTab({ matchLogVM, courtsCount, readOnly }: MatchesTabProp
                 {m.t2Names}
               </span>
             </div>
+            {m.notCounted && <div className={styles.notCounted}>Ended early · not counted</div>}
             <div className={styles.rowActions}>
               {m.status === "completed" && m.resultMode === "score" && (
                 <button className={styles.actionBtn} onClick={m.onEditScore}>

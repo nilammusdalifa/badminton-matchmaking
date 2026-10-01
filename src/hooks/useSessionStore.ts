@@ -5,6 +5,7 @@ import { claimUmpireAccess, type FirebasePayload, generateSessionPin, pushSessio
 import { load, loadIdentity, save, saveIdentity, type PersistedState } from "../lib/persistence";
 import {
   applyLiveScore,
+  applyAfterMatch,
   applyMatchStart,
   buildCounterSnapshot,
   canRemovePlayer,
@@ -14,6 +15,7 @@ import {
   courtsDueToPause,
   fewPlayersHint,
   hostsHolding,
+  hostSwitchLocked,
   formatElapsed,
   initialsFor,
   isCourtClosingSoon,
@@ -31,6 +33,7 @@ import {
   courtCloseReminders,
   parseClockTime,
   playerPriority,
+  buildGamesPlayed,
   buildStandings,
   pointsShare,
   winRate,
@@ -47,6 +50,7 @@ import {
 import type { Court, Match, PauseReason, Player, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion, Tab } from "../types";
 import type {
   CourtViewModel,
+  GamesPlayedVM,
   ManagePlayerEntry,
   MatchLogEntry,
   NotInRotationEntry,
@@ -522,28 +526,52 @@ export function useSessionStore() {
       };
     });
   }, []);
-  const skSaveFinal = useCallback(() => {
-    const matchId = state.scorekeeperMatchId;
-    if (!matchId) return;
-    // A tie can never be a genuine badminton result — guarded here too, not
-    // just in the sheet's button, since this is what actually writes the
-    // match. If it can't be finished, Cancel Match is the honest action.
-    if (state.scorekeeperT1 === state.scorekeeperT2) {
-      showToast("Scores can't tie");
-      return;
-    }
-    // Reopening an already-completed match (to fix a mis-entered score) must
-    // not count it a second time — only a genuine in_progress → completed
-    // transition increments the total.
-    const wasCompleted = state.matches.find((m) => m.id === matchId)?.status === "completed";
-    setState((s) => ({
-      ...s,
-      matches: s.matches.map((m) => (m.id === matchId ? { ...m, s1: s.scorekeeperT1, s2: s.scorekeeperT2, status: "completed" as const } : m)),
-      completedCount: wasCompleted ? s.completedCount : s.completedCount + 1,
-      scorekeeperMatchId: null,
-    }));
-    showToast(wasCompleted ? "Result updated" : "Result saved — court is available");
-  }, [state.scorekeeperMatchId, state.matches, state.scorekeeperT1, state.scorekeeperT2, showToast]);
+  // "final": the result counts. "early": the match stopped before it finished
+  // (injury, time up) — the score so far is kept for the log, but nothing about
+  // it counts towards wins, losses or points; it still counts as a game played
+  // so rotation isn't thrown off. A tie can only be saved this way.
+  const skSaveFinal = useCallback(
+    (mode: "final" | "early" = "final") => {
+      const matchId = state.scorekeeperMatchId;
+      if (!matchId) return;
+      // A tie can never be a genuine badminton result — guarded here too, not
+      // just in the sheet's button, since this is what actually writes the
+      // match. If it can't be finished, "ended early" or Cancel Match is the way out.
+      if (mode === "final" && state.scorekeeperT1 === state.scorekeeperT2) {
+        showToast("Scores can't tie");
+        return;
+      }
+      // Reopening an already-completed match (to fix a mis-entered score) must
+      // not count it a second time — only a genuine in_progress → completed
+      // transition increments the total.
+      const wasCompleted = state.matches.find((m) => m.id === matchId)?.status === "completed";
+      setState((s) => {
+        const target = s.matches.find((m) => m.id === matchId);
+        const matches = s.matches.map((m) => {
+          if (m.id !== matchId) return m;
+          const next: Match = { ...m, s1: s.scorekeeperT1, s2: s.scorekeeperT2, status: "completed" };
+          if (mode === "early") {
+            next.endedEarly = true;
+            next.counted = false;
+          } else {
+            delete next.endedEarly;
+            delete next.counted;
+          }
+          return next;
+        });
+        return {
+          ...s,
+          matches,
+          // rest / leave chosen while they were on court takes effect now
+          players: !wasCompleted && target ? applyAfterMatch(s.players, target) : s.players,
+          completedCount: wasCompleted ? s.completedCount : s.completedCount + 1,
+          scorekeeperMatchId: null,
+        };
+      });
+      showToast(mode === "early" ? "Saved. Not counted in the rankings" : wasCompleted ? "Result updated" : "Result saved — court is available");
+    },
+    [state.scorekeeperMatchId, state.matches, state.scorekeeperT1, state.scorekeeperT2, showToast],
+  );
 
   // One-tap completion for the "winner only" and "no score" result modes —
   // no scorekeeper sheet at all, just record the outcome and free the
@@ -554,22 +582,30 @@ export function useSessionStore() {
   // tie for `resultMode === "score"`, so it won't be mislabeled).
   const quickWin = useCallback(
     (matchId: string, winner: "t1" | "t2") => {
-      setState((s) => ({
-        ...s,
-        matches: s.matches.map((m) => (m.id === matchId ? { ...m, s1: winner === "t1" ? 1 : 0, s2: winner === "t2" ? 1 : 0, status: "completed" as const } : m)),
-        completedCount: s.completedCount + 1,
-      }));
+      setState((s) => {
+        const target = s.matches.find((m) => m.id === matchId);
+        return {
+          ...s,
+          matches: s.matches.map((m) => (m.id === matchId ? { ...m, s1: winner === "t1" ? 1 : 0, s2: winner === "t2" ? 1 : 0, status: "completed" as const } : m)),
+          players: target ? applyAfterMatch(s.players, target) : s.players,
+          completedCount: s.completedCount + 1,
+        };
+      });
       showToast("Result saved — court is available");
     },
     [showToast],
   );
   const quickFinish = useCallback(
     (matchId: string) => {
-      setState((s) => ({
-        ...s,
-        matches: s.matches.map((m) => (m.id === matchId ? { ...m, s1: 0, s2: 0, status: "completed" as const } : m)),
-        completedCount: s.completedCount + 1,
-      }));
+      setState((s) => {
+        const target = s.matches.find((m) => m.id === matchId);
+        return {
+          ...s,
+          matches: s.matches.map((m) => (m.id === matchId ? { ...m, s1: 0, s2: 0, status: "completed" as const } : m)),
+          players: target ? applyAfterMatch(s.players, target) : s.players,
+          completedCount: s.completedCount + 1,
+        };
+      });
       showToast("Match finished — court is available");
     },
     [showToast],
@@ -751,6 +787,37 @@ export function useSessionStore() {
     },
     [getPlayer, showToast],
   );
+  // A player on court can't be rested or removed mid-match, so the choice is
+  // kept and applied the moment their match is saved or cancelled. Choosing
+  // the same thing again (or null) takes it back.
+  const setAfterMatch = useCallback(
+    (id: string, choice: "rest" | "left" | null) => {
+      setState((s) => ({
+        ...s,
+        players: s.players.map((p) => {
+          if (p.id !== id) return p;
+          const next: Player = { ...p };
+          if (choice) next.afterMatch = choice;
+          else delete next.afterMatch;
+          return next;
+        }),
+      }));
+      showToast(choice === "rest" ? "Rests after this match" : choice === "left" ? "Leaves after this match" : "Cancelled");
+    },
+    [showToast],
+  );
+
+  // Undo a check-in made by mistake: back to "not checked in", keeping their
+  // place on the roster. Only for someone who hasn't played.
+  const uncheckIn = useCallback(
+    (id: string) => {
+      const p = getPlayer(id);
+      setState((s) => ({ ...s, players: s.players.map((pl) => (pl.id === id ? { ...pl, status: "expected" as const, pauseReason: null, skipNextRound: false } : pl)) }));
+      showToast((p ? p.name : "Player") + " is not here yet");
+    },
+    [getPlayer, showToast],
+  );
+
   const rejoinPlayer = useCallback(
     (id: string) => {
       setState((s) => ({ ...s, players: s.players.map((p) => (p.id === id ? { ...p, status: "ready" as const } : p)) }));
@@ -816,8 +883,29 @@ export function useSessionStore() {
     [isOwner, showToast],
   );
 
+  // In or out of the rankings: for hosts and guests who play but shouldn't
+  // compete for a place. Their matches still count for everyone else's partners
+  // and opponents; nobody else's record changes.
+  const setPlayerCounted = useCallback(
+    (id: string, counted: boolean) => {
+      if (!isOwner) return;
+      setState((s) => ({
+        ...s,
+        players: s.players.map((p) => {
+          if (p.id !== id) return p;
+          const next: Player = { ...p };
+          if (counted) delete next.inRankings;
+          else next.inRankings = false;
+          return next;
+        }),
+      }));
+      showToast(counted ? "Counts in the rankings" : "Not in the rankings");
+    },
+    [isOwner, showToast],
+  );
+
   const updatePlayer = useCallback(
-    (id: string, name: string, level: SkillLevel, isHost: boolean): boolean => {
+    (id: string, name: string, level: SkillLevel, isHost: boolean, inRankings: boolean): boolean => {
       if (!isOwner) return false;
       const trimmed = name.trim();
       if (!trimmed) return false;
@@ -833,6 +921,8 @@ export function useSessionStore() {
           // an absent key, not `false` or `undefined`, for a player who isn't a host
           if (isHost) next.isHost = true;
           else delete next.isHost;
+          if (inRankings) delete next.inRankings;
+          else next.inRankings = false;
           return next;
         }),
       }));
@@ -1058,7 +1148,7 @@ export function useSessionStore() {
           // otherwise a mis-started match leaves permanent fairness drift
           // even after being cancelled. A completed match's players really
           // did play, so deleting its *result* never touches rotation state.
-          players: target.status === "in_progress" ? reverseCounterSnapshot(s.players, target.counterSnapshot) : s.players,
+          players: target.status === "in_progress" ? applyAfterMatch(reverseCounterSnapshot(s.players, target.counterSnapshot), target) : s.players,
           confirmAction: null,
           pendingDeleteMatchId: null,
           // If the deleted match happened to be open in the scorekeeper,
@@ -1151,15 +1241,17 @@ export function useSessionStore() {
   const standings = useMemo(() => buildStandings(livePlayers, state.sessionResultMode), [livePlayers, state.sessionResultMode]);
 
   const rankingsVM = useMemo<RankingEntry[]>(() => {
-    return standings.rows.map(({ player: p, rank, medal, fewGames }) => ({
+    return standings.rows.map(({ player: p, rank, medal, section }) => ({
       id: p.id,
       rank,
       medal,
-      fewGames,
+      section,
+      inRankings: p.inRankings !== false,
+      onToggleCounted: isOwner ? () => setPlayerCounted(p.id, p.inRankings === false) : null,
       name: p.name,
       level: p.level,
       initials: initialsFor(p.name),
-      played: p.games,
+      played: p.rankGames,
       mostGames: standings.maxGames,
       wins: p.wins,
       losses: p.losses,
@@ -1181,7 +1273,7 @@ export function useSessionStore() {
       toughOppGames: p.toughOppGames,
       onSetLevel: (level) => setPlayerTier(p.id, level),
     }));
-  }, [standings, state.sessionResultMode, setPlayerTier]);
+  }, [standings, state.sessionResultMode, isOwner, setPlayerCounted, setPlayerTier]);
 
   // The tier-balance note names tiers, which the read-only Player view hides
   // everywhere else — so it's dropped from the reason line there.
@@ -1325,8 +1417,12 @@ export function useSessionStore() {
 
   // Hosts wait out the first round: until every open court has started a match.
   const holdingHosts = hostsHolding(state.courts, state.matches);
+  // The "Host" box locks once round 1 has started. Counts every court, paused
+  // or not: with both paused and no match yet, round 1 hasn't started.
+  const hostLocked = hostSwitchLocked(state.courts, state.matches);
 
   const managePlayersVM = useMemo<ManagePlayerEntry[]>(() => {
+    const liveGames = (id: string) => livePlayers.find((x) => x.id === id)?.games ?? 0;
     return [...state.players]
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((p) => {
@@ -1340,6 +1436,22 @@ export function useSessionStore() {
         if (playing) {
           statusLabel = p.status === "left" ? "On court · leaving after this game" : "On court";
           statusTone = "accent";
+          // Can't be rested or removed mid-match, so the choice waits for the
+          // match to be saved or cancelled; choosing it again takes it back.
+          if (p.status !== "left") {
+            if (p.afterMatch === "rest") {
+              statusLabel = "On court · resting after this match";
+              actions = [{ label: "Cancel", onClick: () => setAfterMatch(p.id, null) }];
+            } else if (p.afterMatch === "left") {
+              statusLabel = "On court · leaving after this match";
+              actions = [{ label: "Cancel", onClick: () => setAfterMatch(p.id, null) }];
+            } else {
+              actions = [
+                { label: "Rest after this match", onClick: () => setAfterMatch(p.id, "rest") },
+                { label: "Leave after this match", onClick: () => setAfterMatch(p.id, "left") },
+              ];
+            }
+          }
         } else if (p.status === "left") {
           statusLabel = "Left session";
           actions = [{ label: "Rejoin", onClick: () => rejoinPlayer(p.id) }];
@@ -1353,6 +1465,7 @@ export function useSessionStore() {
           // reasons are less common exceptions, so they keep the explicit label.
           statusLabel = p.pauseReason === "rest" || !p.pauseReason ? "Resting" : "Resting · " + (PAUSE_LABELS[p.pauseReason] || "Rest");
           actions = [{ label: "Back to Waiting", onClick: () => resumePlayer(p.id) }];
+          if (liveGames(p.id) === 0) actions.push({ label: "Not here yet", onClick: () => uncheckIn(p.id) });
         } else if (p.skipNextRound) {
           statusLabel = "Sitting out next";
           statusTone = "warning";
@@ -1361,6 +1474,8 @@ export function useSessionStore() {
           statusLabel = p.isHost && holdingHosts ? "Host · plays after round 1" : "Waited " + p.skipped + (p.skipped === 1 ? " match" : " matches");
           statusTone = "warning";
           actions = [{ label: "Leave", onClick: () => leavePlayer(p.id) }];
+          // checked in by mistake and not played yet
+          if (liveGames(p.id) === 0) actions.push({ label: "Not here yet", onClick: () => uncheckIn(p.id) });
         }
         const live = livePlayers.find((x) => x.id === p.id) ?? p;
         return {
@@ -1371,12 +1486,14 @@ export function useSessionStore() {
           statusTone,
           actions,
           isHost: Boolean(p.isHost),
-          hostLocked: !holdingHosts,
-          onSave: (name: string, level: SkillLevel, isHost: boolean) => updatePlayer(p.id, name, level, isHost),
+          inRankings: p.inRankings !== false,
+          gamesLabel: live.games + (live.games === 1 ? " game" : " games"),
+          hostLocked,
+          onSave: (name: string, level: SkillLevel, isHost: boolean, inRankings: boolean) => updatePlayer(p.id, name, level, isHost, inRankings),
           onRemove: canRemovePlayer(live, state.matches) ? () => removePlayer(p.id) : null,
         };
       });
-  }, [state.players, state.matches, livePlayers, holdingHosts, isPlaying, rejoinPlayer, checkIn, resumePlayer, leavePlayer, cancelSkip, updatePlayer, removePlayer]);
+  }, [state.players, state.matches, livePlayers, holdingHosts, hostLocked, isPlaying, setAfterMatch, uncheckIn, rejoinPlayer, checkIn, resumePlayer, leavePlayer, cancelSkip, updatePlayer, removePlayer]);
 
   const readyPlayers = useMemo(() => readyPool(), [readyPool]);
   const orderedReady = useMemo(() => playerPriority(readyPlayers), [readyPlayers]);
@@ -1421,7 +1538,15 @@ export function useSessionStore() {
       const t2 = teamNames(m.t2, state.players);
       const winner: "t1" | "t2" | null = m.s1 === m.s2 ? null : m.s1 > m.s2 ? "t1" : "t2";
       const resultMode = m.resultMode ?? "score";
-      return { t1Names: t1.join(" & "), t2Names: t2.join(" & "), score: resultMode === "score" ? m.s1 + "–" + m.s2 : "", winner, resultMode };
+      return {
+        t1Names: t1.join(" & "),
+        t2Names: t2.join(" & "),
+        score: resultMode === "score" ? m.s1 + "–" + m.s2 : "",
+        // an early-ended match has no winner: nobody's record changed
+        winner: m.counted === false ? null : winner,
+        resultMode,
+        notCounted: m.counted === false,
+      };
     });
   }, [state.matches, state.players]);
 
@@ -1434,7 +1559,7 @@ export function useSessionStore() {
       const t1 = teamNames(m.t1, state.players);
       const t2 = teamNames(m.t2, state.players);
       const resultMode = m.resultMode ?? "score";
-      const winner: "t1" | "t2" | null = m.status === "completed" && m.s1 !== m.s2 ? (m.s1 > m.s2 ? "t1" : "t2") : null;
+      const winner: "t1" | "t2" | null = m.status === "completed" && m.counted !== false && m.s1 !== m.s2 ? (m.s1 > m.s2 ? "t1" : "t2") : null;
       return {
         id: m.id,
         courtName: court ? court.name : "Court " + m.courtId,
@@ -1447,8 +1572,9 @@ export function useSessionStore() {
         // A tie is only meaningful where there's a real score to tie with —
         // a "winner only"/"none" match's nominal 0-0/1-0 stand-ins would
         // otherwise get mislabeled as a genuine tied game.
-        isTie: m.status === "completed" && m.s1 === m.s2 && resultMode === "score",
+        isTie: m.status === "completed" && m.counted !== false && m.s1 === m.s2 && resultMode === "score",
         resultMode,
+        notCounted: m.counted === false,
         onEditScore: () => openScorekeeper(m.id),
         onDelete: () => openDeleteMatchConfirm(m.id),
       };
@@ -1510,6 +1636,13 @@ export function useSessionStore() {
       hasWarning: longestWaitMatches >= 2 || gameSpread >= 2,
     };
   }, [livePlayers, readyPlayers]);
+  // Everyone on the roster by games played, fewest first, so a player who is
+  // being left behind is easy to spot: ⚠ marks 2+ games below the busiest.
+  const gamesPlayedVM = useMemo<GamesPlayedVM>(
+    () => buildGamesPlayed(livePlayers, new Set(livePlayers.filter((p) => isPlaying(p.id)).map((p) => p.id))),
+    [livePlayers, isPlaying],
+  );
+
   const expectedCount = useMemo(() => state.players.filter((p) => p.status === "expected").length, [state.players]);
   // Too few players for the courts open: advice, not a rule.
   const playersHint = fewPlayersHint(
@@ -1588,6 +1721,7 @@ export function useSessionStore() {
       notInRotationVM,
       recentResultsVM,
       sessionHealth,
+      gamesPlayedVM,
       fewPlayersHint: playersHint,
     },
 
@@ -1596,7 +1730,7 @@ export function useSessionStore() {
       matchLogVM,
     },
 
-    rankings: { rankingsVM, resultMode: state.sessionResultMode, early: standings.early, onShareRankings },
+    rankings: { rankingsVM, resultMode: state.sessionResultMode, early: standings.early, canEdit: isOwner, onShareRankings },
 
     manage: {
       playersCount: state.players.length,

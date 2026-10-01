@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { CourtCard } from "../CourtCard";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./SessionTab.module.css";
@@ -21,11 +22,20 @@ export function SessionTab({
   notInRotationVM,
   recentResultsVM,
   sessionHealth,
+  gamesPlayedVM,
   fewPlayersHint,
   hideTier,
   readOnly,
   onSeeAllMatches,
 }: SessionTabProps) {
+  // The "Games played" card is collapsed until asked for; the strip under
+  // Waiting opens it and brings it into view.
+  const [gamesOpen, setGamesOpen] = useState(false);
+  const gamesRef = useRef<HTMLDivElement>(null);
+  const showGames = () => {
+    setGamesOpen(true);
+    requestAnimationFrame(() => gamesRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  };
   return (
     <>
       <div className={styles.section}>
@@ -83,8 +93,13 @@ export function SessionTab({
         <div className={styles.panelTitle}>Waiting ({waitingCount})</div>
         {sessionHealth.hasWarning && sessionHealth.longestWaitName && (
           <div className={`${styles.healthStrip} ${styles.healthWarning}`}>
-            Waiting longest: <strong>{sessionHealth.longestWaitName}</strong> ({sessionHealth.longestWaitMatches} match
-            {sessionHealth.longestWaitMatches === 1 ? "" : "es"}) · Games played: {sessionHealth.gameSpread} apart from most to fewest
+            <span>
+              Waiting longest: <strong>{sessionHealth.longestWaitName}</strong> ({sessionHealth.longestWaitMatches} match
+              {sessionHealth.longestWaitMatches === 1 ? "" : "es"})
+            </span>
+            <button className={styles.healthLink} onClick={showGames}>
+              Games played: {sessionHealth.gameSpread} apart ›
+            </button>
           </div>
         )}
         {waitingCount === 0 && !hasNotInRotation ? (
@@ -134,6 +149,33 @@ export function SessionTab({
         )}
       </div>
 
+      <div className={styles.panel} ref={gamesRef}>
+        <button className={styles.gamesHead} onClick={() => setGamesOpen((o) => !o)} aria-expanded={gamesOpen}>
+          <span className={styles.gamesTitle}>Games played · fewest first</span>
+          <span className={styles.gamesAvg}>
+            avg {gamesPlayedVM.average}
+            {gamesPlayedVM.behind > 0 && ` · ⚠ ${gamesPlayedVM.behind}`}
+          </span>
+        </button>
+        {gamesOpen && (
+          <div className={styles.gamesList}>
+            {gamesPlayedVM.rows.map((r, i) => (
+              <div className={styles.gamesRow} key={i}>
+                <span className={styles.gamesCount}>{r.games}</span>
+                <span className={styles.gamesNames}>{r.text}</span>
+                {r.status && <span className={styles.gamesStatus}>{r.status}</span>}
+                {r.warn && (
+                  <span className={styles.gamesWarn} role="img" aria-label="Two or more games behind">
+                    ⚠
+                  </span>
+                )}
+              </div>
+            ))}
+            {gamesPlayedVM.rows.length === 0 && <div className={styles.emptyNote}>No players yet.</div>}
+          </div>
+        )}
+      </div>
+
       <div className={styles.panel}>
         <div className={styles.panelTitle}>Recent Results</div>
         {recentResultsVM.length === 0 ? (
@@ -149,7 +191,8 @@ export function SessionTab({
                   </span>
                   <span className={styles.resultScore}>
                     {r.resultMode === "score" ? r.score : r.resultMode === "winner" ? "Final" : "Played"}
-                    {isTie && <span className={styles.tieTag}>Tied</span>}
+                    {isTie && !r.notCounted && <span className={styles.tieTag}>Tied</span>}
+                    {r.notCounted && <span className={styles.tieTag}>Not counted</span>}
                   </span>
                   <span
                     className={`${styles.resultTeam} ${styles.resultTeamRight} ${r.winner === "t2" ? styles.winner : r.winner === null ? styles.tie : styles.loser}`}

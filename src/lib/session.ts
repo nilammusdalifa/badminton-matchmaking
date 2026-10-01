@@ -1,3 +1,4 @@
+import type { GamesPlayedRow, GamesPlayedVM } from "../types.viewmodel";
 import type { CounterSnapshot, Court, Match, Player, PlayerStatus, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
 
 const PHOTO_REMINDER_LEAD_MINUTES = 30;
@@ -512,6 +513,51 @@ export function hostsHolding(courts: Court[], matches: Match[]): boolean {
   return matches.length < courts.filter((c) => !c.paused).length;
 }
 
+/** The "Host" box on a player locks once round 1 has started. Counts every
+ * court, paused or not: with all courts paused and no match yet, round 1 hasn't
+ * started, so the box must still work. */
+export function hostSwitchLocked(courts: Court[], matches: Match[]): boolean {
+  return matches.length >= Math.max(1, courts.length);
+}
+
+/** Everyone on the roster by games played, fewest first. A player two or more
+ * games behind the busiest gets a line of their own with where they are
+ * (waiting, resting, left…) and a warning; the rest are grouped by count.
+ * Players not checked in (and with no games) come last. Counts every game
+ * played, including matches that ended early. */
+export function buildGamesPlayed(players: Player[], playingIds: Set<string>): GamesPlayedVM {
+  const where = (p: Player) =>
+    playingIds.has(p.id) ? "on court" : p.status === "ready" ? "waiting" : p.status === "paused" ? "resting" : p.status === "left" ? "left" : "not checked in";
+  const here = players.filter((p) => p.status !== "expected" || p.games > 0);
+  const absent = players.filter((p) => p.status === "expected" && p.games === 0);
+  const most = Math.max(0, ...here.map((p) => p.games));
+  const byCount = new Map<number, Player[]>();
+  for (const p of [...here].sort((a, b) => a.games - b.games || a.name.localeCompare(b.name))) {
+    byCount.set(p.games, [...(byCount.get(p.games) ?? []), p]);
+  }
+  // someone who has left can't catch up, so they're never flagged
+  const behind = (p: Player) => most - p.games >= 2 && p.status !== "left";
+  const rows: GamesPlayedRow[] = [];
+  for (const [games, members] of byCount) {
+    if (members.length === 1 || members.some(behind)) {
+      for (const p of members) rows.push({ games: String(games), text: p.name, status: where(p), warn: behind(p) });
+    } else {
+      rows.push({
+        games: String(games),
+        text: members.map((p) => (p.status === "left" || p.status === "paused" ? `${p.name} (${where(p)})` : p.name)).join(" · "),
+        status: null,
+        warn: false,
+      });
+    }
+  }
+  if (absent.length > 0) rows.push({ games: "–", text: absent.map((p) => p.name).join(" · "), status: absent.length === 1 ? "not checked in" : null, warn: false });
+  return {
+    rows,
+    average: here.length > 0 ? Math.round((here.reduce((sum, p) => sum + p.games, 0) / here.length) * 10) / 10 : 0,
+    behind: here.filter(behind).length,
+  };
+}
+
 /** A hint for when there are too few players for the courts open: below
  * 4 per court plus 2, people end up playing 3–5 games in a row. Null when
  * there is nothing to suggest. */
@@ -587,6 +633,7 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
     losses: number;
   }
   const games = new Map<string, number>();
+  const rankGames = new Map<string, number>();
   const wins = new Map<string, number>();
   const losses = new Map<string, number>();
   const diff = new Map<string, number>();
@@ -601,6 +648,7 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
     const lost = !tie && !won;
     for (const id of ids) {
       bump(games, id, 1);
+      bump(rankGames, id, 1);
       bump(diff, id, own - oppScore);
       bump(pointsFor, id, own);
       bump(pointsAgainst, id, oppScore);
@@ -631,6 +679,13 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
 
   for (const m of matches) {
     if (m.status !== "completed") continue;
+    // A match that ended early still counts as a game played (they did play,
+    // so rotation shouldn't push them to the front), but nothing about its
+    // result — wins, points, partners, opponents — counts.
+    if (m.counted === false) {
+      for (const id of [...m.t1, ...m.t2]) bump(games, id, 1);
+      continue;
+    }
     const tie = m.s1 === m.s2;
     const t1Won = !tie && m.s1 > m.s2;
     process(m.t1, m.s1, m.s2, t1Won, tie, m.t2);
@@ -690,6 +745,7 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
     return {
       ...p,
       games: g,
+      rankGames: rankGames.get(p.id) || 0,
       wins: w,
       losses: l,
       diff: d,
@@ -710,9 +766,10 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
 }
 
 /** Win rate that starts everyone at "1 win, 1 loss": 1W–0L (67%) doesn't
- * jump above 4W–1L (71%), and games played doesn't decide the order alone. */
-export function winRate(p: Pick<Player, "wins" | "games">): number {
-  return (p.wins + 1) / (p.games + 2);
+ * jump above 4W–1L (71%), and games played doesn't decide the order alone.
+ * Counts only games whose result counts. */
+export function winRate(p: Pick<Player, "wins" | "rankGames">): number {
+  return (p.wins + 1) / (p.rankGames + 2);
 }
 
 /** Share of all points won, pulled towards 50% by 40 points each way so a
@@ -722,75 +779,84 @@ export function pointsShare(p: Pick<Player, "pointsFor" | "pointsAgainst">): num
   return (p.pointsFor + 40) / (p.pointsFor + p.pointsAgainst + 80);
 }
 
-/** Medals need at least this many games… */
-const MEDAL_MIN_GAMES = 3;
-/** …and this share of the most games anyone has played. */
-const MEDAL_MIN_SHARE = 0.6;
-/** Standings are "early" until everyone in the rotation has played this many. */
+/** To get a rank a player needs at least this many games… */
+const RANK_MIN_GAMES = 3;
+/** …and this share of the most games anyone ranked has played. */
+const RANK_MIN_SHARE = 0.5;
+/** Medals wait until this many of the players in the rotation have played 2. */
+const SETTLED_SHARE = 0.75;
 const SETTLED_GAMES = 2;
+
+/** Where a player sits on the Rankings tab. */
+export type StandingSection = "ranked" | "tooFew" | "notRanked";
 
 export interface RankedPlayer {
   player: Player;
-  /** Position in the list (1-based); null for a player who hasn't played, or in a session that doesn't record results. */
+  /** Position among the ranked players (1-based); null in every other section. */
   rank: number | null;
-  /** 🥇🥈🥉 go to the first three players who qualify, wherever they sit in the list. */
+  /** 🥇🥈🥉 for the first three ranked players, once the standings have settled. */
   medal: 1 | 2 | 3 | null;
-  /** Played, but too few games (or too few against the busiest player) for a medal yet. */
-  fewGames: boolean;
+  section: StandingSection;
 }
 
 export interface Standings {
+  /** Ranked players first, then "not enough games yet", then "not ranked". */
   rows: RankedPlayer[];
-  /** Not everyone in the rotation has played 2 games yet: no medals, and the list says so. */
+  /** Too soon for medals: the leader has fewer than 3 games, or fewer than
+   * 75% of the players in the rotation have played 2. */
   early: boolean;
-  /** Most games anyone has played. */
+  /** Most games anyone ranked has played. */
   maxGames: number;
 }
 
 const key4 = (x: number) => Math.round(x * 10000);
 
-/** Leaderboard, in words anyone can check: best smoothed win rate first, then
- * — where scores are recorded — the bigger share of points won, then more
- * games played, then name. Only players who have played are ranked; the rest
- * follow, unranked, by name. A session that doesn't record results ("none")
- * has nothing to rank by, so nobody is ranked and the list shows who played
- * most. Win rates compare to 4 decimals, so equal records tie exactly and
- * fall to the tie-breaker.
+/** Leaderboard, in words anyone can check. Of the players who count in the
+ * rankings, only those with at least 3 games and at least half as many as the
+ * player with the most get a rank number: best smoothed win rate first, then —
+ * where scores are recorded — the bigger share of points won, then more games,
+ * then name. Everyone else with games goes in "not enough games yet" (record
+ * shown, no rank), and players switched out of the rankings (hosts, guests)
+ * sit under "not ranked"; neither affects anyone's rank, the most-games bar or
+ * the early check. Win rates compare to 4 decimals, so equal records tie
+ * exactly and fall to the tie-breaker.
  *
- * Medals are kept apart from the order: they need a settled night (everyone
- * in the rotation has played 2), 3+ games and 60% of the most games anyone
- * has played. A player who doesn't qualify keeps their place in the list but
- * gets no medal; the medals go to the next players who do. */
+ * Medals go to the first three ranked players, and only once the night has
+ * settled: not while the leader has fewer than 3 games, and not until 75% of
+ * the players in the rotation have played 2. A session that doesn't record
+ * results ("none") has nothing to rank by, so nobody is ranked and the list
+ * shows who played most. */
 export function buildStandings(players: Player[], resultMode: ResultMode = "score"): Standings {
-  const maxGames = Math.max(0, ...players.map((p) => p.games));
+  const counted = players.filter((p) => p.inRankings !== false);
+  const excluded = players.filter((p) => p.inRankings === false);
+  const maxGames = Math.max(0, ...counted.map((p) => p.rankGames));
+  const byGames = (a: Player, b: Player) => b.rankGames - a.rankGames || a.name.localeCompare(b.name);
+  const notRanked: RankedPlayer[] = [...excluded].sort(byGames).map((player) => ({ player, rank: null, medal: null, section: "notRanked" }));
   if (resultMode === "none") {
-    const rows = [...players]
-      .sort((a, b) => b.games - a.games || a.name.localeCompare(b.name))
-      .map((player) => ({ player, rank: null, medal: null, fewGames: false }));
-    return { rows, early: false, maxGames };
+    const rows: RankedPlayer[] = [...counted].sort((a, b) => b.games - a.games || a.name.localeCompare(b.name)).map((player) => ({ player, rank: null, medal: null, section: "tooFew" }));
+    return { rows: [...rows, ...notRanked], early: false, maxGames };
   }
-  const played = players
-    .filter((p) => p.games > 0)
+  const sorted = counted
+    .filter((p) => p.rankGames > 0)
     .sort(
       (a, b) =>
         key4(winRate(b)) - key4(winRate(a)) ||
         (resultMode === "score" ? key4(pointsShare(b)) - key4(pointsShare(a)) : 0) ||
-        b.games - a.games ||
+        b.rankGames - a.rankGames ||
         a.name.localeCompare(b.name),
     );
-  const unplayed = players.filter((p) => p.games === 0).sort((a, b) => a.name.localeCompare(b.name));
-  const settled = players.filter((p) => p.status === "ready").every((p) => p.games >= SETTLED_GAMES);
-  const enoughGames = (p: Player) => p.games >= MEDAL_MIN_GAMES && p.games >= MEDAL_MIN_SHARE * maxGames;
-  let medals = 0;
-  const rows: RankedPlayer[] = played.map((player, i) => {
-    const medal = settled && medals < 3 && enoughGames(player) ? ((++medals) as 1 | 2 | 3) : null;
-    return { player, rank: i + 1, medal, fewGames: !enoughGames(player) };
-  });
-  return {
-    rows: [...rows, ...unplayed.map((player) => ({ player, rank: null, medal: null, fewGames: false }))],
-    early: !settled && played.length > 0,
-    maxGames,
-  };
+  const qualifies = (p: Player) => p.rankGames >= RANK_MIN_GAMES && p.rankGames >= RANK_MIN_SHARE * maxGames;
+  const inRotation = counted.filter((p) => p.status === "ready");
+  const early =
+    sorted.length > 0 && (maxGames < RANK_MIN_GAMES || inRotation.filter((p) => p.rankGames >= SETTLED_GAMES).length < SETTLED_SHARE * inRotation.length);
+  const ranked: RankedPlayer[] = sorted
+    .filter(qualifies)
+    .map((player, i) => ({ player, rank: i + 1, medal: !early && i < 3 ? ((i + 1) as 1 | 2 | 3) : null, section: "ranked" }));
+  const tooFew: RankedPlayer[] = [
+    ...sorted.filter((p) => !qualifies(p)),
+    ...counted.filter((p) => p.rankGames === 0).sort((a, b) => a.name.localeCompare(b.name)),
+  ].map((player) => ({ player, rank: null, medal: null, section: "tooFew" }));
+  return { rows: [...ranked, ...tooFew, ...notRanked], early, maxGames };
 }
 
 /** The ordered list without the extras, for callers that only need who came where. */
@@ -804,6 +870,7 @@ export function makeBlankPlayer(id: string, name: string, level: SkillLevel, sta
     name,
     level,
     games: 0,
+    rankGames: 0,
     wins: 0,
     losses: 0,
     diff: 0,
@@ -833,32 +900,50 @@ export function makeBlankPlayer(id: string, name: string, level: SkillLevel, sta
  * a single session, so a recurring group's roster survives Reset / New
  * Session without re-typing names, while attendance and stats start clean. */
 export function resetPlayersForNewSession(players: Player[]): Player[] {
-  return players.map((p) => ({
-    ...p,
-    status: "expected",
-    games: 0,
-    wins: 0,
-    losses: 0,
-    diff: 0,
-    pointsFor: 0,
-    pointsAgainst: 0,
-    partnersCount: 0,
-    rating: 1100,
-    trend: 0,
-    recentForm: [],
-    skipped: 0,
-    consecutiveGames: 0,
-    skipNextRound: false,
-    pauseReason: null,
-    favPartner: "—",
-    favPartnerWin: 0,
-    favPartnerGames: 0,
-    toughOpp: "—",
-    toughOppLoss: 0,
-    toughOppGames: 0,
-    avgWait: 0,
-    maxConsecutive: 0,
-  }));
+  return players.map((p) => {
+    const next: Player = {
+      ...p,
+      status: "expected",
+      games: 0,
+      rankGames: 0,
+      wins: 0,
+      losses: 0,
+      diff: 0,
+      pointsFor: 0,
+      pointsAgainst: 0,
+      partnersCount: 0,
+      rating: 1100,
+      trend: 0,
+      recentForm: [],
+      skipped: 0,
+      consecutiveGames: 0,
+      skipNextRound: false,
+      pauseReason: null,
+      favPartner: "—",
+      favPartnerWin: 0,
+      favPartnerGames: 0,
+      toughOpp: "—",
+      toughOppLoss: 0,
+      toughOppGames: 0,
+      avgWait: 0,
+      maxConsecutive: 0,
+    };
+    // a pending "after this match" belongs to a match that no longer exists
+    delete next.afterMatch;
+    return next;
+  });
+}
+
+/** Applies each player's "after this match" choice now that their match is
+ * saved or cancelled: rest (back from the rotation until they return) or leave. */
+export function applyAfterMatch(players: Player[], match: Pick<Match, "t1" | "t2">): Player[] {
+  const ids = [...match.t1, ...match.t2];
+  return players.map((p) => {
+    if (!p.afterMatch || !ids.includes(p.id)) return p;
+    const next: Player = p.afterMatch === "rest" ? { ...p, status: "paused", pauseReason: "rest" } : { ...p, status: "left" };
+    delete next.afterMatch;
+    return next;
+  });
 }
 
 export function buildSessionSummary(params: {

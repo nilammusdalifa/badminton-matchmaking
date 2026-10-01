@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { SessionStore } from "../hooks/useSessionStore";
 import styles from "./ReviewScreen.module.css";
 
@@ -28,19 +29,24 @@ export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, p
       </div>
       <div className={styles.sectionLabel}>Final Rankings</div>
       <div className={styles.list}>
-        {rankingsVM.map((r) => (
-          <div className={styles.row} key={r.id}>
-            <span className={styles.rank}>{r.medal ? MEDAL[r.medal] : (r.rank ?? "—")}</span>
-            <span className={styles.name}>{r.name}</span>
-            <span className={styles.record}>
-              {r.wins}W–{r.losses}L
-            </span>
-            {resultMode !== "none" && r.played > 0 && (
-              <span className={`${styles.diff} ${styles.positive}`}>
-                {r.winPct}%{r.pointsPct !== null && ` · ${r.pointsPct}% pts`}
-              </span>
+        {rankingsVM.map((r, i) => (
+          <Fragment key={r.id}>
+            {resultMode !== "none" && r.section !== "ranked" && r.section !== rankingsVM[i - 1]?.section && (
+              <div className={styles.sectionLabel}>{r.section === "tooFew" ? "Not enough games yet" : "Not ranked"}</div>
             )}
-          </div>
+            <div className={styles.row}>
+              <span className={styles.rank}>{r.medal ? MEDAL[r.medal] : (r.rank ?? "")}</span>
+              <span className={styles.name}>{r.name}</span>
+              <span className={styles.record}>
+                {r.wins}W–{r.losses}L
+              </span>
+              {resultMode !== "none" && r.played > 0 && (
+                <span className={`${styles.diff} ${styles.positive}`}>
+                  {r.winPct}%{r.pointsPct !== null && ` · ${r.pointsPct}% pts`}
+                </span>
+              )}
+            </div>
+          </Fragment>
         ))}
       </div>
       {rankingsVM.some((r) => r.rank !== null) && (

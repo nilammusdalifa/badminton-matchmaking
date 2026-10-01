@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { applyLiveScore, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import { resetPlayersForNewSession, applyAfterMatch, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -22,15 +22,18 @@ describe("rankings", () => {
   const players = ["Ana", "Bo", "Cy", "Di", "Eka"].map(player);
   const stats = recomputePlayerStats(players, [completed("m1", ["ana", "bo"], ["cy", "di"], 21, 15)]);
 
-  it("rankPlayers gives no rank to players without games", () => {
+  it("rankPlayers gives no rank until players have 3 games, and none to players without games", () => {
+    // one game each is 'not enough games yet': listed, but nobody is ranked
     const ranked = rankPlayers(stats);
     expect(ranked.map((r) => [r.player.name, r.rank])).toEqual([
-      ["Ana", 1],
-      ["Bo", 2],
-      ["Cy", 3],
-      ["Di", 4],
+      ["Ana", null],
+      ["Bo", null],
+      ["Cy", null],
+      ["Di", null],
       ["Eka", null],
     ]);
+    // the winners still sort ahead of the losers within the list
+    expect(ranked.map((r) => r.player.name).slice(0, 2)).toEqual(["Ana", "Bo"]);
   });
 
   it("partner and opponent stats need at least two games and a win/loss", () => {
@@ -67,105 +70,239 @@ describe("rankings", () => {
 
 describe("standings", () => {
   // a player with a given record and points, in the rotation unless said otherwise
-  const stat = (name: string, wins: number, losses: number, pf = 0, pa = 0, status: Player["status"] = "ready"): Player => ({
+  const stat = (name: string, wins: number, losses: number, pf = 0, pa = 0, status: Player["status"] = "ready", extra: Partial<Player> = {}): Player => ({
     ...makeBlankPlayer(name.toLowerCase(), name, "B", status),
     games: wins + losses,
+    rankGames: wins + losses,
     wins,
     losses,
     pointsFor: pf,
     pointsAgainst: pa,
+    ...extra,
   });
-  const order = (ps: Player[], mode: "score" | "winner" | "none" = "score") => rankPlayers(ps, mode).map((r) => r.player.name);
+  const names = (rows: ReturnType<typeof rankPlayers>) => rows.map((r) => r.player.name);
+  const section = (rows: ReturnType<typeof rankPlayers>, name: string) => rows.find((r) => r.player.name === name)!;
 
   it("smooths the win rate: everyone starts at 1 win, 1 loss", () => {
-    expect(winRate({ wins: 1, games: 1 })).toBeCloseTo(2 / 3);
-    expect(winRate({ wins: 4, games: 5 })).toBeCloseTo(5 / 7);
+    expect(winRate({ wins: 1, rankGames: 1 })).toBeCloseTo(2 / 3);
+    expect(winRate({ wins: 4, rankGames: 5 })).toBeCloseTo(5 / 7);
     expect(pointsShare({ pointsFor: 0, pointsAgainst: 0 })).toBe(0.5);
   });
 
-  it("1W-0L ranks below 4W-1L, and 2W-0L above 2W-1L", () => {
-    expect(order([stat("One", 1, 0), stat("Four", 4, 1)])).toEqual(["Four", "One"]);
-    expect(order([stat("Two1", 2, 1), stat("Two0", 2, 0)])).toEqual(["Two0", "Two1"]);
-  });
-
-  it("the old order (most wins) no longer decides: 2W-0L beats 2W-1L and 3W-1L", () => {
-    expect(order([stat("Achmad", 2, 1), stat("Mario", 3, 1), stat("Raden", 2, 0)])).toEqual(["Raden", "Mario", "Achmad"]);
-  });
-
-  it("equal records: the bigger share of points won ranks higher", () => {
-    const close = stat("Close", 2, 1, 60, 58);
-    const big = stat("Big", 2, 1, 63, 40);
-    expect(order([close, big])).toEqual(["Big", "Close"]);
-  });
-
-  it("a win rate equal to 4 decimals is a tie, not a lead", () => {
-    // same record, same points: falls to games, then name
-    expect(order([stat("Zed", 2, 2, 80, 80), stat("Amy", 2, 2, 80, 80)])).toEqual(["Amy", "Zed"]);
-  });
-
-  it("winner-only sessions ignore points and fall back to games played", () => {
-    const fewer = stat("Fewer", 1, 0, 1, 0);
-    const more = stat("More", 2, 0, 2, 0);
-    expect(fewer.wins / fewer.games).toBe(more.wins / more.games);
-    // 2W-0L is 75%, 1W-0L is 67%: win rate already separates them
-    expect(order([fewer, more], "winner")).toEqual(["More", "Fewer"]);
-    // same win rate, wildly different "points": points don't count, games do
-    const a = stat("A", 2, 2, 1, 2);
-    const b = stat("B", 1, 1, 500, 0);
-    expect(order([b, a], "winner")).toEqual(["A", "B"]);
-    expect(order([b, a], "score")).toEqual(["B", "A"]);
-  });
-
-  it("a session without results has no ranking at all", () => {
-    const rows = rankPlayers([stat("A", 2, 0), stat("B", 0, 1)], "none");
-    expect(rows.map((r) => [r.rank, r.medal])).toEqual([[null, null], [null, null]]);
-    expect(buildStandings([stat("A", 0, 0)], "none").early).toBe(false);
-  });
-
-  describe("medals", () => {
-    it("go to the top three once everyone has played 2 and they have 3+ games", () => {
-      const ps = [stat("A", 3, 0, 63, 30), stat("B", 2, 1, 60, 50), stat("C", 2, 1, 58, 52), stat("D", 1, 2, 40, 60), stat("E", 0, 3, 30, 63)];
-      const rows = rankPlayers(ps);
-      expect(rows.map((r) => r.medal)).toEqual([1, 2, 3, null, null]);
+  describe("who gets a rank", () => {
+    it("1 game of 6 is 'not enough games yet': listed with a record, no rank number", () => {
+      const rows = rankPlayers([stat("Nilam", 1, 0, 21, 10), stat("Novi", 4, 2, 120, 100), stat("Imat", 5, 0, 105, 60), stat("Yuni", 3, 1, 80, 60)]);
+      expect(names(rows)).toEqual(["Imat", "Yuni", "Novi", "Nilam"]);
+      expect(section(rows, "Nilam")).toMatchObject({ rank: null, medal: null, section: "tooFew" });
+      expect(rows.filter((r) => r.section === "ranked").map((r) => r.rank)).toEqual([1, 2, 3]);
     });
 
-    it("skip a first-place player with too few games, who keeps their place and is tagged", () => {
-      // Late arrives, wins both games: listed 1st, no medal; medals go to the next three qualified
-      const ps = [stat("Late", 2, 0, 42, 20), stat("A", 3, 1, 84, 60), stat("B", 3, 1, 80, 62), stat("C", 2, 2, 70, 70), stat("D", 1, 3, 50, 80)];
-      const { rows } = buildStandings(ps);
-      expect(rows[0].player.name).toBe("Late");
-      expect(rows[0].rank).toBe(1);
-      expect(rows[0].medal).toBeNull();
-      expect(rows[0].fewGames).toBe(true);
-      expect(rows.slice(1).map((r) => [r.player.name, r.medal])).toEqual([["A", 1], ["B", 2], ["C", 3], ["D", null]]);
+    it("needs at least half as many games as the player with the most", () => {
+      // 3 games qualifies against 6 (half) but not against 7
+      expect(section(rankPlayers([stat("Busy", 4, 2), stat("Three", 3, 0)]), "Three").section).toBe("ranked");
+      expect(section(rankPlayers([stat("Busy", 5, 2), stat("Three", 3, 0)]), "Three").section).toBe("tooFew");
     });
 
-    it("need 60% of the most games anyone has played", () => {
-      const ps = [stat("Busy", 4, 2, 120, 100), stat("Half", 3, 0, 63, 30)]; // 3 of 6 games = 50%
-      const rows = rankPlayers(ps);
-      expect(rows.find((r) => r.player.name === "Half")!.medal).toBeNull();
-      expect(rows.find((r) => r.player.name === "Half")!.fewGames).toBe(true);
-      const enough = rankPlayers([stat("Busy", 4, 1, 100, 80), stat("Ok", 3, 0, 63, 30)]); // 3 of 5 = 60%
-      expect(enough.find((r) => r.player.name === "Ok")!.fewGames).toBe(false);
+    it("needs at least 3 games even when everyone has few", () => {
+      expect(rankPlayers([stat("A", 2, 0), stat("B", 1, 1)]).every((r) => r.section === "tooFew")).toBe(true);
     });
 
-    it("wait for a settled night: none while someone in the rotation has played fewer than 2", () => {
-      const ps = [stat("A", 3, 0), stat("B", 2, 1), stat("C", 2, 1), stat("D", 1, 0)]; // D has 1 game
-      const s = buildStandings(ps);
-      expect(s.early).toBe(true);
-      expect(s.rows.map((r) => r.medal)).toEqual([null, null, null, null]);
+    it("lists players who haven't played at the end of that section", () => {
+      const rows = rankPlayers([stat("Late", 0, 0), stat("A", 3, 0), stat("Short", 1, 0)]);
+      expect(rows.map((r) => [r.player.name, r.section])).toEqual([["A", "ranked"], ["Short", "tooFew"], ["Late", "tooFew"]]);
     });
 
-    it("are not held up by someone who left or hasn't arrived", () => {
-      const ps = [stat("A", 3, 0), stat("B", 2, 1), stat("C", 2, 1), stat("Gone", 1, 0, 0, 0, "left"), stat("Later", 0, 0, 0, 0, "expected")];
-      const s = buildStandings(ps);
+    it("the old order is gone: 1W-0L is below 4W-1L, 2W-0L above 2W-1L (once they all qualify)", () => {
+      expect(names(rankPlayers([stat("One", 1, 0, 0, 0, "ready"), stat("Four", 4, 1)]))).toEqual(["Four", "One"]);
+      expect(names(rankPlayers([stat("Two1", 3, 1), stat("Two0", 3, 0)]))).toEqual(["Two0", "Two1"]);
+    });
+
+    it("equal records: the bigger share of points won ranks higher", () => {
+      const rows = rankPlayers([stat("Close", 2, 1, 60, 58), stat("Big", 2, 1, 63, 40)]);
+      expect(names(rows)).toEqual(["Big", "Close"]);
+    });
+
+    it("an equal win rate is a tie, not a lead: falls to games, then name", () => {
+      expect(names(rankPlayers([stat("Zed", 2, 2, 80, 80), stat("Amy", 2, 2, 80, 80)]))).toEqual(["Amy", "Zed"]);
+    });
+
+    it("winner-only sessions ignore points", () => {
+      const a = stat("A", 2, 2, 1, 2);
+      const b = stat("B", 2, 2, 500, 0);
+      expect(names(rankPlayers([b, a], "winner"))).toEqual(["A", "B"]); // same record: games tie, then name
+      expect(names(rankPlayers([b, a], "score"))).toEqual(["B", "A"]);
+    });
+
+    it("a session without results has no ranking at all", () => {
+      const rows = rankPlayers([stat("A", 2, 0), stat("B", 0, 1)], "none");
+      expect(rows.map((r) => [r.rank, r.medal])).toEqual([[null, null], [null, null]]);
+      expect(buildStandings([stat("A", 0, 0)], "none").early).toBe(false);
+    });
+  });
+
+  describe("count in rankings", () => {
+    const base = () => [stat("A", 4, 1, 100, 80), stat("B", 3, 2, 95, 90), stat("C", 3, 2, 90, 92), stat("D", 2, 3, 85, 95)];
+
+    it("an excluded player goes under 'Not ranked', with their record, no rank or medal", () => {
+      const rows = rankPlayers([...base(), stat("Raden", 5, 0, 105, 60, "ready", { inRankings: false })]);
+      const raden = section(rows, "Raden");
+      expect([raden.section, raden.rank, raden.medal]).toEqual(["notRanked", null, null]);
+      expect(rows[rows.length - 1].player.name).toBe("Raden");
+    });
+
+    it("does not change anyone else's rank", () => {
+      const without = rankPlayers(base()).filter((r) => r.section === "ranked").map((r) => [r.player.name, r.rank]);
+      const withHost = rankPlayers([...base(), stat("Host", 0, 6, 10, 126, "ready", { inRankings: false })])
+        .filter((r) => r.section === "ranked")
+        .map((r) => [r.player.name, r.rank]);
+      expect(withHost).toEqual(without);
+    });
+
+    it("is not counted in the most-games bar", () => {
+      // the host played 12 games; without exclusion nobody with 5 would qualify (half of 12 is 6)
+      const rows = rankPlayers([...base(), stat("Host", 7, 5, 200, 190, "ready", { inRankings: false })]);
+      expect(section(rows, "A").section).toBe("ranked");
+      expect(buildStandings([...base(), stat("Host", 7, 5, 200, 190, "ready", { inRankings: false })]).maxGames).toBe(5);
+    });
+
+    it("is not counted in the early check", () => {
+      const players = [...base(), stat("Host", 0, 1, 0, 0, "ready", { inRankings: false })];
+      expect(buildStandings(players).early).toBe(false);
+    });
+  });
+
+  describe("early standings", () => {
+    const night = (...extra: Player[]) => [stat("A", 5, 1, 120, 90), stat("B", 4, 2, 110, 100), stat("C", 3, 3, 100, 100), stat("D", 3, 3, 98, 101), ...extra];
+
+    it("is not early at match 18 when only two players have 1 game each", () => {
+      // 16 players in the rotation, 14 of them past 2 games
+      const many = Array.from({ length: 12 }, (_, i) => stat("P" + i, 3, 2, 100, 95));
+      const s = buildStandings([...night(), ...many, stat("Nilam", 1, 0, 21, 10), stat("Raden", 0, 1, 10, 21)]);
       expect(s.early).toBe(false);
-      expect(s.rows.filter((r) => r.medal).length).toBe(3);
+      expect(s.rows.filter((r) => r.medal).map((r) => r.medal)).toEqual([1, 2, 3]);
     });
 
-    it("are not early before anything has been played", () => {
+    it("is early while the leader has fewer than 3 games", () => {
+      const s = buildStandings([stat("A", 2, 0), stat("B", 1, 1), stat("C", 1, 1), stat("D", 0, 2)]);
+      expect(s.early).toBe(true);
+      expect(s.rows.every((r) => r.medal === null)).toBe(true);
+    });
+
+    it("is early while fewer than 75% of the players in the rotation have played 2", () => {
+      const s = buildStandings(night(stat("E", 1, 0), stat("F", 1, 0), stat("G", 0, 1)));
+      expect(s.early).toBe(true); // 4 of 7 = 57%
+      expect(s.rows.every((r) => r.medal === null)).toBe(true);
+    });
+
+    it("is not held up by someone who left or hasn't arrived", () => {
+      const s = buildStandings(night(stat("Gone", 1, 0, 0, 0, "left"), stat("Later", 0, 0, 0, 0, "expected")));
+      expect(s.early).toBe(false);
+    });
+
+    it("is not early before anything has been played", () => {
       expect(buildStandings([stat("A", 0, 0), stat("B", 0, 0)]).early).toBe(false);
     });
+
+    it("gives medals to the first three ranked players only", () => {
+      const s = buildStandings(night(stat("Nilam", 1, 0, 21, 5)));
+      expect(s.rows.map((r) => r.medal)).toEqual([1, 2, 3, null, null]);
+      expect(section(s.rows, "Nilam").section).toBe("tooFew");
+    });
+  });
+});
+
+describe("a match that ended early", () => {
+  const ppl = ["Ana", "Bo", "Cy", "Di"].map(player);
+  const early: Match = { ...completed("e", ["ana", "bo"], ["cy", "di"], 9, 6), endedEarly: true, counted: false };
+
+  it("counts as a game played but changes no record, points or partners", () => {
+    const s = recomputePlayerStats(ppl, [early]);
+    for (const p of s) {
+      expect([p.games, p.rankGames, p.wins, p.losses, p.diff, p.pointsFor, p.pointsAgainst, p.partnersCount]).toEqual([1, 0, 0, 0, 0, 0, 0, 0]);
+    }
+  });
+
+  it("leaves the other matches' stats alone", () => {
+    const s = recomputePlayerStats(ppl, [completed("m1", ["ana", "bo"], ["cy", "di"], 21, 15), early]);
+    const ana = s.find((p) => p.name === "Ana")!;
+    expect([ana.games, ana.rankGames, ana.wins, ana.pointsFor]).toEqual([2, 1, 1, 21]);
+  });
+
+  it("does not put anyone first in the rankings", () => {
+    const s = recomputePlayerStats(ppl, [early]);
+    expect(rankPlayers(s).every((r) => r.rank === null)).toBe(true);
+  });
+
+  it("counts again once the result is counted (Fix Score → Count as final)", () => {
+    const fixed: Match = { ...early };
+    delete fixed.counted;
+    delete fixed.endedEarly;
+    const s = recomputePlayerStats(ppl, [{ ...fixed, s1: 21, s2: 6 }]);
+    expect(s.find((p) => p.name === "Ana")!.wins).toBe(1);
+  });
+});
+
+describe("rest or leave after the match", () => {
+  const onCourt = { t1: ["a", "b"] as [string, string], t2: ["c", "d"] as [string, string] };
+  const roster = () => ["a", "b", "c", "d", "e"].map((id) => makeBlankPlayer(id, id.toUpperCase(), "B", "ready"));
+
+  it("applies the choice to the players in that match, then clears it", () => {
+    const players = roster().map((p) => (p.id === "a" ? { ...p, afterMatch: "rest" as const } : p.id === "c" ? { ...p, afterMatch: "left" as const } : p.id === "e" ? { ...p, afterMatch: "rest" as const } : p));
+    const out = applyAfterMatch(players, onCourt);
+    const get = (id: string) => out.find((p) => p.id === id)!;
+    expect([get("a").status, get("a").pauseReason, get("a").afterMatch]).toEqual(["paused", "rest", undefined]);
+    expect([get("c").status, get("c").afterMatch]).toEqual(["left", undefined]);
+    // e wasn't in this match: its choice waits for its own match
+    expect([get("e").status, get("e").afterMatch]).toEqual(["ready", "rest"]);
+    expect(get("b").status).toBe("ready");
+  });
+
+  it("a new session forgets any choice that was never applied", () => {
+    const [p] = resetPlayersForNewSession([{ ...makeBlankPlayer("a", "A", "B", "ready"), afterMatch: "rest" }]);
+    expect(p.afterMatch).toBeUndefined();
+  });
+});
+
+describe("games played list", () => {
+  const withGames = (name: string, games: number, status: Player["status"] = "ready"): Player => ({ ...makeBlankPlayer(name.toLowerCase(), name, "B", status), games });
+
+  it("lists everyone fewest first, with a warning for anyone 2+ behind", () => {
+    const vm = buildGamesPlayed(
+      [withGames("Nilam", 1), withGames("Raden", 1), withGames("Achmad", 3, "left"), withGames("Akbar", 4), withGames("Mariana", 4), withGames("Yuni", 4, "left"), withGames("Dadang", 5), withGames("Imat", 5), withGames("Fery", 0, "expected")],
+      new Set(),
+    );
+    expect(vm.rows.map((r) => [r.games, r.text, r.status, r.warn])).toEqual([
+      ["1", "Nilam", "waiting", true],
+      ["1", "Raden", "waiting", true],
+      ["3", "Achmad", "left", false],
+      ["4", "Akbar · Mariana · Yuni (left)", null, false],
+      ["5", "Dadang · Imat", null, false],
+      ["–", "Fery", "not checked in", false],
+    ]);
+    expect(vm.behind).toBe(2);
+    // not checked in is left out of the average
+    expect(vm.average).toBe(Math.round(((1 + 1 + 3 + 4 + 4 + 4 + 5 + 5) / 8) * 10) / 10);
+  });
+
+  it("says who is on court", () => {
+    const vm = buildGamesPlayed([withGames("A", 2), withGames("B", 5)], new Set(["a"]));
+    expect(vm.rows[0]).toMatchObject({ text: "A", status: "on court", warn: true });
+  });
+});
+
+describe("host switch lock", () => {
+  const courts = [{ id: "1", name: "A" }, { id: "2", name: "B" }];
+  const m = (n: number): Match[] => Array.from({ length: n }, (_, i) => ({ ...completed("m" + i, ["a", "b"], ["c", "d"], 21, 5), num: i + 1 }));
+
+  it("is open until a match has started on every court", () => {
+    expect(hostSwitchLocked(courts, m(0))).toBe(false);
+    expect(hostSwitchLocked(courts, m(1))).toBe(false);
+    expect(hostSwitchLocked(courts, m(2))).toBe(true);
+  });
+
+  it("stays open with every court paused and nothing started", () => {
+    // pausing a court doesn't make round 1 'started'
+    expect(hostSwitchLocked(courts.map((c) => ({ ...c, paused: true })), m(0))).toBe(false);
   });
 });
 

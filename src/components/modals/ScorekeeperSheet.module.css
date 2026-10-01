@@ -154,3 +154,15 @@
   text-align: center;
   font-family: var(--font-body), sans-serif;
 }
+
+.endedEarly {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.endedEarlyTitle {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  color: var(--sm-text);
+  text-align: center;
+}

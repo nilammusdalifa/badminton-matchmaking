@@ -29,6 +29,25 @@ export interface RecentResultEntry {
   score: string;
   winner: "t1" | "t2" | null;
   resultMode: ResultMode;
+  /** Ended early: the score is shown, but it isn't anyone's win or loss. */
+  notCounted: boolean;
+}
+
+export interface GamesPlayedRow {
+  /** Games played, or "–" for players not checked in. */
+  games: string;
+  text: string;
+  /** Where a single player is right now ("waiting", "left", …); null on a grouped line. */
+  status: string | null;
+  /** Two or more games behind the busiest player. */
+  warn: boolean;
+}
+
+export interface GamesPlayedVM {
+  rows: GamesPlayedRow[];
+  average: number;
+  /** Players 2+ games behind (not counting anyone who left). */
+  behind: number;
 }
 
 export interface CourtViewModel {
@@ -89,13 +108,18 @@ export interface RankingEntry {
   rank: number | null;
   /** 1–3 for a medal, when the player qualifies for one (see buildStandings). */
   medal: 1 | 2 | 3 | null;
-  /** Played, but not enough games yet for a medal. */
-  fewGames: boolean;
+  /** Which part of the list: ranked, "not enough games yet" or "not ranked". */
+  section: "ranked" | "tooFew" | "notRanked";
+  /** Counts in the rankings (false for a host or guest switched out). */
+  inRankings: boolean;
+  /** Set for the organizer only: switch this player in or out of the rankings. */
+  onToggleCounted: (() => void) | null;
   name: string;
   level: SkillLevel;
   initials: string;
+  /** Games whose result counts — what the record and the rank are built on. */
   played: number;
-  /** The most games anyone has played, for "Played 3 of 5". */
+  /** The most games anyone ranked has played, for "Played 2 of 5". */
   mostGames: number;
   wins: number;
   losses: number;
@@ -126,13 +150,16 @@ export interface ManagePlayerEntry {
   level: SkillLevel;
   statusLabel: string;
   statusTone: "default" | "warning" | "accent";
-  /** At most one: the state change that fits where the player is right now. */
+  /** The state changes that fit where the player is right now. */
   actions: { label: string; onClick: () => void }[];
   isHost: boolean;
+  inRankings: boolean;
+  /** "3 games" — every game played, counted or not. */
+  gamesLabel: string;
   /** Round 1 has started, so a host flag set now would change nothing this session. */
   hostLocked: boolean;
   /** False when the change was refused (blank or duplicate name), so the editor stays open. */
-  onSave: (name: string, level: SkillLevel, isHost: boolean) => boolean;
+  onSave: (name: string, level: SkillLevel, isHost: boolean, inRankings: boolean) => boolean;
   /** Null while the player has games or matches on record. */
   onRemove: (() => void) | null;
 }
@@ -185,6 +212,8 @@ export interface MatchLogEntry {
    * genuine tie from an in-progress match, which also has `winner: null`. */
   isTie: boolean;
   resultMode: ResultMode;
+  /** Stopped early and not counted towards anyone's record. */
+  notCounted: boolean;
   onEditScore: () => void;
   onDelete: () => void;
 }

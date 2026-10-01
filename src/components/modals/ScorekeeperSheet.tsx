@@ -28,35 +28,25 @@ export function ScorekeeperSheet({
   close,
   onCancelMatch,
 }: ScorekeeperProps) {
-  // A tie or a score that never reached 21 probably wasn't actually
-  // finished — require a second tap instead of silently saving it as final.
-  const [pendingConfirm, setPendingConfirm] = useState(false);
+  // A tie or a score that never reached 21 probably wasn't actually finished
+  // (an injury, time up), so saving asks first instead of silently recording
+  // it as a full win and loss. "Don't count result" keeps the score in the log
+  // but changes nobody's record; "Count as final" is there for a game that
+  // really did end that way. A tie is never a real result, so it only gets
+  // the first option. The prompt goes away as soon as the score changes.
+  const [askEndedEarly, setAskEndedEarly] = useState(false);
   useEffect(() => {
-    setPendingConfirm(false);
-  }, [courtLabel]);
-  // A level score is normal mid-game (0-0, 20-20), so the "can't tie" note
-  // only appears once someone actually tries to save one, and goes away as
-  // soon as the score changes.
-  const [tieAttempted, setTieAttempted] = useState(false);
-  useEffect(() => {
-    setTieAttempted(false);
+    setAskEndedEarly(false);
   }, [courtLabel, t1, t2]);
 
   if (!open) return null;
 
   const handleSave = () => {
-    // Ties are never a real badminton result — no override, unlike the
-    // "looks unfinished" case below. The only honest way out of a tied
-    // score is Cancel Match, not a second tap here.
-    if (isTie) {
-      setTieAttempted(true);
+    if (isTie || isLikelyIncomplete) {
+      setAskEndedEarly(true);
       return;
     }
-    if (isLikelyIncomplete && !pendingConfirm) {
-      setPendingConfirm(true);
-      return;
-    }
-    saveFinal();
+    saveFinal("final");
   };
 
   return (
@@ -95,21 +85,38 @@ export function ScorekeeperSheet({
             </button>
           </div>
         </div>
-        {isTie && tieAttempted ? (
-          <div className={styles.gameOverNote}>A game can't end tied. Keep scoring, or cancel the match.</div>
-        ) : pendingConfirm ? (
-          <div className={styles.gameOverNote}>Looks unfinished. Tap again to save anyway.</div>
+        {askEndedEarly ? (
+          <div className={styles.endedEarly}>
+            <div className={styles.endedEarlyTitle}>Match ended early?</div>
+            <div className={styles.gameOverNote}>
+              {isTie ? "A game can't end tied. " : "Looks unfinished. "}
+              Not counting it keeps everyone&apos;s wins, losses and points as they were. It still counts as a game played.
+            </div>
+            <button className={styles.saveBtn} onClick={() => saveFinal("early")}>
+              Don&apos;t count result
+            </button>
+            {!isTie && (
+              <button className={styles.undoBtn} onClick={() => saveFinal("final")}>
+                Count as final
+              </button>
+            )}
+            <button className={styles.cancelMatchBtn} onClick={() => setAskEndedEarly(false)}>
+              Keep scoring
+            </button>
+          </div>
         ) : (
-          isGameOver && <div className={styles.gameOverNote}>Game over — save the result</div>
+          <>
+            {isGameOver && <div className={styles.gameOverNote}>Game over — save the result</div>}
+            <div className={styles.footer}>
+              <button className={styles.undoBtn} onClick={undo}>
+                Undo Point
+              </button>
+              <button className={styles.saveBtn} onClick={handleSave}>
+                {isEditingCompleted ? "Update Result" : "Save Final Result"}
+              </button>
+            </div>
+          </>
         )}
-        <div className={styles.footer}>
-          <button className={styles.undoBtn} onClick={undo}>
-            Undo Point
-          </button>
-          <button className={styles.saveBtn} onClick={handleSave}>
-            {pendingConfirm ? "Save Anyway?" : isEditingCompleted ? "Update Result" : "Save Final Result"}
-          </button>
-        </div>
         <button className={styles.cancelMatchBtn} onClick={onCancelMatch}>
           {isEditingCompleted ? "Delete this match instead" : "Wrong match? Cancel it instead"}
         </button>
