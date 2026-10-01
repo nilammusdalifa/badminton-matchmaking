@@ -1,4 +1,3 @@
-import { AppIcon } from "../AppIcon";
 import { TrophyIcon } from "../icons";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./ShareRankingsModal.module.css";
@@ -11,21 +10,46 @@ const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
  * capitalized segment gets the plain color, the rest gets the accent. Falls
  * back to one plain-colored piece when there's no good split point (a
  * single all-lowercase word), rather than guessing wrong. */
-function splitWordmark(name: string): [string, string] {
+function splitWordmark(name: string): [string, string, string] {
   const spaceIdx = name.indexOf(" ");
-  if (spaceIdx > 0) return [name.slice(0, spaceIdx), name.slice(spaceIdx + 1)];
+  if (spaceIdx > 0) return [name.slice(0, spaceIdx), name.slice(spaceIdx + 1), " "];
   const rest = name.slice(1);
   const capMatch = rest.match(/[A-Z]/);
   if (capMatch && capMatch.index !== undefined) {
     const splitAt = capMatch.index + 1;
-    return [name.slice(0, splitAt), name.slice(splitAt)];
+    // split at a capital inside one word ("GoBadmin"): no space to add back
+    return [name.slice(0, splitAt), name.slice(splitAt), ""];
   }
-  return [name, ""];
+  return [name, "", ""];
 }
 
-export function ShareRankingsModal({ open, top, early, sessionName, playersCount, matchesCompleted, close, download, cardRef }: ShareRankingsProps) {
+/** The card carries the group's name, not the app's: a session called
+ * "SmashMatch GoBadmin" shows as "GoBadmin". */
+function cardTitle(sessionName: string): string {
+  return sessionName.replace(/^\s*smash\s*match\b[\s·\-–—:|]*/i, "").trim() || sessionName;
+}
+
+export function ShareRankingsModal({ open, top, early, sessionName, playersCount, matchesCompleted, close, download, cardRef, fallbackImageUrl, onOpenImage, onCloseImage }: ShareRankingsProps) {
   if (!open) return null;
-  const [wordA, wordB] = splitWordmark(sessionName);
+  const [wordA, wordB, joiner] = splitWordmark(cardTitle(sessionName));
+
+  // Where a phone can't save from the page (some browsers, home-screen apps),
+  // the picture itself is shown: press and hold it to save.
+  if (fallbackImageUrl) {
+    return (
+      <div className={styles.backdrop}>
+        <div className={styles.wrap}>
+          <img className={styles.fallbackImg} src={fallbackImageUrl} alt="Top 5 rankings" />
+          <div className={styles.fallbackHint}>Press and hold the picture, then choose Save Image.</div>
+          <div className={styles.actions}>
+            <button className={styles.closeBtn} onClick={onCloseImage}>
+              Back
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.backdrop}>
@@ -36,10 +60,9 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
 
           <div className={styles.cardBody}>
             <div className={styles.wordmarkRow}>
-              <AppIcon size={30} />
               <div className={styles.wordmark}>
                 <span className={styles.wordmarkPlain}>{wordA}</span>
-                {wordB && <span className={styles.wordmarkAccent}> {wordB}</span>}
+                {wordB && <span className={styles.wordmarkAccent}>{joiner}{wordB}</span>}
               </div>
             </div>
             <div className={styles.subheading}>
@@ -85,9 +108,12 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
             Close
           </button>
           <button className={styles.downloadBtn} onClick={download}>
-            Download Image
+            Save Image
           </button>
         </div>
+        <button className={styles.linkBtn} onClick={onOpenImage}>
+          Not saving? Open the picture
+        </button>
       </div>
     </div>
   );

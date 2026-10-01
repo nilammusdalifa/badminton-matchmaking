@@ -1099,35 +1099,83 @@ export function useSessionStore() {
       .catch(() => showToast("Couldn't copy. Select the link below."));
   }, [shareUrl, showToast]);
   const closeShareRankings = useCallback(() => setState((s) => ({ ...s, shareRankingsOpen: false })), []);
-  const downloadRankingsImage = useCallback(async () => {
+  // Saving the card as a picture. The picture is drawn as soon as the card
+  // opens, so that tapping Save can act at once: a phone only lets a page open
+  // its share sheet straight after a tap, and drawing the card first can take
+  // longer than that. (A plain download link — what this used to do — doesn't
+  // work on iPhones and some in-app browsers.)
+  const shareBlobRef = useRef<Blob | null>(null);
+  const [shareFallbackUrl, setShareFallbackUrl] = useState<string | null>(null);
+
+  const renderRankingsImage = useCallback(async (): Promise<Blob | null> => {
     const node = shareCardRef.current;
+    if (!node) return null;
     const html2canvas = (await import("html2canvas")).default;
-    if (!node || !html2canvas) {
-      showToast("Image export isn't supported in this browser");
+    // html2canvas can rasterize the card before its custom webfonts (the
+    // display heading font especially) have actually finished loading,
+    // producing doubled/ghosted glyphs in the exported PNG even though the
+    // live DOM looks correct. Waiting for the Font Loading API, plus a
+    // couple of paint frames for the resulting layout to settle, avoids
+    // capturing mid-swap.
+    await document.fonts.ready;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    // Card's base size is a 270px-wide 9:16 frame — scale 4 lands on a
+    // real 1080x1920 Instagram/WhatsApp Story resolution.
+    const canvas = await html2canvas(node, { backgroundColor: "#1a1712", scale: 4 });
+    return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/png"));
+  }, []);
+
+  const openRankingsImage = useCallback(async () => {
+    const blob = shareBlobRef.current ?? (await renderRankingsImage().catch(() => null));
+    if (!blob) {
+      showToast("Couldn't create the image — try again");
       return;
     }
-    try {
-      // html2canvas can rasterize the card before its custom webfonts (the
-      // display heading font especially) have actually finished loading,
-      // producing doubled/ghosted glyphs in the exported PNG even though the
-      // live DOM looks correct. Waiting for the Font Loading API, plus a
-      // couple of paint frames for the resulting layout to settle, avoids
-      // capturing mid-swap.
-      await document.fonts.ready;
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      // Card's base size is a 270px-wide 9:16 frame — scale 4 lands on a
-      // real 1080x1920 Instagram/WhatsApp Story resolution.
-      const canvas = await html2canvas(node, { backgroundColor: "#1a1712", scale: 4 });
-      const url = canvas.toDataURL("image/png");
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "smashmatch-rankings.png";
-      a.click();
-      showToast("Image downloaded");
-    } catch {
+    setShareFallbackUrl(URL.createObjectURL(blob));
+  }, [renderRankingsImage, showToast]);
+  const closeRankingsImage = useCallback(() => {
+    setShareFallbackUrl((url) => {
+      if (url) URL.revokeObjectURL(url);
+      return null;
+    });
+  }, []);
+
+  const downloadRankingsImage = useCallback(async () => {
+    const blob = shareBlobRef.current ?? (await renderRankingsImage().catch(() => null));
+    if (!blob) {
       showToast("Couldn't create the image — try again");
+      return;
     }
-  }, [showToast]);
+    const slug = state.sessionName.replace(/^\s*smash\s*match\b[\s·\-–—:|]*/i, "").trim().replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+    const fileName = (slug || "rankings") + "-top5.png";
+    const file = new File([blob], fileName, { type: "image/png" });
+    // Phones: the share sheet has "Save Image", WhatsApp, Instagram…
+    const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
+    if (nav.canShare?.({ files: [file] })) {
+      try {
+        await nav.share({ files: [file], title: "Top 5 Rankings" });
+        return;
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return; // closed the sheet: nothing went wrong
+      }
+    }
+    // iPhones that can't share files can't save from a page at all: show the
+    // picture so it can be pressed and held.
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const url = URL.createObjectURL(blob);
+    if (isIOS) {
+      setShareFallbackUrl(url);
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a); // some browsers ignore a link that isn't in the page
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    showToast("Image saved");
+  }, [renderRankingsImage, state.sessionName, showToast]);
 
   // ---- partner requests --------------------------------------------
   const onRequestAChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => setState((s) => ({ ...s, requestA: e.target.value })), []);
@@ -1850,6 +1898,25 @@ export function useSessionStore() {
     [rankingsVM],
   );
 
+  const shareCardKey = JSON.stringify([shareRankingsTop, standings.early, state.sessionName, state.players.length, state.completedCount]);
+  useEffect(() => {
+    if (!state.shareRankingsOpen) {
+      shareBlobRef.current = null;
+      setShareFallbackUrl(null);
+      return;
+    }
+    let cancelled = false;
+    shareBlobRef.current = null;
+    renderRankingsImage()
+      .then((blob) => {
+        if (!cancelled) shareBlobRef.current = blob;
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [state.shareRankingsOpen, shareCardKey, renderRankingsImage]);
+
   return {
     isActiveMode: !state.sessionEnded,
     isReviewMode: state.sessionEnded,
@@ -2079,6 +2146,9 @@ export function useSessionStore() {
       close: closeShareRankings,
       download: downloadRankingsImage,
       cardRef: shareCardRef,
+      fallbackImageUrl: shareFallbackUrl,
+      onOpenImage: openRankingsImage,
+      onCloseImage: closeRankingsImage,
     },
 
     toast: { message: state.toastMsg },

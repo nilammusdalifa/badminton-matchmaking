@@ -240,3 +240,29 @@
   font-weight: 600;
   color: var(--sm-text-3);
 }
+
+.fallbackImg {
+  width: 100%;
+  max-width: min(270px, calc(100vw - 64px));
+  height: auto;
+  border-radius: 20px;
+  -webkit-touch-callout: default;
+  user-select: auto;
+}
+.fallbackHint {
+  max-width: min(270px, calc(100vw - 64px));
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--sm-text-2);
+}
+.linkBtn {
+  padding: 8px;
+  border: none;
+  background: none;
+  color: var(--sm-text-2);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
