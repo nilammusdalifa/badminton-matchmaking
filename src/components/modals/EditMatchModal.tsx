@@ -5,7 +5,8 @@ type EditMatchProps = SessionStore["editMatch"];
 
 export function EditMatchModal({
   open,
-  courtLabel,
+  title,
+  confirmLabel,
   editablePlayers,
   t1A,
   t1B,
@@ -24,7 +25,7 @@ export function EditMatchModal({
     <div className={styles.backdrop}>
       <div className={styles.dialog}>
         <div className={styles.head}>
-          <div className={styles.headTitle}>Edit Match — Court {courtLabel}</div>
+          <div className={styles.headTitle}>{title}</div>
           <button className={styles.closeBtn} onClick={close} aria-label="Close">
             ×
           </button>
@@ -80,7 +81,7 @@ export function EditMatchModal({
             Cancel
           </button>
           <button className={styles.startBtn} onClick={onStart}>
-            Start This Match
+            {confirmLabel}
           </button>
         </div>
       </div>

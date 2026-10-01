@@ -123,6 +123,18 @@ export interface Court {
   keepOpenBase?: number;
 }
 
+/** A match planned ahead and locked: it starts exactly as shown, on whichever
+ * court frees first. Built by `planQueue`, kept until it starts (or until a
+ * player in it is no longer available). */
+export interface QueueItem {
+  team1: [string, string];
+  team2: [string, string];
+  /** Shuffle bumps this to re-pick the match. */
+  seed: number;
+  reasons: string[];
+  balanceNote: string | null;
+}
+
 export interface Suggestion {
   team1: [Player, Player];
   team2: [Player, Player];
@@ -132,6 +144,8 @@ export interface Suggestion {
    * Player view (which hides tiers) can leave it out. Null when teams were
    * fixed by a partner request rather than balanced by tier. */
   balanceNote: string | null;
+  /** Set when this came from the locked queue (position in it) rather than a fresh pick. */
+  queueIndex?: number;
 }
 
 export interface SessionHistoryEntry {

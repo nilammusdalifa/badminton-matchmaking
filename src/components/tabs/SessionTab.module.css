@@ -338,3 +338,16 @@
   color: var(--sm-text-3);
 }
 .gamesWarn { color: var(--color-accent-2-300); }
+
+.queueDetail { font-weight: 600; text-transform: none; letter-spacing: 0; }
+.queueActions { display: flex; gap: 8px; }
+.queueTag {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--sm-accent-soft);
+  color: var(--sm-accent-hover);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}

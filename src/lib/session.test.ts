@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { resetPlayersForNewSession, applyAfterMatch, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import { dropStarted, planQueue, queueDepth, resetPlayersForNewSession, applyAfterMatch, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -714,6 +714,142 @@ describe("rotation rules", () => {
     expect(all.reasons).toContain("New group");
     const someNeverPlayed = buildSuggestion(players, groups.slice(0, 3).map((g, i) => done("m" + i, g)), [], [], 0)!;
     expect(someNeverPlayed.reasons).not.toContain("New group");
+  });
+});
+
+describe("matches planned ahead (Up next, Then)", () => {
+  const now = new Date(2026, 8, 30, 19, 30);
+  const courts = [{ id: "1", name: "Court 1" }, { id: "2", name: "Court 2" }];
+  const roster = (n: number) => Array.from({ length: n }, (_, i) => makeBlankPlayer("p" + i, "P" + String(i + 1).padStart(2, "0"), "B", "ready"));
+  const live = (id: string, ids: string[], courtId: string): Match => ({ id, round: 0, num: 1, courtId, status: "in_progress", t1: [ids[0], ids[1]], t2: [ids[2], ids[3]], s1: 0, s2: 0, elapsedAtTick0: 0 });
+  // 16 players, both courts busy (Court 1 started first), 8 waiting
+  const busy = () => {
+    const matches = [live("a", ["p0", "p1", "p2", "p3"], "1"), live("b", ["p4", "p5", "p6", "p7"], "2")];
+    return { matches, players: applyMatchStart(applyMatchStart(roster(16), [], ["p0", "p1", "p2", "p3"]), [matches[0]], ["p4", "p5", "p6", "p7"]) };
+  };
+  const plan = (over: Partial<Parameters<typeof planQueue>[0]> = {}) => {
+    const { matches, players } = busy();
+    return planQueue({ players, matches, courts, requestedPairs: [], existing: [], now, enabled: true, ...over });
+  };
+  const ids = (q: { team1: string[]; team2: string[] }) => [...q.team1, ...q.team2];
+
+  it("locks two matches when at least 4 per court wait, one with 3+ courts, none with fewer", () => {
+    expect([queueDepth(8, 2), queueDepth(16, 2), queueDepth(7, 2), queueDepth(4, 2)]).toEqual([2, 2, 0, 0]);
+    expect([queueDepth(8, 3), queueDepth(12, 3), queueDepth(7, 3)]).toEqual([1, 2, 0]);
+    // one court open: at most one ahead
+    expect([queueDepth(20, 1), queueDepth(8, 1), queueDepth(7, 1)]).toEqual([1, 1, 0]);
+  });
+
+  it("plans 'Up next' and 'Then' for 16 players on 2 busy courts, with four different players each", () => {
+    const q = plan();
+    expect(q).toHaveLength(2);
+    for (const item of q) expect(new Set(ids(item)).size).toBe(4);
+    // Up next comes from the waiting players only
+    expect(ids(q[0]).every((id) => !["p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7"].includes(id))).toBe(true);
+    // Then shares nobody with Up next, and never uses the court that is still playing
+    expect(ids(q[1]).filter((id) => ids(q[0]).includes(id))).toEqual([]);
+    expect(ids(q[1]).some((id) => ["p4", "p5", "p6", "p7"].includes(id))).toBe(false);
+  });
+
+  it("'Then' can use the four on the court that has been playing longest", () => {
+    // p12-p15 have played together three times and aren't overdue; with nobody else free,
+    // putting them together again is the dull pick, so 'Then' mixes in the four about to finish
+    const together = (n: number): Match => ({ ...live("old" + n, ["p12", "p13", "p14", "p15"], "1"), status: "completed", s1: 21, s2: 10 });
+    const { matches, players } = busy();
+    const tuned = players.map((p) => (["p12", "p13", "p14", "p15"].includes(p.id) ? { ...p, skipped: 0, games: 3 } : ["p8", "p9", "p10", "p11"].includes(p.id) ? { ...p, skipped: 1, games: 3 } : { ...p, games: 3 }));
+    const q = planQueue({ players: tuned, matches: [together(1), together(2), together(3), ...matches], courts, requestedPairs: [], existing: [], now, enabled: true });
+    expect(q).toHaveLength(2);
+    expect(ids(q[1]).some((id) => ["p0", "p1", "p2", "p3"].includes(id))).toBe(true);
+    // but never the court that started later
+    expect(ids(q[1]).some((id) => ["p4", "p5", "p6", "p7"].includes(id))).toBe(false);
+  });
+
+  it("locks: a planned match stays as shown when other things change", () => {
+    const q = plan();
+    const { matches, players } = busy();
+    // a late arrival checks in
+    const more = [...players, makeBlankPlayer("late", "Late", "B", "ready")];
+    expect(planQueue({ players: more, matches, courts, requestedPairs: [], existing: q, now, enabled: true })).toEqual(q);
+  });
+
+  it("re-picks a match when one of its players rests, and the match after it", () => {
+    const q = plan();
+    const { matches, players } = busy();
+    const resting = players.map((p) => (p.id === q[0].team1[0] ? { ...p, status: "paused" as const } : p));
+    const next = planQueue({ players: resting, matches, courts, requestedPairs: [], existing: q, now, enabled: true });
+    expect(ids(next[0])).not.toContain(q[0].team1[0]);
+    expect(ids(next[1])).not.toContain(q[0].team1[0]);
+    expect(ids(next[1]).filter((id) => ids(next[0]).includes(id))).toEqual([]);
+  });
+
+  it("a Then that no longer fits is re-picked on its own, Up next stays", () => {
+    const q = plan();
+    const { matches, players } = busy();
+    const resting = players.map((p) => (p.id === q[1].team2[1] ? { ...p, status: "paused" as const } : p));
+    const next = planQueue({ players: resting, matches, courts, requestedPairs: [], existing: q, now, enabled: true });
+    expect(next[0]).toEqual(q[0]);
+    expect(ids(next[1])).not.toContain(q[1].team2[1]);
+  });
+
+  it("Shuffle re-picks one position and keeps the ones before it", () => {
+    const q = plan();
+    const { matches, players } = busy();
+    const shuffled = planQueue({ players, matches, courts, requestedPairs: [], existing: q.slice(0, 1), now, enabled: true, seedAt: { index: 1, seed: 1 } });
+    expect(shuffled[0]).toEqual(q[0]);
+    expect(shuffled[1].seed).toBe(1);
+  });
+
+  it("plans nothing with 12 players on 2 courts (nobody left to mix), or when switched off", () => {
+    const matches = [live("a", ["p0", "p1", "p2", "p3"], "1"), live("b", ["p4", "p5", "p6", "p7"], "2")];
+    expect(planQueue({ players: applyMatchStart(roster(12), [], ["p0", "p1", "p2", "p3"]), matches, courts, requestedPairs: [], existing: [], now, enabled: true })).toEqual([]);
+    expect(plan({ enabled: false })).toEqual([]);
+  });
+
+  it("with one court open, plans one ahead at most", () => {
+    const matches = [live("a", ["p0", "p1", "p2", "p3"], "1")];
+    const players = applyMatchStart(roster(16), [], ["p0", "p1", "p2", "p3"]);
+    const q = planQueue({ players, matches, courts: [courts[0], { ...courts[1], paused: true }], requestedPairs: [], existing: [], now, enabled: true });
+    expect(q).toHaveLength(1);
+  });
+
+  it("does not count the four who just finished as waiting (so 12 players on 2 courts never lock)", () => {
+    // Court 1 just freed: its four are 'waiting' for a moment, 8 in all
+    const matches = [live("b", ["p4", "p5", "p6", "p7"], "2")];
+    const players = applyMatchStart(roster(12), [], ["p4", "p5", "p6", "p7"]);
+    expect(planQueue({ players, matches, courts, requestedPairs: [], existing: [], now, enabled: true })).toEqual([]);
+  });
+
+  it("free courts start the locked matches in order, and the rest are picked fresh", () => {
+    const q = plan();
+    const { players } = busy();
+    const freeCourts = courts;
+    const out = courtSuggestions(freeCourts, players.map((p) => ({ ...p })), [], [], {}, now, q);
+    expect(out["1"]?.queueIndex).toBe(0);
+    expect(out["2"]?.queueIndex).toBe(1);
+    expect(out["1"]?.four.map((p) => p.id).sort()).toEqual(ids(q[0]).sort());
+  });
+
+  it("a locked match whose players aren't all free is skipped for a fresh pick", () => {
+    const q = plan();
+    const { players } = busy();
+    const out = courtSuggestions([courts[0]], players.map((p) => (p.id === q[0].team1[0] ? { ...p, status: "paused" as const } : p)), [], [], {}, now, q);
+    expect(out["1"]?.queueIndex).toBeUndefined();
+    expect(out["1"]?.four.some((p) => p.id === q[0].team1[0])).toBe(false);
+  });
+
+  it("starting a match takes it out of the queue", () => {
+    const q = plan();
+    expect(dropStarted(q, ids(q[0]).reverse())).toEqual([q[1]]);
+    expect(dropStarted(q, ["x", "y", "z", "w"])).toEqual(q);
+  });
+
+  it("the must-play cap also counts players about to join the pool", () => {
+    // 8 in the pool, four of them waited 2: with a cap of 2 they are forced together again
+    const pool = roster(8).map((p, i) => (i < 4 ? { ...p, skipped: 2 } : p));
+    expect(pickFour(pool, new Map())!.map((p) => p.id).sort()).toEqual(["p0", "p1", "p2", "p3"]);
+    const meet = new Map<string, number>();
+    for (const [a, b] of [["p0", "p1"], ["p0", "p2"], ["p0", "p3"], ["p1", "p2"], ["p1", "p3"], ["p2", "p3"]]) meet.set([a, b].sort().join("|"), 3);
+    expect(pickFour(pool, meet, 0, false, 4)!.map((p) => p.id).filter((id) => ["p0", "p1", "p2", "p3"].includes(id)).length).toBeLessThan(4);
   });
 });
 

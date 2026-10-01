@@ -12,6 +12,8 @@ import {
   buildSessionSummary,
   buildSuggestion,
   courtSuggestions,
+  dropStarted,
+  planQueue,
   courtsDueToPause,
   fewPlayersHint,
   hostsHolding,
@@ -47,10 +49,11 @@ import {
   teamNames,
   withListDefaults,
 } from "../lib/session";
-import type { Court, Match, PauseReason, Player, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion, Tab } from "../types";
+import type { Court, Match, PauseReason, Player, QueueItem, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion, Tab } from "../types";
 import type {
   CourtViewModel,
   GamesPlayedVM,
+  QueueEntry,
   ManagePlayerEntry,
   MatchLogEntry,
   NotInRotationEntry,
@@ -78,6 +81,11 @@ interface AppState {
   sessionResultMode: ResultMode;
   history: SessionHistoryEntry[];
   photoReminderShown: boolean;
+  /** The next matches, planned ahead and locked. See `planQueue`. */
+  queue: QueueItem[];
+  planAhead: boolean;
+  /** Which queue position the manual-assign dialog is editing, instead of a court. */
+  editQueueIndex: number | null;
   scorekeeperMatchId: string | null;
   scorekeeperT1: number;
   scorekeeperT2: number;
@@ -129,6 +137,9 @@ function initialState(): AppState {
     sessionResultMode: "score",
     history: [],
     photoReminderShown: false,
+    queue: [],
+    planAhead: true,
+    editQueueIndex: null,
     scorekeeperMatchId: null,
     scorekeeperT1: 0,
     scorekeeperT2: 0,
@@ -340,6 +351,8 @@ export function useSessionStore() {
       requestedPairs: state.requestedPairs,
       history: state.history,
       photoReminderShown: state.photoReminderShown,
+      queue: state.queue,
+      planAhead: state.planAhead,
     };
     // This change arrived FROM a merge (see applyRemoteUpdate) rather than a
     // fresh local action — adopt it locally but don't push it right back to
@@ -396,6 +409,8 @@ export function useSessionStore() {
     state.requestedPairs,
     state.history,
     state.photoReminderShown,
+    state.queue,
+    state.planAhead,
   ]);
 
   // Rankings/matchmaking always read this instead of state.players directly —
@@ -451,11 +466,30 @@ export function useSessionStore() {
   // Start Match, the manual-assign modal and auto-fill always agree on who
   // plays where.
   const suggestions = useMemo(
-    () => courtSuggestions(state.courts, livePlayers, state.matches, state.requestedPairs, state.suggestSeed, new Date()),
+    () => courtSuggestions(state.courts, livePlayers, state.matches, state.requestedPairs, state.suggestSeed, new Date(), state.queue),
     // state.tick moves the closing-soon cut-off along with the clock
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.courts, livePlayers, state.matches, state.requestedPairs, state.suggestSeed, state.tick],
+    [state.courts, livePlayers, state.matches, state.requestedPairs, state.suggestSeed, state.queue, state.tick],
   );
+
+  // Keeps the locked queue up to date: matches that are still valid stay exactly
+  // as they were shown, the first one that isn't (a player rested, left or was
+  // edited) is re-picked with everything after it, and new ones are added at the
+  // end as players free up. Deterministic, so an organizer's and an umpire's
+  // device that both run this agree and don't fight over it.
+  useEffect(() => {
+    if (state.sessionEnded || !runsSession) return;
+    const next = planQueue({
+      players: livePlayers,
+      matches: state.matches,
+      courts: state.courts,
+      requestedPairs: state.requestedPairs,
+      existing: state.queue,
+      now: new Date(),
+      enabled: state.planAhead,
+    });
+    if (JSON.stringify(next) !== JSON.stringify(state.queue)) setState((s) => ({ ...s, queue: next }));
+  }, [livePlayers, state.matches, state.courts, state.requestedPairs, state.queue, state.planAhead, state.sessionEnded, runsSession, state.tick]);
 
   const isPlaying = useCallback((id: string, matches?: Match[]) => isPlayingFn(id, matches ?? state.matches), [state.matches]);
 
@@ -657,7 +691,7 @@ export function useSessionStore() {
         const requestedPairs = s.requestedPairs.filter(
           ([a, b]) => !((ids1.includes(a) && ids1.includes(b)) || (ids2.includes(a) && ids2.includes(b))),
         );
-        return { ...s, matches: [...s.matches, newMatch], players, requestedPairs };
+        return { ...s, matches: [...s.matches, newMatch], players, requestedPairs, queue: dropStarted(s.queue, four) };
       });
       showToast("Match started on Court " + courtId);
     },
@@ -683,6 +717,34 @@ export function useSessionStore() {
     [showToast],
   );
 
+  // Re-picks one planned match with another seed (Shuffle). Matches before it
+  // stay as they are; the ones after it depend on it, so they are re-picked too.
+  const shuffleQueue = useCallback(
+    (index: number) => {
+      const seed = (state.queue[index]?.seed ?? 0) + 1;
+      setState((s) => ({
+        ...s,
+        queue: planQueue({
+          players: livePlayers,
+          matches: s.matches,
+          courts: s.courts,
+          requestedPairs: s.requestedPairs,
+          existing: s.queue.slice(0, index),
+          now: new Date(),
+          enabled: s.planAhead,
+          seedAt: { index, seed },
+        }),
+      }));
+      showToast("New match suggested");
+    },
+    [state.queue, livePlayers, showToast],
+  );
+
+  const togglePlanAhead = useCallback(() => {
+    if (!isOwner) return;
+    setState((s) => ({ ...s, planAhead: !s.planAhead, queue: [] }));
+  }, [isOwner]);
+
   // ---- edit match ---------------------------------------------------
   // Always opens — manually assigning players is a first-class way to start
   // a match, not just a tweak on top of an auto-suggestion. When a
@@ -704,12 +766,56 @@ export function useSessionStore() {
     },
     [suggestions],
   );
+  // The same dialog edits a planned match (Up next, Then) instead of starting one.
+  const openEditQueue = useCallback(
+    (index: number) => {
+      const item = state.queue[index];
+      if (!item) return;
+      setState((s) => ({
+        ...s,
+        editCourtId: null,
+        editQueueIndex: index,
+        editT1A: item.team1[0],
+        editT1B: item.team1[1],
+        editT2A: item.team2[0],
+        editT2B: item.team2[1],
+      }));
+    },
+    [state.queue],
+  );
   // Refills all 4 pickers with a fresh balanced suggestion — the same logic
   // behind "Shuffle", but reachable from inside the manual-assign modal so
   // organizers who opened it empty (or changed their mind) don't have to
   // pick all 4 players by hand. Bumps the seed so repeated clicks cycle
   // through different combinations rather than repeating the same one.
   const autoFillEdit = useCallback(() => {
+    const qIndex = state.editQueueIndex;
+    if (qIndex !== null) {
+      const seed = (state.suggestSeed["q" + qIndex] || 0) + 1;
+      const pick = planQueue({
+        players: livePlayers,
+        matches: state.matches,
+        courts: state.courts,
+        requestedPairs: state.requestedPairs,
+        existing: state.queue.slice(0, qIndex),
+        now: new Date(),
+        enabled: true,
+        seedAt: { index: qIndex, seed },
+      })[qIndex];
+      if (!pick) {
+        showToast("Not enough waiting players to auto-fill");
+        return;
+      }
+      setState((s) => ({
+        ...s,
+        editT1A: pick.team1[0],
+        editT1B: pick.team1[1],
+        editT2A: pick.team2[0],
+        editT2B: pick.team2[1],
+        suggestSeed: { ...s.suggestSeed, ["q" + qIndex]: seed },
+      }));
+      return;
+    }
     const courtId = state.editCourtId;
     if (!courtId) return;
     const sug = suggestions[courtId];
@@ -725,18 +831,48 @@ export function useSessionStore() {
       editT2B: sug.team2[1].id,
       suggestSeed: { ...s.suggestSeed, [courtId]: (s.suggestSeed[courtId] || 0) + 1 },
     }));
-  }, [state.editCourtId, suggestions, showToast]);
-  const closeEdit = useCallback(() => setState((s) => ({ ...s, editCourtId: null })), []);
+  }, [state.editCourtId, state.editQueueIndex, state.suggestSeed, state.queue, state.matches, state.courts, state.requestedPairs, livePlayers, suggestions, showToast]);
+  const closeEdit = useCallback(() => setState((s) => ({ ...s, editCourtId: null, editQueueIndex: null })), []);
   const onEditStart = useCallback(() => {
-    const { editCourtId, editT1A, editT1B, editT2A, editT2B } = state;
+    const { editCourtId, editQueueIndex, editT1A, editT1B, editT2A, editT2B } = state;
     const ids = [editT1A, editT1B, editT2A, editT2B];
+    if (editQueueIndex !== null) {
+      if (ids.some((x) => !x) || new Set(ids).size < 4) {
+        showToast("Pick 4 different players");
+        return;
+      }
+      const item: QueueItem = {
+        team1: [editT1A, editT1B],
+        team2: [editT2A, editT2B],
+        seed: state.queue[editQueueIndex]?.seed ?? 0,
+        reasons: ["Set by the organizer"],
+        balanceNote: null,
+      };
+      const next = planQueue({
+        players: livePlayers,
+        matches: state.matches,
+        courts: state.courts,
+        requestedPairs: state.requestedPairs,
+        existing: [...state.queue.slice(0, editQueueIndex), item],
+        now: new Date(),
+        enabled: true,
+      });
+      // The plan keeps it only if all four will be available when it starts.
+      const kept = next[editQueueIndex];
+      if (!kept || [...kept.team1, ...kept.team2].sort().join() !== ids.slice().sort().join()) {
+        showToast("Those players won't all be free for that match");
+        return;
+      }
+      setState((s) => ({ ...s, queue: next, editQueueIndex: null }));
+      return;
+    }
     if (!editCourtId || ids.some((x) => !x) || new Set(ids).size < 4) {
       showToast("Pick 4 different players");
       return;
     }
     startMatchWithPlayers(editCourtId, [editT1A, editT1B], [editT2A, editT2B]);
     setState((s) => ({ ...s, editCourtId: null }));
-  }, [state, showToast, startMatchWithPlayers]);
+  }, [state, livePlayers, showToast, startMatchWithPlayers]);
 
   // ---- roster / player state --------------------------------------------
   const checkIn = useCallback(
@@ -1131,6 +1267,7 @@ export function useSessionStore() {
           requestedPairs: [],
           suggestSeed: {},
           photoReminderShown: false,
+          queue: [],
           confirmAction: null,
         };
       }
@@ -1221,6 +1358,7 @@ export function useSessionStore() {
         requestedPairs: [],
         suggestSeed: {},
         photoReminderShown: false,
+        queue: [],
         // a court paused (by hand or at closing time) or kept open past its
         // closing time last session starts this one as normal
         courts: resetCourtsForNewSession(s.courts),
@@ -1283,6 +1421,14 @@ export function useSessionStore() {
     [hideTiers],
   );
 
+  // The court that has been playing longest (it started first): its four are
+  // the ones planned into "Then", so the umpire can tell them early.
+  const longestRunning = state.matches.find((m) => m.status === "in_progress") ?? null;
+  const nextButOneCourtId =
+    longestRunning && state.queue[1] && [...longestRunning.t1, ...longestRunning.t2].some((id) => [...state.queue[1].team1, ...state.queue[1].team2].includes(id))
+      ? longestRunning.courtId
+      : null;
+
   const courtsVM = useMemo<CourtViewModel[]>(() => {
     const claimed: string[] = [];
     const now = new Date();
@@ -1301,6 +1447,7 @@ export function useSessionStore() {
           name: court.name,
           closesAt: court.closesAt,
           state: over ? "scoreNeeded" : "playing",
+          inNextButOne: court.id === nextButOneCourtId,
           match: {
             matchNumber: activeMatch.num,
             elapsed: formatElapsed(activeMatch, state.tick),
@@ -1364,7 +1511,7 @@ export function useSessionStore() {
               team2Label: suggestion.team2.map((p) => p.name).join(" & "),
               reason: suggestionReason(suggestion),
               onStart: () => startMatch(court.id),
-              onRegenerate: () => rerollSuggestion(court.id),
+              onRegenerate: suggestion.queueIndex !== undefined ? () => shuffleQueue(suggestion.queueIndex as number) : () => rerollSuggestion(court.id),
             }
           : null,
         insufficientPlayers: suggestion ? undefined : { eligibleCount, missing: Math.max(0, 4 - eligibleCount) },
@@ -1384,6 +1531,8 @@ export function useSessionStore() {
     openScorekeeper,
     startMatch,
     rerollSuggestion,
+    shuffleQueue,
+    nextButOneCourtId,
     openEdit,
     togglePauseCourt,
     quickWin,
@@ -1414,6 +1563,32 @@ export function useSessionStore() {
     // state.tick moves the closing-soon cut-off along with the clock
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.courts, state.matches, livePlayers, state.suggestSeed, state.requestedPairs, state.tick, rerollSuggestion, suggestionReason]);
+
+  // The planned matches that no free court has taken, for the panel under the
+  // courts. "Then" says where its players come from when some of them are on the
+  // court that has been playing longest.
+  const queueVM = useMemo<QueueEntry[]>(() => {
+    const used = new Set(Object.values(suggestions).flatMap((sg) => (sg && sg.queueIndex !== undefined ? [sg.queueIndex] : [])));
+    const names = (ids: readonly string[]) => ids.map((id) => livePlayers.find((p) => p.id === id)?.name ?? "?").join(" & ");
+    const first = state.matches.find((m) => m.status === "in_progress");
+    return state.queue.flatMap((item, index) => {
+      if (used.has(index)) return [];
+      const fromLongest = first && index === 1 && [...item.team1, ...item.team2].some((id) => [...first.t1, ...first.t2].includes(id));
+      const court = first ? state.courts.find((c) => c.id === first.courtId) : undefined;
+      return [
+        {
+          index,
+          label: index === 0 ? "Up next · first court to free" : "Then",
+          detail: fromLongest && court && first ? `includes ${court.name} players (playing longest, ${Math.floor(Math.max(0, first.elapsedAtTick0 + state.tick) / 60)} min)` : null,
+          team1Label: names(item.team1),
+          team2Label: names(item.team2),
+          reason: [...item.reasons, ...(item.balanceNote && !hideTiers ? [item.balanceNote] : [])].join(" · "),
+          onShuffle: () => shuffleQueue(index),
+          onEdit: () => openEditQueue(index),
+        },
+      ];
+    });
+  }, [suggestions, state.queue, state.matches, state.courts, state.tick, livePlayers, hideTiers, shuffleQueue, openEditQueue]);
 
   // Hosts wait out the first round: until every open court has started a match.
   const holdingHosts = hostsHolding(state.courts, state.matches);
@@ -1510,10 +1685,11 @@ export function useSessionStore() {
         hasStreak: p.consecutiveGames >= 2,
         consec: p.consecutiveGames,
         note: p.isHost && holdingHosts ? "Host · plays after round 1" : undefined,
+        queueTag: state.queue[0] && [...state.queue[0].team1, ...state.queue[0].team2].includes(p.id) ? "Up next" : state.queue[1] && [...state.queue[1].team1, ...state.queue[1].team2].includes(p.id) ? "Then" : undefined,
         onSkip: () => skipNext(p.id),
         onPause: () => pausePlayer(p.id, "rest"),
       })),
-    [orderedReady, holdingHosts, skipNext, pausePlayer],
+    [orderedReady, holdingHosts, state.queue, skipNext, pausePlayer],
   );
 
   const notInRotationVM = useMemo<NotInRotationEntry[]>(() => {
@@ -1592,9 +1768,12 @@ export function useSessionStore() {
   );
 
   const editablePlayers = useMemo(() => {
-    const inMatch = state.editCourtId ? [state.editT1A, state.editT1B, state.editT2A, state.editT2B].map((id) => getPlayer(id)).filter((p): p is Player => Boolean(p)) : [];
+    const picking = state.editCourtId || state.editQueueIndex !== null;
+    const inMatch = picking ? [state.editT1A, state.editT1B, state.editT2A, state.editT2B].map((id) => getPlayer(id)).filter((p): p is Player => Boolean(p)) : [];
+    // a planned match can use anyone in the rotation, including players on court now
+    const pool = state.editQueueIndex !== null ? state.players.filter((p) => p.status === "ready") : readyPlayers;
     const seen = new Set<string>();
-    return [...readyPlayers, ...inMatch]
+    return [...pool, ...inMatch]
       .filter((p) => {
         if (seen.has(p.id)) return false;
         seen.add(p.id);
@@ -1602,7 +1781,7 @@ export function useSessionStore() {
       })
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((p) => ({ id: p.id, name: p.name }));
-  }, [readyPlayers, state.editCourtId, state.editT1A, state.editT1B, state.editT2A, state.editT2B, getPlayer]);
+  }, [readyPlayers, state.players, state.editCourtId, state.editQueueIndex, state.editT1A, state.editT1B, state.editT2A, state.editT2B, getPlayer]);
 
   const sk = state.scorekeeperMatchId ? state.matches.find((m) => m.id === state.scorekeeperMatchId) : null;
   const skT1Names = sk ? teamNames(sk.t1, state.players) : ["", ""];
@@ -1714,7 +1893,8 @@ export function useSessionStore() {
       hasExpected: expectedCount > 0,
       onCheckInAll: checkInAll,
       courtsVM,
-      upNext,
+      upNext: queueVM.length > 0 ? null : upNext,
+      queueVM,
       waitingVM,
       waitingCount: waitingVM.length,
       hasNotInRotation: notInRotationVM.length > 0,
@@ -1752,6 +1932,8 @@ export function useSessionStore() {
       requestedPairsVM,
       onAddCourt,
       onRemoveCourt,
+      planAhead: state.planAhead,
+      onTogglePlanAhead: togglePlanAhead,
       courtHours: state.courts.map((c) => ({ id: c.id, name: c.name, closesAt: c.closesAt ?? "" })),
       onSetCourtClosesAt: setCourtClosesAt,
       onOpenSetup: openSetup,
@@ -1792,7 +1974,12 @@ export function useSessionStore() {
     },
 
     editMatch: {
-      open: !!state.editCourtId,
+      open: !!state.editCourtId || state.editQueueIndex !== null,
+      title:
+        state.editQueueIndex !== null
+          ? "Edit Match — " + (state.editQueueIndex === 0 ? "Up next" : "Then")
+          : "Edit Match — Court " + (state.editCourtId || ""),
+      confirmLabel: state.editQueueIndex !== null ? "Save Match" : "Start This Match",
       courtLabel: state.editCourtId || "",
       editablePlayers,
       t1A: state.editT1A,

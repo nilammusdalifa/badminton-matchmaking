@@ -294,3 +294,10 @@
   color: var(--sm-text-3);
   padding: 8px 4px;
 }
+
+.nextButOne {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sm-accent-hover);
+}

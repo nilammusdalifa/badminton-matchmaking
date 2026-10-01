@@ -11,6 +11,8 @@ export interface WaitingEntry {
   consec: number;
   /** "Host · plays after round 1" while a host is still being held back. */
   note?: string;
+  /** In a locked planned match: "Up next" or "Then". */
+  queueTag?: string;
   onSkip: () => void;
   onPause: () => void;
 }
@@ -63,6 +65,8 @@ export interface CourtViewModel {
   pastClosing?: { closesAt: string; onKeepOpen: () => void };
   /** Open past its closing window on the organizer's say-so, with one more match to start. */
   keptOpen?: boolean;
+  /** This court has been playing longest, and some of its players are already in "Then". */
+  inNextButOne?: boolean;
   state: "playing" | "scoreNeeded" | "available" | "paused";
   match?: {
     matchNumber: number;
@@ -216,6 +220,20 @@ export interface MatchLogEntry {
   notCounted: boolean;
   onEditScore: () => void;
   onDelete: () => void;
+}
+
+/** A match planned ahead and locked: shown as "Up next" or "Then". */
+export interface QueueEntry {
+  /** 0 = Up next (the first court to free), 1 = Then. */
+  index: number;
+  label: string;
+  /** Where the players come from, e.g. "includes Court 1 players (playing longest, 18 min)". */
+  detail: string | null;
+  team1Label: string;
+  team2Label: string;
+  reason: string;
+  onShuffle: () => void;
+  onEdit: () => void;
 }
 
 export interface UpNextEntry {

@@ -1,5 +1,5 @@
 import type { GamesPlayedRow, GamesPlayedVM } from "../types.viewmodel";
-import type { CounterSnapshot, Court, Match, Player, PlayerStatus, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
+import type { CounterSnapshot, Court, Match, Player, PlayerStatus, QueueItem, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
 
 const PHOTO_REMINDER_LEAD_MINUTES = 30;
 
@@ -213,10 +213,10 @@ export function liveScoreFor(matches: Match[], matchId: string | null): { s1: nu
  * simply lacks a list that was just emptied (last partner request removed,
  * session reset, only match cancelled). Merging that snapshot over local
  * state must reset those lists, not keep the stale copy. */
-export function withListDefaults<T extends { players?: Player[]; matches?: Match[]; courts?: Court[]; requestedPairs?: [string, string][]; history?: SessionHistoryEntry[] }>(
+export function withListDefaults<T extends { players?: Player[]; matches?: Match[]; courts?: Court[]; requestedPairs?: [string, string][]; history?: SessionHistoryEntry[]; queue?: QueueItem[] }>(
   payload: T,
-): T & { players: Player[]; matches: Match[]; courts: Court[]; requestedPairs: [string, string][]; history: SessionHistoryEntry[] } {
-  return { players: [], matches: [], courts: [], requestedPairs: [], history: [], ...payload };
+): T & { players: Player[]; matches: Match[]; courts: Court[]; requestedPairs: [string, string][]; history: SessionHistoryEntry[]; queue: QueueItem[] } {
+  return { players: [], matches: [], courts: [], requestedPairs: [], history: [], queue: [], ...payload };
 }
 
 /** True when another roster entry already uses this name (trimmed,
@@ -410,10 +410,14 @@ const SINGLE_COURT_WAIT_WEIGHT = 2;
  *     a match tonight. Lowest cost wins; `seed` (Shuffle) steps through the
  *     next-best few. So four people who just finished together get split up
  *     rather than sent straight back out as the same group. */
-export function pickFour(pool: Player[], meet: Map<string, number>, seed = 0, singleCourt = false): Player[] | null {
+export function pickFour(pool: Player[], meet: Map<string, number>, seed = 0, singleCourt = false, extraReady = 0): Player[] | null {
   if (pool.length < 4) return null;
   const waitWeight = singleCourt ? SINGLE_COURT_WAIT_WEIGHT : 1;
-  const mustAfter = mustPlayAfter(pool.length);
+  // `extraReady`: players about to join the pool (planned into a match ahead, or
+  // on a court about to finish) count towards the must-play cap too. Without
+  // it the cap sees only the players waiting right now and forces the longest
+  // waiters together again, so the same groups come back.
+  const mustAfter = mustPlayAfter(pool.length + extraReady);
   const sorted = playerPriority(pool);
   const must = sorted.filter((p) => p.skipped >= mustAfter).slice(0, 4);
   let rest = sorted.filter((p) => !must.includes(p));
@@ -439,6 +443,8 @@ export interface SuggestionOptions {
   holdHosts?: boolean;
   /** Only one court can take a match, so waiting players count for more. */
   singleCourt?: boolean;
+  /** Players beyond the pool that the must-play cap should also count (see `pickFour`). */
+  extraReady?: number;
 }
 
 export function buildSuggestion(
@@ -485,7 +491,7 @@ export function buildSuggestion(
     }
   }
 
-  const four = pickFour(pool, meet, seed, options.singleCourt);
+  const four = pickFour(pool, meet, seed, options.singleCourt, options.extraReady ?? 0);
   if (!four) return null;
   const split = pickBalancedFoursome(four, partner);
 
@@ -567,10 +573,134 @@ export function fewPlayersHint(readyCount: number, openCourts: number): string |
   return `Only ${readyCount} players ready. Consider ${courts} ${courts === 1 ? "court" : "courts"} for now.`;
 }
 
+/** How many matches to lock ahead: two when there are enough waiting players
+ * for every open court twice over, one when at least 8 wait (3+ courts), none
+ * (just today's "likely" preview) otherwise. With one court open it is at most
+ * one. With fewer waiting there's nobody
+ * left over to mix, and locking would freeze the groups again. */
+export function queueDepth(waiting: number, openCourts: number): 0 | 1 | 2 {
+  // one court left (the other closed or paused): never two ahead, there's too
+  // little to mix and the same groups would come round again
+  if (openCourts <= 1) return waiting >= 8 ? 1 : 0;
+  return waiting >= 4 * openCourts ? 2 : waiting >= 8 ? 1 : 0;
+}
+
+const itemIds = (item: Pick<QueueItem, "team1" | "team2">): string[] => [...item.team1, ...item.team2];
+
+/** A locked match as a suggestion, or null if any of its players isn't ready now. */
+function suggestionFromItem(item: QueueItem, players: Player[], matches: Match[], claimed: string[], queueIndex: number): Suggestion | null {
+  const ready = new Map(readyPool(players, matches).map((p) => [p.id, p]));
+  const ids = itemIds(item);
+  if (ids.some((id) => !ready.has(id) || claimed.includes(id))) return null;
+  const t = (id: string) => ready.get(id)!;
+  return {
+    team1: [t(item.team1[0]), t(item.team1[1])],
+    team2: [t(item.team2[0]), t(item.team2[1])],
+    four: ids.map(t),
+    reasons: item.reasons,
+    balanceNote: item.balanceNote,
+    queueIndex,
+  };
+}
+
+/** Takes a match that has started out of the queue. */
+export function dropStarted(queue: QueueItem[], four: readonly string[]): QueueItem[] {
+  const key = [...four].sort().join("|");
+  return queue.filter((item) => itemIds(item).sort().join("|") !== key);
+}
+
+/** Plans the matches after the ones already on court, up to `queueDepth`.
+ *
+ * Item `j` (0 = "Up next", 1 = "Then") is picked as the world will look when it
+ * starts: the `j` longest-playing courts have finished (they started first, so
+ * they usually finish first — their four go back into the pool, which is what
+ * lets groups mix) and the `j` items before it have started. The must-play cap
+ * also counts the players about to join the pool (`extraReady`).
+ *
+ * `existing` items are kept while they're still valid for that moment — every
+ * player ready — which is what makes them locked: a match shown ahead starts as
+ * shown. The first one that isn't (someone rested or was edited) is re-picked
+ * together with everything after it, since later items depend on earlier ones.
+ * `seedAt` re-picks one position with another seed (Shuffle). Late check-ins
+ * only ever extend the end. */
+export function planQueue(args: {
+  players: Player[];
+  matches: Match[];
+  courts: Court[];
+  requestedPairs: [string, string][];
+  existing: QueueItem[];
+  now: Date;
+  enabled: boolean;
+  seedAt?: { index: number; seed: number };
+}): QueueItem[] {
+  const { players, matches, courts, existing, now, enabled, seedAt } = args;
+  if (!enabled) return [];
+  // a court about to close can't be given a match to plan around
+  const open = courts.filter((c) => !c.paused && !isCourtClosingSoon(c, matches, now));
+  if (open.length === 0) return [];
+  const running = matches.filter((m) => m.status === "in_progress"); // in the order they started
+  // How many are waiting once every idle open court has taken its four, i.e. as
+  // it will look with all courts busy. Counting the four who have just finished
+  // would trip the lock for a moment on 12 players / 2 courts, where it freezes
+  // the groups.
+  const idle = open.filter((c) => !running.some((m) => m.courtId === c.id)).length;
+  // While matches are already locked, one player fewer doesn't take them away:
+  // otherwise resting someone from "Up next" with exactly 8 waiting would drop
+  // the whole queue just when it needs re-picking.
+  const slack = existing.length > 0 ? 1 : 0;
+  const depth = queueDepth(Math.max(0, readyPool(players, matches).length - 4 * idle) + slack, open.length);
+  if (depth === 0) return [];
+  const options: SuggestionOptions = { singleCourt: open.length === 1 };
+  let P = players;
+  let M = matches;
+  let pairs = args.requestedPairs;
+  const out: QueueItem[] = [];
+  let keeping = true;
+
+  for (let j = 0; j < depth; j++) {
+    let item: QueueItem | null = null;
+    const kept = existing[j];
+    if (keeping && kept && !(seedAt && seedAt.index === j)) {
+      const ready = new Set(readyPool(P, M).map((p) => p.id));
+      const ids = itemIds(kept);
+      if (new Set(ids).size === 4 && ids.every((id) => ready.has(id))) item = kept;
+    }
+    if (!item) {
+      keeping = false;
+      const extraReady = 4 * Math.max(j, running.length ? 1 : 0);
+      const seed = seedAt && seedAt.index === j ? seedAt.seed : 0;
+      const sug = buildSuggestion(P, M, pairs, [], seed, { ...options, holdHosts: hostsHolding(courts, M), extraReady });
+      if (!sug) break;
+      item = {
+        team1: [sug.team1[0].id, sug.team1[1].id],
+        team2: [sug.team2[0].id, sug.team2[1].id],
+        seed,
+        reasons: sug.reasons,
+        balanceNote: sug.balanceNote,
+      };
+    }
+    out.push(item);
+
+    // the world as item j+1 will see it: the next-longest court finishes, then this match starts
+    const done = running[j];
+    if (done) {
+      const finishing = [...done.t1, ...done.t2];
+      M = M.map((m) => (m.id === done.id ? { ...m, status: "completed" as const } : m));
+      P = P.map((p) => (finishing.includes(p.id) ? { ...p, games: p.games + 1 } : p));
+    }
+    const ids = itemIds(item);
+    P = applyMatchStart(P, M, ids);
+    M = [...M, { id: "queue" + j, round: 0, num: M.length + 1, courtId: "", status: "in_progress", t1: item.team1, t2: item.team2, s1: 0, s2: 0, elapsedAtTick0: 0 }];
+    pairs = pairs.filter(([a, b]) => !((item!.team1.includes(a) && item!.team1.includes(b)) || (item!.team2.includes(a) && item!.team2.includes(b))));
+  }
+  return out;
+}
+
 /** Suggestions for every court that can take a match right now, keyed by
  * court id — computed once so the court card, "Start Match", the manual-assign
- * modal and auto-fill all show and start the same four. A court's suggestion
- * excludes whoever earlier courts already claimed. A court that is paused,
+ * modal and auto-fill all show and start the same four. Free courts take the
+ * locked queue in order (`queueIndex` says which), then fresh picks that
+ * exclude whoever earlier courts already claimed. A court that is paused,
  * busy or closing soon has no entry; `null` means it's open but too few
  * players are waiting. */
 export function courtSuggestions(
@@ -580,6 +710,7 @@ export function courtSuggestions(
   requestedPairs: [string, string][],
   seeds: Record<string, number>,
   now: Date,
+  queue: QueueItem[] = [],
 ): Record<string, Suggestion | null> {
   const claimed: string[] = [];
   const out: Record<string, Suggestion | null> = {};
@@ -587,10 +718,16 @@ export function courtSuggestions(
     holdHosts: hostsHolding(courts, matches),
     singleCourt: courts.filter((c) => !c.paused && !isCourtClosingSoon(c, matches, now)).length === 1,
   };
+  let next = 0; // how far into the queue the free courts have got
   for (const court of courts) {
     if (court.paused || isCourtClosingSoon(court, matches, now)) continue;
     if (matches.some((m) => m.status === "in_progress" && m.courtId === court.id)) continue;
-    const suggestion = buildSuggestion(players, matches, requestedPairs, claimed, seeds[court.id] || 0, options);
+    let suggestion: Suggestion | null = null;
+    if (next < queue.length) {
+      suggestion = suggestionFromItem(queue[next], players, matches, claimed, next);
+      next++;
+    }
+    suggestion ??= buildSuggestion(players, matches, requestedPairs, claimed, seeds[court.id] || 0, options);
     out[court.id] = suggestion;
     if (suggestion) claimed.push(...suggestion.four.map((p) => p.id));
   }

@@ -51,6 +51,7 @@ export function CourtCard({ court }: CourtCardProps) {
                 <div className={styles.teamP2}>{match.t2p2}</div>
               </div>
             </div>
+            {court.inNextButOne && <div className={styles.nextButOne}>Players here are in the next-but-one match</div>}
             {match.resultMode === "score" && (
               <button className={`${styles.ctaBtn} ${styles[state]}`} onClick={match.onEnterScore}>
                 {state === "scoreNeeded" ? "Save Result" : "Enter Score"}

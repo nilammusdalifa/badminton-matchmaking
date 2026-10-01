@@ -27,6 +27,8 @@ export function ManageTab({
   requestedPairsVM,
   onAddCourt,
   onRemoveCourt,
+  planAhead,
+  onTogglePlanAhead,
   courtHours,
   onSetCourtClosesAt,
   onOpenSetup,
@@ -88,6 +90,15 @@ export function ManageTab({
               </button>
             </div>
           </div>
+          <label className={styles.hostToggle}>
+            <input type="checkbox" checked={planAhead} onChange={onTogglePlanAhead} />
+            <span>
+              <span className={styles.hostToggleTitle}>Plan 2 matches ahead</span>
+              <span className={styles.hostToggleHint}>
+                Shows Up next and Then, and starts them exactly as shown. Off: only a likely preview, as before.
+              </span>
+            </span>
+          </label>
           {courtHours.length > 0 && (
             <>
               <div className={styles.panelHint}>Set a closing time to get a reminder to pause the court.</div>

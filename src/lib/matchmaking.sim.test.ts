@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Court, Match, Player, SkillLevel } from "../types";
-import { applyMatchStart, courtSuggestions, courtsDueToPause, makeBlankPlayer, recomputePlayerStats } from "./session";
+import type { QueueItem } from "../types";
+import { applyMatchStart, courtSuggestions, courtsDueToPause, dropStarted, makeBlankPlayer, planQueue, recomputePlayerStats } from "./session";
 
 /** Plays whole evenings through the app's own matchmaking functions — the
  * same ones the Session tab uses — with random game lengths, and measures how
@@ -25,6 +26,8 @@ interface Scenario {
   /** The first `count` players are hosts. "flag" marks them isHost; "checkin"
    * checks them in only once every open court has started its first match. */
   hosts?: { count: number; mode: "flag" | "checkin" };
+  /** Plan two matches ahead and lock them (the "Up next" / "Then" queue). */
+  planAhead?: boolean;
 }
 
 const clock = (min: number) => new Date(2026, 8, 30, Math.floor(min / 60), min % 60, 0, 0);
@@ -42,6 +45,16 @@ interface Night {
   hostGames: number;
   hostFirstStart: number;
   otherGames: number;
+  /** Pairs who partnered more than once. */
+  partnerTwice: number;
+  /** Times a player went straight back on court the minute they finished. */
+  straightBack: number;
+  /** Longest a player waited between games (or for their first), in minutes. */
+  maxWaitMin: number;
+  /** Matches that started exactly as the queue had shown them. */
+  fromQueue: number;
+  /** Share of the time "Then" included players from the court that has been playing longest. */
+  thenMix: number;
 }
 
 function playNight(scenario: Scenario, random: () => number, shuffleRoster: boolean): Night {
@@ -62,6 +75,13 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
   const endsAt = new Map<string, number>();
   let maxWait = 0;
   let waitOneCourt = 0;
+  let queue: QueueItem[] = [];
+  let fromQueue = 0;
+  let thenSamples = 0;
+  let thenWithLongest = 0;
+  let maxWaitMin = 0;
+  let straightBack = 0;
+  const lastEnd = new Map<string, number>();
   const hostIds = new Set(players.slice(0, 0).map((p) => p.id));
   for (const p of players) if (p.name <= "P" + String(hostCount).padStart(2, "0") && hostCount > 0) hostIds.add(p.id);
   let hostFirstStart = NaN;
@@ -81,6 +101,7 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
     for (const m of matches) {
       if (m.status === "in_progress" && (endsAt.get(m.id) ?? 0) <= t) {
         matches = matches.map((x) => (x.id === m.id ? { ...x, status: "completed", s1: 21, s2: Math.floor(random() * 20) } : x));
+        for (const id of [...m.t1, ...m.t2]) lastEnd.set(id, t);
       }
     }
     // courts that have reached closing time pause themselves
@@ -90,11 +111,25 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
     const open = courts.filter((_, i) => opens[i] <= t);
     for (;;) {
       const live = recomputePlayerStats(players, matches);
-      const suggestions = courtSuggestions(open, live, matches, [], {}, now);
+      queue = planQueue({ players: live, matches, courts: open, requestedPairs: [], existing: queue, now, enabled: Boolean(scenario.planAhead) });
+      const suggestions = courtSuggestions(open, live, matches, [], {}, now, queue);
+      const first = matches.find((m) => m.status === "in_progress");
+      if (queue.length === 2 && first) {
+        thenSamples++;
+        const longest = [...first.t1, ...first.t2];
+        if ([...queue[1].team1, ...queue[1].team2].some((id) => longest.includes(id))) thenWithLongest++;
+      }
       const courtId = Object.keys(suggestions).find((id) => suggestions[id]);
       if (!courtId) break;
       const sug = suggestions[courtId]!;
       const ids = sug.four.map((p) => p.id);
+      if (sug.queueIndex !== undefined) fromQueue++;
+      for (const id of ids) {
+        const waited = t - (lastEnd.get(id) ?? start);
+        maxWaitMin = Math.max(maxWaitMin, waited);
+        if (lastEnd.has(id) && waited === 0) straightBack++;
+      }
+      queue = dropStarted(queue, ids);
       players = applyMatchStart(players, matches, ids);
       const match: Match = {
         id: "m" + matches.length,
@@ -130,6 +165,14 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
     }
   }
   // players who checked in late can't catch up on games, so they're left out of the gap
+  const partnerCount = new Map<string, number>();
+  for (const m of matches) {
+    for (const team of [m.t1, m.t2]) {
+      const k = [...team].sort().join("|");
+      partnerCount.set(k, (partnerCount.get(k) ?? 0) + 1);
+    }
+  }
+  const partnerTwice = [...partnerCount.values()].filter((n) => n > 1).length;
   const games = finished.filter((p) => Number(p.id.slice(1)) < lateFrom).map((p) => p.games);
   return {
     matches: matches.length,
@@ -140,6 +183,11 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
     maxWait,
     waitOneCourt,
     hostGames: hostIds.size ? finished.filter((p) => hostIds.has(p.id)).reduce((sum, p) => sum + p.games, 0) / hostIds.size : 0,
+    partnerTwice,
+    straightBack,
+    maxWaitMin,
+    fromQueue,
+    thenMix: thenSamples ? thenWithLongest / thenSamples : 0,
     hostFirstStart: hostFirstStart,
     otherGames: finished.filter((p) => !hostIds.has(p.id)).reduce((sum, p) => sum + p.games, 0) / Math.max(1, finished.filter((p) => !hostIds.has(p.id)).length),
   };
@@ -160,6 +208,11 @@ export function summarize(scenario: Scenario, nights: number, shuffleRoster: boo
     avgGap: avg((n) => n.gamesGap),
     inARow: worst((n) => n.maxInARow),
     wait: worst((n) => n.maxWait),
+    partnerTwice: avg((n) => n.partnerTwice),
+    straightBack: avg((n) => n.straightBack),
+    maxWaitMin: worst((n) => n.maxWaitMin),
+    fromQueueShare: avg((n) => (n.matches ? n.fromQueue / n.matches : 0)),
+    thenMix: avg((n) => n.thenMix),
     waitOneCourt: worst((n) => n.waitOneCourt),
     minRatio: Math.min(...results.map((n) => n.distinctFoursomes / n.matches)),
     hostGames: avg((n) => n.hostGames),
@@ -248,4 +301,63 @@ describe("hosts on a 16-player night", () => {
       expect(r.gap).toBeLessThanOrEqual(2);
     });
   }
+});
+
+describe("planning two matches ahead (Up next, Then)", () => {
+  const compare = (players: number, courts: typeof twoCourts, extra: Partial<Scenario> = {}) => ({
+    today: summarize({ players, courts, ...extra }, NIGHTS, false),
+    ahead: summarize({ players, courts, planAhead: true, ...extra }, NIGHTS, false),
+  });
+
+  it("16 players, 2 courts (Rabu): every match a new group, nobody 3 in a row, games gap ≤ 2", () => {
+    const { today, ahead } = compare(16, twoCourts);
+    expect(ahead.minRatio).toBeGreaterThanOrEqual(0.95);
+    expect(ahead.gap).toBeLessThanOrEqual(2);
+    expect(ahead.inARow).toBeLessThanOrEqual(2);
+    // what was shown ahead is what started
+    expect(ahead.fromQueueShare).toBeGreaterThan(0.9);
+    // and "Then" really does mix in the court that has been playing longest
+    expect(ahead.thenMix).toBeGreaterThan(0.2);
+    // nothing gets worse than today
+    expect(ahead.minRatio).toBeGreaterThanOrEqual(today.minRatio);
+    expect(ahead.maxWaitMin).toBeLessThanOrEqual(today.maxWaitMin);
+  });
+
+  for (const [players, label] of [[18, "18"], [20, "20"], [24, "24"]] as const) {
+    it(`${label} players, 2 courts: still new groups, no longer waits`, () => {
+      const { today, ahead } = compare(players, twoCourts);
+      expect(ahead.minRatio).toBeGreaterThanOrEqual(0.95);
+      expect(ahead.gap).toBeLessThanOrEqual(2);
+      expect(ahead.inARow).toBeLessThanOrEqual(2);
+      expect(ahead.maxWaitMin).toBeLessThanOrEqual(today.maxWaitMin);
+    });
+  }
+
+  it("16 players, 4 arriving at 20:00: locked matches stay, newcomers join from the next one", () => {
+    const { today, ahead } = compare(16, twoCourts, { late: { count: 4, at: "20:00" } });
+    expect(ahead.minRatio).toBeGreaterThanOrEqual(0.95);
+    expect(ahead.gap).toBeLessThanOrEqual(2);
+    expect(ahead.maxWaitMin).toBeLessThanOrEqual(today.maxWaitMin);
+  });
+
+  it("12 players, 2 courts: nobody left to mix, so nothing is locked (and nothing gets worse)", () => {
+    const { today, ahead } = compare(12, twoCourts);
+    // locked only in the single-court phase after Court B closes, and then only one ahead
+    expect(ahead.minRatio).toBeGreaterThanOrEqual(today.minRatio - 0.1);
+    expect(ahead.gap).toBeLessThanOrEqual(2);
+    expect(ahead.inARow).toBeLessThanOrEqual(2);
+  });
+
+  it("20 players, 3 courts: one locked, nobody 4 in a row", () => {
+    const { ahead } = compare(20, threeCourts);
+    expect(ahead.minRatio).toBeGreaterThanOrEqual(0.9);
+    expect(ahead.inARow).toBeLessThanOrEqual(2);
+  });
+
+  it("hosts still sit out round 1 when matches are planned ahead", () => {
+    const r = summarize({ players: 16, courts: twoCourts, planAhead: true, hosts: { count: 2, mode: "flag" } }, NIGHTS, false);
+    expect(r.hostFirstStart).toBeGreaterThanOrEqual(14);
+    expect(r.latestHostStart).toBeLessThanOrEqual(25);
+    expect(r.minRatio).toBeGreaterThanOrEqual(0.95);
+  });
 });

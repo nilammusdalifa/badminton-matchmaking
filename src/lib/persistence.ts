@@ -1,4 +1,4 @@
-import type { Court, Match, Player, ResultMode, SessionHistoryEntry } from "../types";
+import type { Court, Match, Player, QueueItem, ResultMode, SessionHistoryEntry } from "../types";
 
 const STORAGE_KEY = "smashmatch.v1";
 
@@ -15,6 +15,10 @@ export interface PersistedState {
   requestedPairs: [string, string][];
   history: SessionHistoryEntry[];
   photoReminderShown: boolean;
+  /** Matches planned ahead and locked (Up next, Then). */
+  queue: QueueItem[];
+  /** Plan matches ahead at all. Off: only today's "likely" preview. */
+  planAhead: boolean;
 }
 
 /** Identity for this device's own session — stable across refreshes so the

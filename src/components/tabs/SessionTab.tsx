@@ -16,6 +16,7 @@ export function SessionTab({
   onCheckInAll,
   courtsVM,
   upNext,
+  queueVM,
   waitingVM,
   waitingCount,
   hasNotInRotation,
@@ -75,6 +76,30 @@ export function SessionTab({
         </div>
       )}
 
+      {queueVM.map((q) => (
+        <div className={styles.upNextPanel} key={q.index}>
+          <div className={styles.upNextHeading}>
+            {q.label}
+            {q.detail && <span className={styles.queueDetail}> · {q.detail}</span>}
+          </div>
+          <div className={styles.upNextTeams}>
+            <span className={styles.upNextTeamA}>{q.team1Label}</span> <span className={styles.upNextVs}>vs</span>{" "}
+            <span className={styles.upNextTeamB}>{q.team2Label}</span>
+          </div>
+          <div className={styles.upNextReason}>{q.reason}</div>
+          {!readOnly && (
+            <div className={styles.queueActions}>
+              <button className={styles.upNextShuffleBtn} onClick={q.onShuffle}>
+                Shuffle
+              </button>
+              <button className={styles.upNextShuffleBtn} onClick={q.onEdit}>
+                Edit
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+
       {upNext && (
         <div className={styles.upNextPanel}>
           <div className={styles.upNextHeading}>Next Up · all courts busy</div>
@@ -116,6 +141,7 @@ export function SessionTab({
                   <div className={styles.waitingText}>
                     <div className={styles.waitingName}>
                       {w.name} {!hideTier && <span className={styles.waitingLevel}>· Tier {w.level}</span>}
+                      {w.queueTag && <span className={styles.queueTag}>{w.queueTag}</span>}
                     </div>
                     <div className={styles.waitingMeta}>
                       {i === 0 && "Next up · "}Waited {w.skipped} {w.skipped === 1 ? "match" : "matches"} · {w.games} {w.games === 1 ? "game" : "games"} played
