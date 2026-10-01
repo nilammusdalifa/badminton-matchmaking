@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { dropStarted, planQueue, queueDepth, resetPlayersForNewSession, applyAfterMatch, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import { buildHighlights, shortName, dropStarted, planQueue, queueDepth, resetPlayersForNewSession, applyAfterMatch, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -850,6 +850,69 @@ describe("matches planned ahead (Up next, Then)", () => {
     const meet = new Map<string, number>();
     for (const [a, b] of [["p0", "p1"], ["p0", "p2"], ["p0", "p3"], ["p1", "p2"], ["p1", "p3"], ["p2", "p3"]]) meet.set([a, b].sort().join("|"), 3);
     expect(pickFour(pool, meet, 0, false, 4)!.map((p) => p.id).filter((id) => ["p0", "p1", "p2", "p3"].includes(id)).length).toBeLessThan(4);
+  });
+});
+
+describe("share card extras", () => {
+  const pl = (name: string, over: Partial<Player> = {}): Player => ({ ...makeBlankPlayer(name.toLowerCase(), name, "B", "ready"), games: 4, rankGames: 4, wins: 2, losses: 2, ...over });
+
+  describe("highlights", () => {
+    it("🔥 needs a winning streak of 3 or more", () => {
+      expect(buildHighlights([pl("Achmad", { recentForm: [-1, 1, 1, 1, 1], wins: 4 })])[0]).toMatchObject({ icon: "🔥", text: "Achmad · 4 wins in a row" });
+      expect(buildHighlights([pl("Novi", { recentForm: [1, 1, -1, 1, 1] })]).some((h) => h.icon === "🔥")).toBe(false);
+    });
+
+    it("🔥 picks the longest streak, and ignores players with fewer than 3 games", () => {
+      const out = buildHighlights([pl("A", { recentForm: [1, 1, 1] }), pl("B", { recentForm: [1, 1, 1, 1] }), pl("C", { rankGames: 2, recentForm: [1, 1, 1, 1, 1] })]);
+      expect(out.find((h) => h.icon === "🔥")!.text).toMatch(/^B ·/);
+    });
+
+    it("🤝 needs a partnership that won at least 75% of 2+ games", () => {
+      const good = pl("Novi", { favPartner: "Raden", favPartnerWin: 100, favPartnerGames: 3 });
+      expect(buildHighlights([good]).find((h) => h.icon === "🤝")!.text).toBe("Novi & Raden · won 3 of 3");
+      expect(buildHighlights([pl("Novi", { favPartner: "Raden", favPartnerWin: 50, favPartnerGames: 4 })]).some((h) => h.icon === "🤝")).toBe(false);
+      expect(buildHighlights([pl("Novi", { favPartner: "Raden", favPartnerWin: 100, favPartnerGames: 1 })]).some((h) => h.icon === "🤝")).toBe(false);
+    });
+
+    it("🤝 names the pair alphabetically, by first name, so either player gives the same line", () => {
+      const a = buildHighlights([pl("Raden", { favPartner: "Novi", favPartnerWin: 100, favPartnerGames: 2 })]);
+      const b = buildHighlights([pl("Novi", { favPartner: "Raden", favPartnerWin: 100, favPartnerGames: 2 })]);
+      expect(a[0].text).toBe(b[0].text);
+      expect(buildHighlights([pl("Muhammad Alfarizi", { favPartner: "Siti Nurhaliza", favPartnerWin: 100, favPartnerGames: 2 })])[0].text).toBe("Muhammad & Siti · won 2 of 2");
+    });
+
+    it("💪 goes to the one player with the most games, and only from 4 games", () => {
+      expect(buildHighlights([pl("A", { games: 6 }), pl("B", { games: 5 })]).find((h) => h.icon === "💪")!.text).toBe("A · 6 games");
+      expect(buildHighlights([pl("A", { games: 6 }), pl("B", { games: 6 })]).some((h) => h.icon === "💪")).toBe(false);
+      expect(buildHighlights([pl("A", { games: 3 }), pl("B", { games: 2 })]).some((h) => h.icon === "💪")).toBe(false);
+    });
+
+    it("leaves out players who aren't in the rankings, and sessions without results", () => {
+      expect(buildHighlights([pl("Host", { games: 9, inRankings: false, recentForm: [1, 1, 1, 1, 1] })])).toEqual([]);
+      expect(buildHighlights([pl("A", { games: 9, recentForm: [1, 1, 1, 1, 1] })], "none")).toEqual([]);
+    });
+
+    it("each line is short enough for the card", () => {
+      const out = buildHighlights([
+        pl("Muhammad Alfarizi Pratama Wijaya", { games: 9, recentForm: [1, 1, 1, 1, 1], favPartner: "Siti Nurhaliza Putri", favPartnerWin: 100, favPartnerGames: 3 }),
+      ]);
+      expect(out.length).toBe(3);
+      for (const h of out) expect(h.text.length).toBeLessThanOrEqual(30);
+    });
+  });
+
+  describe("short names", () => {
+    it("leaves a name that fits alone", () => {
+      expect(shortName("Achmad", 12)).toBe("Achmad");
+    });
+    it("shortens a long full name to first name + last initial", () => {
+      expect(shortName("Siti Nurhaliza Putri", 12)).toBe("Siti P.");
+      expect(shortName("Muhammad Alfarizi Pratama", 13)).toBe("Muhammad P.");
+    });
+    it("cuts what still doesn't fit, with an ellipsis", () => {
+      expect(shortName("Bartholomeus", 8)).toBe("Barthol…");
+      expect(shortName("Bartholomeus Kristianto", 8).length).toBeLessThanOrEqual(8);
+    });
   });
 });
 

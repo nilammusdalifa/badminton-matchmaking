@@ -1,3 +1,4 @@
+import { shortName } from "../../lib/session";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./ShareRankingsModal.module.css";
 
@@ -28,9 +29,12 @@ function cardTitle(sessionName: string): string {
   return sessionName.replace(/^\s*smash\s*match\b[\s·\-–—:|]*/i, "").trim() || sessionName;
 }
 
-export function ShareRankingsModal({ open, top, early, sessionName, playersCount, matchesCompleted, close, download, cardRef, fallbackImageUrl, onOpenImage, onCloseImage }: ShareRankingsProps) {
+export function ShareRankingsModal({ open, top, highlights, early, sessionName, sessionSchedule, playersCount, matchesCompleted, close, download, cardRef, fallbackImageUrl, onOpenImage, onCloseImage }: ShareRankingsProps) {
   if (!open) return null;
   const [wordA, wordB, joiner] = splitWordmark(cardTitle(sessionName));
+  // the schedule if there is one (cut short so the line fits), otherwise today's date
+  const schedule = sessionSchedule.trim();
+  const when = schedule ? (schedule.length > 18 ? schedule.slice(0, 17).trimEnd() + "…" : schedule) : new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
   // Where a phone can't save from the page (some browsers, home-screen apps),
   // the picture itself is shown: press and hold it to save.
@@ -59,6 +63,15 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
           <div className={styles.glow2} />
           <div className={styles.glow3} />
           <div className={styles.dots} />
+          {/* confetti: plain coloured dots, which both the browser and the exporter draw the same */}
+          <span className={`${styles.confetti} ${styles.c1}`} />
+          <span className={`${styles.confetti} ${styles.c2}`} />
+          <span className={`${styles.confetti} ${styles.c3}`} />
+          <span className={`${styles.confetti} ${styles.c4}`} />
+          <span className={`${styles.confetti} ${styles.c5}`} />
+          <span className={`${styles.confetti} ${styles.c6}`} />
+          <span className={`${styles.confetti} ${styles.c7}`} />
+          <span className={`${styles.confetti} ${styles.c8}`} />
 
           <div className={styles.cardBody}>
             <div className={styles.wordmarkRow}>
@@ -74,21 +87,40 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
               {early ? "Early standings" : `Top ${top.length} Rankings`}
             </div>
 
-            {/* A single uniform-height row per rank — every row has the exact
-               same structure/height, which sidesteps a real html2canvas bug
+            {/* The leader gets a block of their own. Every row below still has one
+               fixed height and structure, which sidesteps a real html2canvas bug
                hit while this used a podium: a flex row whose children had
-               different heights (bigger #1 avatar, staggered margins for
-               #2/#3) rendered with badly wrong vertical positions during
-               capture, overlapping the row below, even though it looked
-               fine on screen. Uniform rows have nothing uneven to get wrong. */}
+               different heights (staggered margins for #2/#3) rendered with
+               badly wrong vertical positions during capture, overlapping the
+               row below, even though it looked fine on screen. */}
+            {top[0] && (
+              <div className={styles.hero}>
+                <span className={styles.heroAvatar}>
+                  <span className={styles.heroAvatarText}>{top[0].initials}</span>
+                </span>
+                <div className={styles.heroText}>
+                  <div className={styles.heroName}>{shortName(top[0].name, 13)}</div>
+                  <div className={styles.heroTag}>{top[0].medal === 1 ? "👑 Champion" : "👑 In the lead"}</div>
+                </div>
+                <div className={styles.heroStat}>
+                  <div className={styles.heroRecord}>
+                    <span className={styles.win}>{top[0].wins}W</span>
+                    <span className={styles.statDash}>–</span>
+                    <span className={styles.loss}>{top[0].losses}L</span>
+                  </div>
+                  <div className={styles.heroPct}>{top[0].winPct}%</div>
+                </div>
+              </div>
+            )}
+
             <div className={styles.list}>
-              {top.map((r) => (
+              {top.slice(1).map((r) => (
                 <div className={`${styles.row} ${r.medal ? styles["medal" + r.medal] : ""}`} key={r.rank}>
                   <span className={styles.rankBadge}>{r.medal ? MEDAL[r.medal] : r.rank}</span>
                   <span className={`${styles.avatar} ${r.medal ? styles["avatar" + r.medal] : ""}`}>
                     <span className={styles.avatarText}>{r.initials}</span>
                   </span>
-                  <span className={styles.rowName}>{r.name}</span>
+                  <span className={styles.rowName}>{shortName(r.name, 12)}</span>
                   <div className={styles.statBlock}>
                     {/* W/L letters: an earlier version dropped them because
                        html2canvas rendered a capital "L" as "I" in one capture
@@ -106,8 +138,21 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
                 </div>
               ))}
             </div>
+
+            {highlights.length > 0 && (
+              <div className={styles.highlights}>
+                {highlights.map((h) => (
+                  <div className={styles.highlight} key={h.label}>
+                    <span className={styles.highlightIcon}>{h.icon}</span>
+                    <span className={styles.highlightLabel}>{h.label}</span>
+                    <span className={styles.highlightText}>{h.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className={styles.footer}>
-              Tonight&apos;s standings · {playersCount} players · {matchesCompleted} matches
+              {when} · {playersCount} players · {matchesCompleted} matches
             </div>
           </div>
         </div>

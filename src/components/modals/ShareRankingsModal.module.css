@@ -126,7 +126,7 @@
   display: block;
   text-align: center;
   line-height: 18px;
-  margin-top: 18px;
+  margin-top: 8px;
   font-size: 13px;
   font-weight: 700;
   color: var(--sm-text-2);
@@ -150,8 +150,8 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  margin-top: 24px;
+  gap: 6px;
+  margin-top: 10px;
 }
 /* Fixed height + line-height matched to it, instead of vertical padding +
    align-items:center. html2canvas's flex cross-axis centering measurably
@@ -171,7 +171,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 42px;
+  height: 40px;
   padding: 0 10px;
   box-sizing: border-box;
   border-radius: 14px;
@@ -196,7 +196,7 @@
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-weight: 700;
   font-size: 12px;
-  line-height: 40px;
+  line-height: 38px;
   margin-top: -5px;
   color: var(--sm-text-3);
   flex-shrink: 0;
@@ -231,7 +231,7 @@
   min-width: 0;
   font-weight: 700;
   font-size: 12.5px;
-  line-height: 40px;
+  line-height: 38px;
   margin-top: -5px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -301,7 +301,7 @@
 }
 
 .footer {
-  margin-top: 16px;
+  margin-top: 14px;
   text-align: center;
   font-size: 9.5px;
   font-weight: 600;
@@ -333,3 +333,130 @@
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
+
+/* ---- the leader: a block of their own ---- */
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 72px;
+  margin-top: 16px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(232, 164, 48, 0.26), #3a362c 62%);
+  border: 1px solid rgba(232, 164, 48, 0.55);
+}
+.heroAvatar {
+  width: 42px;
+  height: 42px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--sm-fill);
+  border: 3px solid rgba(232, 164, 48, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Same measured correction as the other text in the card: the exported picture
+   draws text lower than the browser does. */
+.heroAvatarText {
+  margin-top: -5px;
+  color: var(--sm-text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 32px;
+}
+.heroText {
+  flex: 1;
+  min-width: 0;
+  margin-top: -5px;
+}
+.heroName {
+  font-family: var(--font-heading);
+  font-size: 17px;
+  line-height: 22px;
+  /* the exporter draws text lower than the browser: without room under the
+     line, the box clips the bottom of the letters */
+  padding-bottom: 6px;
+  margin-bottom: -6px;
+  color: var(--sm-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.heroTag {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 9.5px;
+  line-height: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f0bd5a;
+  white-space: nowrap;
+}
+.heroStat {
+  flex-shrink: 0;
+  text-align: right;
+  margin-top: -5px;
+}
+.heroRecord {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 700;
+  color: var(--sm-text-2);
+  white-space: nowrap;
+}
+.heroPct {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 700;
+  color: var(--sm-accent-hover);
+}
+
+/* ---- fun facts ---- */
+.highlights {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--sm-border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.highlight {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 9.5px;
+  line-height: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--sm-text-2);
+}
+.highlightIcon { margin-right: 4px; }
+.highlightLabel {
+  font-weight: 700;
+  color: var(--sm-text);
+  margin-right: 5px;
+}
+.highlightText { color: var(--sm-text-2); }
+
+/* ---- confetti: plain dots ---- */
+.confetti {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.85;
+}
+/* kept in the side margins, clear of the name, the rows and the facts, wherever
+   the centred content happens to start */
+.c1 { top: 56px; left: 30px; width: 6px; height: 6px; background: #e8a430; }
+.c2 { top: 36px; left: 52px; width: 4px; height: 4px; background: #3fb6a8; }
+.c3 { top: 70px; right: 30px; width: 5px; height: 5px; background: #ffc6a5; }
+.c4 { top: 40px; right: 48px; width: 4px; height: 4px; background: #aebf92; }
+.c5 { top: 150px; left: 8px; width: 4px; height: 4px; background: #ffc6a5; }
+.c6 { top: 214px; right: 8px; width: 5px; height: 5px; background: #3fb6a8; }
+.c7 { bottom: 12px; right: 18px; width: 5px; height: 5px; background: #e8a430; }
+.c8 { bottom: 14px; left: 22px; width: 4px; height: 4px; background: #aebf92; }

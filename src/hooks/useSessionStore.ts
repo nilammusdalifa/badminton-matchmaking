@@ -36,6 +36,7 @@ import {
   parseClockTime,
   playerPriority,
   buildGamesPlayed,
+  buildHighlights,
   buildStandings,
   pointsShare,
   winRate,
@@ -1898,7 +1899,8 @@ export function useSessionStore() {
     [rankingsVM],
   );
 
-  const shareCardKey = JSON.stringify([shareRankingsTop, standings.early, state.sessionName, state.players.length, state.completedCount]);
+  const shareHighlights = useMemo(() => buildHighlights(livePlayers, state.sessionResultMode), [livePlayers, state.sessionResultMode]);
+  const shareCardKey = JSON.stringify([shareRankingsTop, shareHighlights, standings.early, state.sessionName, state.sessionSchedule, state.players.length, state.completedCount]);
   useEffect(() => {
     if (!state.shareRankingsOpen) {
       shareBlobRef.current = null;
@@ -2138,6 +2140,7 @@ export function useSessionStore() {
     shareRankings: {
       open: state.shareRankingsOpen,
       top: shareRankingsTop,
+      highlights: shareHighlights,
       early: standings.early,
       sessionName: state.sessionName,
       sessionSchedule: state.sessionSchedule,

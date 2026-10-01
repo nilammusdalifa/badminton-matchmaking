@@ -996,6 +996,65 @@ export function buildStandings(players: Player[], resultMode: ResultMode = "scor
   return { rows: [...ranked, ...tooFew, ...notRanked], early, maxGames };
 }
 
+/** A name that fits a fixed-width spot on the share card. The exporter cuts
+ * overflowing text off without an ellipsis, so the name is shortened here: a
+ * long full name becomes first name + last initial ("Siti N."), and anything
+ * still too long is cut with an ellipsis. */
+export function shortName(name: string, max: number): string {
+  const trimmed = name.trim();
+  if (trimmed.length <= max) return trimmed;
+  const words = trimmed.split(/\s+/);
+  const compact = words.length > 1 ? `${words[0]} ${words[words.length - 1][0].toUpperCase()}.` : trimmed;
+  return compact.length <= max ? compact : compact.slice(0, max - 1).trimEnd() + "…";
+}
+
+/** A fun fact for the share card, built only from results that happened. */
+export interface Highlight {
+  icon: string;
+  label: string;
+  text: string;
+}
+
+/** Up to three highlights for the picture players pass around: 🔥 a current
+ * winning streak (3+ in a row), 🤝 the best partnership (won at least 75% of 2+
+ * games together), 💪 the most games played (4+, and nobody else level with
+ * them). Each appears only when it is real; players switched out of the
+ * rankings and sessions that don't record results get none. */
+export function buildHighlights(players: Player[], resultMode: ResultMode = "score"): Highlight[] {
+  if (resultMode === "none") return [];
+  const counted = players.filter((p) => p.inRankings !== false);
+  const out: Highlight[] = [];
+  // one line at a fixed width: the exporter cuts overflowing text off without an ellipsis
+  const fit = (text: string) => (text.length > 30 ? text.slice(0, 29).trimEnd() + "…" : text);
+
+  const streakOf = (p: Player) => {
+    let n = 0;
+    for (let i = p.recentForm.length - 1; i >= 0 && p.recentForm[i] > 0; i--) n++;
+    return n;
+  };
+  const hot = counted
+    .filter((p) => p.rankGames >= 3)
+    .map((p) => ({ p, n: streakOf(p) }))
+    .filter((x) => x.n >= 3)
+    .sort((a, b) => b.n - a.n || b.p.wins - a.p.wins || a.p.name.localeCompare(b.p.name))[0];
+  if (hot) out.push({ icon: "🔥", label: "On fire", text: fit(`${shortName(hot.p.name, 14)} · ${hot.n} wins in a row`) });
+
+  const duo = counted
+    .filter((p) => p.favPartner !== "—" && p.favPartnerGames >= 2 && p.favPartnerWin >= 75)
+    .sort((a, b) => b.favPartnerWin - a.favPartnerWin || b.favPartnerGames - a.favPartnerGames || a.name.localeCompare(b.name))[0];
+  if (duo) {
+    const names = [duo.name, duo.favPartner].sort((x, y) => x.localeCompare(y)).map((n) => shortName(n.trim().split(/\s+/)[0], 9));
+    const won = Math.round((duo.favPartnerWin * duo.favPartnerGames) / 100);
+    out.push({ icon: "🤝", label: "Dream duo", text: fit(`${names[0]} & ${names[1]} · won ${won} of ${duo.favPartnerGames}`) });
+  }
+
+  const byGames = [...counted].sort((a, b) => b.games - a.games);
+  if (byGames[0] && byGames[0].games >= 4 && byGames[0].games > (byGames[1]?.games ?? 0)) {
+    out.push({ icon: "💪", label: "Iron player", text: fit(`${shortName(byGames[0].name, 14)} · ${byGames[0].games} games`) });
+  }
+  return out;
+}
+
 /** The ordered list without the extras, for callers that only need who came where. */
 export function rankPlayers(players: Player[], resultMode: ResultMode = "score"): RankedPlayer[] {
   return buildStandings(players, resultMode).rows;
