@@ -235,7 +235,7 @@
 .rates {
   font-family: var(--sm-font-mono);
   font-weight: 600;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--sm-text-3);
 }
 .fewNote { color: var(--sm-text-2); }
