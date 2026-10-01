@@ -1,4 +1,6 @@
 import { shortName } from "../../lib/session";
+// inlined as a data URI so the exporter always has the picture ready, with nothing to fetch
+import logoUrl from "../../assets/gobadmin-logo.png?inline";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./ShareRankingsModal.module.css";
 
@@ -6,32 +8,8 @@ type ShareRankingsProps = SessionStore["shareRankings"];
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
-/** Splits a session name into a two-tone "wordmark" — first word / first
- * capitalized segment gets the plain color, the rest gets the accent. Falls
- * back to one plain-colored piece when there's no good split point (a
- * single all-lowercase word), rather than guessing wrong. */
-function splitWordmark(name: string): [string, string, string] {
-  const spaceIdx = name.indexOf(" ");
-  if (spaceIdx > 0) return [name.slice(0, spaceIdx), name.slice(spaceIdx + 1), " "];
-  const rest = name.slice(1);
-  const capMatch = rest.match(/[A-Z]/);
-  if (capMatch && capMatch.index !== undefined) {
-    const splitAt = capMatch.index + 1;
-    // split at a capital inside one word ("GoBadmin"): no space to add back
-    return [name.slice(0, splitAt), name.slice(splitAt), ""];
-  }
-  return [name, "", ""];
-}
-
-/** The card carries the group's name, not the app's: a session called
- * "SmashMatch GoBadmin" shows as "GoBadmin". */
-function cardTitle(sessionName: string): string {
-  return sessionName.replace(/^\s*smash\s*match\b[\s·\-–—:|]*/i, "").trim() || sessionName;
-}
-
-export function ShareRankingsModal({ open, top, highlights, early, sessionName, sessionSchedule, playersCount, matchesCompleted, close, download, cardRef, fallbackImageUrl, onOpenImage, onCloseImage }: ShareRankingsProps) {
+export function ShareRankingsModal({ open, top, highlights, early, sessionSchedule, playersCount, matchesCompleted, close, download, cardRef, fallbackImageUrl, onOpenImage, onCloseImage }: ShareRankingsProps) {
   if (!open) return null;
-  const [wordA, wordB, joiner] = splitWordmark(cardTitle(sessionName));
   // the schedule if there is one (cut short so the line fits), otherwise today's date
   const schedule = sessionSchedule.trim();
   const when = schedule ? (schedule.length > 28 ? schedule.slice(0, 27).trimEnd() + "…" : schedule) : new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -74,10 +52,9 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionName, 
           <span className={`${styles.confetti} ${styles.c8}`} />
 
           <div className={styles.cardBody}>
-            <div className={styles.wordmarkRow}>
-              <div className={styles.wordmark}>
-                <span className={styles.wordmarkPlain}>{wordA}</span>
-                {wordB && <span className={styles.wordmarkAccent}>{joiner}{wordB}</span>}
+            <div className={styles.logoRow}>
+              <div className={styles.logoPlate}>
+                <img className={styles.logo} src={logoUrl} alt="GoBadmin" />
               </div>
             </div>
             <div className={styles.subheading}>

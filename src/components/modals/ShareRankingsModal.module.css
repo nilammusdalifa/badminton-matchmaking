@@ -104,20 +104,23 @@
   min-height: 0;
 }
 
-.wordmarkRow {
+/* The group's logo on a white plate: it is dark navy and orange on a transparent
+   background, so it needs a light surface to be readable on the dark card. */
+.logoRow {
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 8px;
 }
-.wordmark {
-  font-family: var(--font-heading);
-  font-size: 21px;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
+.logoPlate {
+  background: #fff;
+  border-radius: 14px;
+  padding: 9px 14px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
 }
-.wordmarkPlain { color: var(--sm-text); }
-.wordmarkAccent { color: var(--sm-accent); }
+.logo {
+  display: block;
+  width: 168px;
+  height: auto;
+}
 
 .subheading {
   /* Plain centred text with an inline icon, not a flex row: html2canvas puts a
@@ -354,10 +357,10 @@
 }
 /* kept in the side margins, clear of the name, the rows and the facts, wherever
    the centred content happens to start */
-.c1 { top: 56px; left: 30px; width: 6px; height: 6px; background: #e8a430; }
-.c2 { top: 36px; left: 52px; width: 4px; height: 4px; background: #3fb6a8; }
-.c3 { top: 70px; right: 30px; width: 5px; height: 5px; background: #ffc6a5; }
-.c4 { top: 40px; right: 48px; width: 4px; height: 4px; background: #aebf92; }
+.c1 { top: 56px; left: 14px; width: 6px; height: 6px; background: #e8a430; }
+.c2 { top: 16px; left: 60px; width: 4px; height: 4px; background: #3fb6a8; }
+.c3 { top: 78px; right: 14px; width: 5px; height: 5px; background: #ffc6a5; }
+.c4 { top: 18px; right: 62px; width: 4px; height: 4px; background: #aebf92; }
 .c5 { top: 150px; left: 8px; width: 4px; height: 4px; background: #ffc6a5; }
 .c6 { top: 214px; right: 8px; width: 5px; height: 5px; background: #3fb6a8; }
 .c7 { bottom: 12px; right: 18px; width: 5px; height: 5px; background: #e8a430; }
