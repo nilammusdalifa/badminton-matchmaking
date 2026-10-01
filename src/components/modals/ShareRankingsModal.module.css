@@ -101,10 +101,12 @@
 .wordmarkAccent { color: var(--sm-accent); }
 
 .subheading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+  /* Plain centred text with an inline icon, not a flex row: html2canvas puts a
+     flex-centred SVG several pixels higher than the text next to it in the
+     exported picture, while it lays out inline content as the browser does. */
+  display: block;
+  text-align: center;
+  line-height: 18px;
   margin-top: 18px;
   font-size: 13px;
   font-weight: 700;
@@ -117,9 +119,12 @@
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .subheadingIcon {
-  width: 14px;
-  height: 14px;
-  color: #ffd75e;
+  /* A glyph in the same line of text, like the medals below: it is placed by the
+     same text layout as "Top 5 Rankings", in the browser and in the exported
+     picture. (An inline SVG came out about 3px above the text in the export,
+     however it was aligned.) */
+  margin-right: 6px;
+  font-size: 14px;
 }
 
 /* ---- shared win/loss stat line ---- */

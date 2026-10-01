@@ -1,4 +1,3 @@
-import { TrophyIcon } from "../icons";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./ShareRankingsModal.module.css";
 
@@ -66,7 +65,9 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
               </div>
             </div>
             <div className={styles.subheading}>
-              <TrophyIcon className={styles.subheadingIcon} />
+              <span className={styles.subheadingIcon} aria-hidden="true">
+                🏆
+              </span>
               {early ? "Early standings" : `Top ${top.length} Rankings`}
             </div>
 
