@@ -34,6 +34,8 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
         : r.played === 0
           ? "Not played"
           : `${r.wins}W–${r.losses}L · ${r.played} ${r.played === 1 ? "game" : "games"}`;
+    // With results, the win rate is the headline and the record sits small beneath it.
+    const showRate = resultMode !== "none" && r.played > 0;
     const hasInsights = r.favPartner !== "—" || r.toughOpp !== "—";
     const rankCell = topRank ? MEDAL[topRank] : r.section === "ranked" ? r.rank : "";
     return (
@@ -45,7 +47,7 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
             <span className={styles.name}>
               {r.name} {!hideTier && <span className={styles.level}>Tier {r.level}</span>}
             </span>
-            <span className={styles.record}>{record}</span>
+            {showRate ? <span className={styles.winBig}>{r.winPct}%</span> : <span className={styles.record}>{record}</span>}
           </div>
           <div className={styles.summaryBottom}>
             <div className={styles.formDots} aria-label="Last 5 results">
@@ -53,9 +55,10 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
                 ? Array.from({ length: 5 }).map((_, i) => <span key={i} className={styles.formDotEmpty} />)
                 : r.recentForm.map((res, i) => <span key={i} className={res > 0 ? styles.formDotWin : styles.formDotLoss} />)}
             </div>
-            {resultMode !== "none" && r.played > 0 && (
+            {showRate && (
               <span className={styles.rates}>
-                {r.winPct}% won{r.pointsPct !== null && ` · ${r.pointsPct}% points`}
+                {record}
+                {r.pointsPct !== null && ` · ${r.pointsPct}% pts`}
               </span>
             )}
           </div>

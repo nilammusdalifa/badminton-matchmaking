@@ -233,8 +233,8 @@
   text-align: right;
 }
 .statLine {
-  font-size: 10.5px;
-  line-height: 14px;
+  font-size: 9.5px;
+  line-height: 13px;
   font-weight: 700;
   color: var(--sm-text-2);
   /* Not monospace: html2canvas clips glyphs (W, L) under bold monospace
@@ -248,10 +248,11 @@
 .statDash { color: var(--sm-text-4); }
 .win { color: var(--sm-accent); }
 .loss { color: var(--sm-danger-text); }
+/* the win rate is the headline of each row; the record sits small under it */
 .statPct {
-  font-size: 9.5px;
-  line-height: 13px;
-  font-weight: 700;
+  font-size: 15px;
+  line-height: 19px;
+  font-weight: 800;
   color: var(--sm-accent-hover);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }

@@ -103,6 +103,9 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionName, 
                   </span>
                   <span className={styles.rowName} data-xfix>{shortName(r.name, 12)}</span>
                   <div className={styles.statBlock}>
+                    <div className={styles.statPct} data-xfix>
+                      {r.winPct}%
+                    </div>
                     {/* W/L letters: an earlier version dropped them because
                        html2canvas rendered a capital "L" as "I" in one capture
                        environment. With this system-sans stat line the exported
@@ -113,9 +116,6 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionName, 
                       <span className={styles.win}>{r.wins}W</span>
                       <span className={styles.statDash}>–</span>
                       <span className={styles.loss}>{r.losses}L</span>
-                    </div>
-                    <div className={styles.statPct} data-xfix>
-                      {r.winPct}%
                     </div>
                   </div>
                 </div>
