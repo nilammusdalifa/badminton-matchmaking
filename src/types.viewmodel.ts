@@ -177,6 +177,7 @@ export interface RequestedPairEntry {
 }
 
 export interface ShareRankingEntry {
+  id: string;
   rank: number;
   medal: 1 | 2 | 3 | null;
   name: string;

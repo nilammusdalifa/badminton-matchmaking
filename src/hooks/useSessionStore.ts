@@ -3,6 +3,7 @@ import { MATCHES_INIT, PAUSE_LABELS, PLAYERS_INIT } from "../data/seed";
 import { auth, ensureAnonymousAuth, firebaseConfigured } from "../lib/firebase";
 import { claimUmpireAccess, type FirebasePayload, generateSessionPin, pushSessionOwnership, pushSessionToFirebase, subscribeToRemoteSession } from "../lib/firebaseSync";
 import { load, loadIdentity, save, saveIdentity, type PersistedState } from "../lib/persistence";
+import { fadePhoto, loadPhotos, preparePhoto, savePhotos, withPhoto } from "../lib/photos";
 import {
   applyLiveScore,
   applyAfterMatch,
@@ -1906,6 +1907,7 @@ export function useSessionStore() {
         .filter((r): r is typeof r & { rank: number } => r.rank !== null)
         .slice(0, 5)
         .map((r) => ({
+          id: r.id,
           rank: r.rank,
           medal: r.medal,
           name: r.name,
@@ -1919,7 +1921,48 @@ export function useSessionStore() {
   );
 
   const shareHighlights = useMemo(() => buildHighlights(livePlayers, state.sessionResultMode), [livePlayers, state.sessionResultMode]);
-  const shareCardKey = JSON.stringify([shareRankingsTop, shareHighlights, standings.early, state.sessionName, state.sessionSchedule, state.players.length, state.completedCount]);
+
+  // The card shows a photo of whoever is first. Photos are picked once per player and kept on this device.
+  const [photos, setPhotos] = useState<Record<string, string>>(loadPhotos);
+  useEffect(() => savePhotos(photos), [photos]);
+  const championId = shareRankingsTop[0]?.id ?? null;
+  const championPhoto = championId ? (photos[championId] ?? null) : null;
+  // the kept photo with its edges faded (see fadePhoto); the card is only drawn into the picture once it is ready
+  const [championFaded, setChampionFaded] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!championPhoto) {
+      setChampionFaded(null);
+      return;
+    }
+    fadePhoto(championPhoto)
+      .then((url) => {
+        if (!cancelled) setChampionFaded(url);
+      })
+      .catch(() => {
+        if (!cancelled) setChampionFaded(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [championPhoto]);
+  const pickChampionPhoto = useCallback(
+    async (file: File) => {
+      if (!championId) return;
+      try {
+        const url = await preparePhoto(file);
+        setPhotos((prev) => withPhoto(prev, championId, url));
+      } catch {
+        showToast("Couldn't use that photo. Try another one.");
+      }
+    },
+    [championId, showToast],
+  );
+  const removeChampionPhoto = useCallback(() => {
+    if (championId) setPhotos((prev) => withPhoto(prev, championId, null));
+  }, [championId]);
+
+  const shareCardKey = JSON.stringify([shareRankingsTop, shareHighlights, standings.early, state.sessionName, state.sessionSchedule, state.players.length, state.completedCount, championFaded ? championFaded.length : 0]);
   useEffect(() => {
     if (!state.shareRankingsOpen) {
       shareBlobRef.current = null;
@@ -2171,6 +2214,12 @@ export function useSessionStore() {
       fallbackImageUrl: shareFallbackUrl,
       onOpenImage: openRankingsImage,
       onCloseImage: closeRankingsImage,
+      championName: shareRankingsTop[0]?.name ?? "",
+      photoUrl: championFaded,
+      hasPhoto: championPhoto !== null,
+      canEditPhoto: isOwner && championId !== null,
+      onPickPhoto: pickChampionPhoto,
+      onRemovePhoto: removeChampionPhoto,
     },
 
     toast: { message: state.toastMsg },

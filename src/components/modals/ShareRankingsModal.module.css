@@ -62,6 +62,16 @@
   background-image: radial-gradient(rgba(243, 238, 227, 0.07) 1px, transparent 1px);
   background-size: 18px 18px;
 }
+/* the first-place player, top right, behind the title and the rows; the picture itself
+   fades out at its left and bottom edges (see fadePhoto) */
+.photo {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 150px;
+  height: 340px;
+  display: block;
+}
 .cardBody {
   position: relative;
   flex: 1;
@@ -70,70 +80,100 @@
   min-height: 0;
 }
 
+/* The group's logo in the top-right corner, on a white plate (the logo is navy and
+   orange on a transparent background, so it needs a light surface). */
+.logoPlate {
+  position: absolute;
+  top: 22px;
+  right: 14px;
+  width: 86px;
+  height: 26px;
+  box-sizing: border-box;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: #fff;
+}
+.logo {
+  display: block;
+  width: 74px;
+  height: auto;
+}
+
 /* Text in this card is nudged up in the exported picture only (see data-xfix in
    renderRankingsImage): html2canvas paints text about 0.4 x its font size lower
    than the browser. So every piece of text that sits inside a box (a badge, a
    row, a pill) is its own element with the line-height of that box, and the
    box itself, with the background, is never moved. */
-.logo {
-  display: block;
-  width: 120px;
-  height: auto;
-}
-.title {
-  margin-top: 14px;
-}
-.titleA {
-  font-size: 27px;
-  line-height: 30px;
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: -0.01em;
-  text-transform: uppercase;
-  color: var(--orange);
-  white-space: nowrap;
-}
-.titleB {
-  font-size: 22px;
-  line-height: 26px;
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: -0.01em;
-  text-transform: uppercase;
-  color: #fff;
-  white-space: nowrap;
-}
-.pillRow {
-  margin-top: 8px;
-  display: flex;
-}
-.pill {
-  height: 18px;
-  padding: 0 10px;
-  border-radius: 9px;
-  background: var(--orange);
+.datePill {
+  align-self: flex-start;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 8px;
+  background: #fff;
   box-sizing: border-box;
 }
-.pillText {
+.datePillText {
   display: block;
-  font-size: 9px;
-  line-height: 18px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-size: 11.5px;
+  line-height: 26px;
+  font-weight: 900;
+  color: var(--navy);
+  white-space: nowrap;
+}
+.title {
+  margin-top: 12px;
+  font-size: 24px;
+  line-height: 28px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.01em;
   text-transform: uppercase;
   color: #fff;
   white-space: nowrap;
 }
-.colHead {
-  margin-top: 10px;
-  padding-right: 4px;
-  text-align: right;
-  font-size: 8px;
+/* with a photo the title keeps to the left of the person's head */
+.hasPhoto .title {
+  font-size: 18px;
+  line-height: 22px;
+}
+.earlyTag {
+  margin-top: 2px;
+  font-size: 9px;
   line-height: 12px;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(243, 238, 227, 0.62);
+  color: var(--orange);
+}
+/* the rows leave room on the right for the photo */
+.colHeadRow,
+.list {
+  margin-right: 0;
+}
+.hasPhoto .colHeadRow,
+.hasPhoto .list {
+  margin-right: 62px;
+}
+.colHeadRow {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+.colHead {
+  height: 16px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: #fff;
+  box-sizing: border-box;
+}
+.colHeadText {
+  display: block;
+  font-size: 8.5px;
+  line-height: 16px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--navy);
 }
 
 /* ---- the list: every row has one fixed height and structure ---- */
@@ -147,12 +187,12 @@
   display: flex;
   align-items: stretch;
   gap: 4px;
-  height: 36px;
+  height: 40px;
   position: relative;
 }
 /* the rank sits in its own dark block, like the reference poster */
 .rank {
-  width: 30px;
+  width: 28px;
   flex-shrink: 0;
   border-radius: 5px;
   background: #050f1f;
@@ -164,7 +204,7 @@
   display: block;
   text-align: center;
   font-size: 12px;
-  line-height: 34px;
+  line-height: 38px;
   font-weight: 900;
   color: #fff;
 }
@@ -180,46 +220,48 @@
   font-size: 11px;
   line-height: 12px;
 }
-/* the white bar: name and record, with the win rate block flush at the right end */
+/* the white bar: name over record, with the win rate block flush at the right end */
 .bar {
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: stretch;
-  gap: 8px;
-  padding-left: 9px;
+  gap: 6px;
+  padding-left: 8px;
   border-radius: 5px;
   background: #fff;
 }
-.name {
+.nameCol {
   flex: 1;
   min-width: 0;
-  font-size: 11px;
-  line-height: 36px;
+  padding-top: 6px;
+}
+.name {
+  font-size: 10.5px;
+  line-height: 17px;
   font-weight: 900;
   text-transform: uppercase;
   color: var(--navy);
   white-space: nowrap;
 }
 .record {
-  flex-shrink: 0;
-  font-size: 9px;
-  line-height: 36px;
+  font-size: 8.5px;
+  line-height: 11px;
   font-weight: 700;
   color: rgba(12, 35, 64, 0.55);
   white-space: nowrap;
 }
 .pct {
   flex-shrink: 0;
-  width: 46px;
+  width: 40px;
   border-radius: 0 5px 5px 0;
   background: var(--orange);
 }
 .pctText {
   display: block;
   text-align: center;
-  font-size: 11px;
-  line-height: 36px;
+  font-size: 10.5px;
+  line-height: 40px;
   font-weight: 900;
   color: #fff;
 }
@@ -254,6 +296,30 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(243, 238, 227, 0.6);
+}
+
+/* ---- picking the champion's photo (outside the picture) ---- */
+.photoRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  max-width: min(270px, calc(100vw - 64px));
+}
+.photoBtn {
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px dashed var(--sm-border);
+  background: transparent;
+  color: var(--sm-text-2);
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+.fileInput {
+  display: none;
 }
 
 .actions {

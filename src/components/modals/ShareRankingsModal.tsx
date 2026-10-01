@@ -1,17 +1,41 @@
+import { useRef } from "react";
 import { shortName } from "../../lib/session";
 // inlined as a data URI so the exporter always has the picture ready, with nothing to fetch
-import logoUrl from "../../assets/gobadmin-logo-light.png?inline";
+import logoUrl from "../../assets/gobadmin-logo.png?inline";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./ShareRankingsModal.module.css";
 
 type ShareRankingsProps = SessionStore["shareRankings"];
 
-export function ShareRankingsModal({ open, top, highlights, early, sessionSchedule, playersCount, matchesCompleted, close, download, cardRef, fallbackImageUrl, onOpenImage, onCloseImage }: ShareRankingsProps) {
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+
+/** "Mabar 30 Sept 26": the card's headline tag. */
+function sessionTag(now: Date): string {
+  return `Mabar ${now.getDate()} ${MONTHS[now.getMonth()]} ${String(now.getFullYear()).slice(-2)}`;
+}
+
+export function ShareRankingsModal({
+  open,
+  top,
+  highlights,
+  early,
+  playersCount,
+  matchesCompleted,
+  close,
+  download,
+  cardRef,
+  fallbackImageUrl,
+  onOpenImage,
+  onCloseImage,
+  championName,
+  photoUrl,
+  hasPhoto,
+  canEditPhoto,
+  onPickPhoto,
+  onRemovePhoto,
+}: ShareRankingsProps) {
+  const fileRef = useRef<HTMLInputElement>(null);
   if (!open) return null;
-  // The schedule (cut short so it fits the pill), without the group's own name, which the logo already says;
-  // today's date when there is no schedule.
-  const schedule = sessionSchedule.replace(/^\s*go\s*badmin\b[\s·\-–—:|,]*/i, "").trim();
-  const when = schedule ? (schedule.length > 24 ? schedule.slice(0, 23).trimEnd() + "…" : schedule) : new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
   // Where a phone can't save from the page (some browsers, home-screen apps),
   // the picture itself is shown: press and hold it to save.
@@ -34,30 +58,36 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionSchedu
   return (
     <div className={styles.backdrop}>
       <div className={styles.wrap}>
-        <div className={styles.card} ref={cardRef}>
+        <div className={`${styles.card} ${photoUrl ? styles.hasPhoto : ""}`} ref={cardRef}>
           <div className={styles.band1} />
           <div className={styles.dots} />
+          {/* the champion, in black and white, fading into the card on its left and bottom */}
+          {photoUrl && <img className={styles.photo} src={photoUrl} alt="" />}
+          <div className={styles.logoPlate}>
+            <img className={styles.logo} src={logoUrl} alt="GoBadmin" />
+          </div>
 
           <div className={styles.cardBody}>
-            <img className={styles.logo} src={logoUrl} alt="GoBadmin" />
-            <div className={styles.title}>
-              <div className={styles.titleA} data-xfix>
-                {early ? "Early" : `Top ${top.length}`}
-              </div>
-              <div className={styles.titleB} data-xfix>
-                {early ? "Standings" : "Leaderboard"}
-              </div>
+            <div className={styles.datePill}>
+              <span className={styles.datePillText} data-xfix>
+                {sessionTag(new Date())}
+              </span>
             </div>
-            <div className={styles.pillRow}>
-              <div className={styles.pill}>
-                <span className={styles.pillText} data-xfix>
-                  {when}
-                </span>
-              </div>
+            <div className={styles.title} data-xfix>
+              Leaderboard
             </div>
+            {early && (
+              <div className={styles.earlyTag} data-xfix>
+                Early standings
+              </div>
+            )}
 
-            <div className={styles.colHead} data-xfix>
-              Win rate
+            <div className={styles.colHeadRow}>
+              <span className={styles.colHead}>
+                <span className={styles.colHeadText} data-xfix>
+                  Winrate
+                </span>
+              </span>
             </div>
             <div className={styles.list}>
               {top.map((r) => (
@@ -76,13 +106,15 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionSchedu
                     )}
                   </span>
                   <div className={styles.bar}>
-                    <span className={styles.name} data-xfix>
-                      {shortName(r.name, 12)}
-                    </span>
-                    {/* W/L letters are drawn in the system sans: html2canvas has clipped glyphs (W, L) under bold monospace fonts. */}
-                    <span className={styles.record} data-xfix>
-                      {r.wins}W–{r.losses}L
-                    </span>
+                    <div className={styles.nameCol}>
+                      <div className={styles.name} data-xfix>
+                        {shortName(r.name, photoUrl ? 10 : 14)}
+                      </div>
+                      {/* W/L letters are drawn in the system sans: html2canvas has clipped glyphs (W, L) under bold monospace fonts. */}
+                      <div className={styles.record} data-xfix>
+                        {r.wins}W–{r.losses}L
+                      </div>
+                    </div>
                     <span className={styles.pct}>
                       <span className={styles.pctText} data-xfix>
                         {r.winPct}%
@@ -110,6 +142,32 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionSchedu
             </div>
           </div>
         </div>
+
+        {canEditPhoto && (
+          <div className={styles.photoRow}>
+            <button className={styles.photoBtn} onClick={() => fileRef.current?.click()}>
+              {hasPhoto ? "Change" : "Add"} photo of {shortName(championName, 14)}
+            </button>
+            {hasPhoto && (
+              <button className={styles.linkBtn} onClick={onRemovePhoto}>
+                Remove
+              </button>
+            )}
+            <input
+              ref={fileRef}
+              className={styles.fileInput}
+              type="file"
+              accept="image/*"
+              aria-label="Photo of the first-place player"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) onPickPhoto(file);
+              }}
+            />
+          </div>
+        )}
+
         <div className={styles.actions}>
           <button className={styles.closeBtn} onClick={close}>
             Close
