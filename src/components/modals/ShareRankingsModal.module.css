@@ -151,7 +151,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 10px;
+  margin-top: 16px;
 }
 /* Each row has one fixed height, and its text is centred by line-height equal
    to it, so the on-screen card is exactly centred. The exported picture is drawn
@@ -319,69 +319,6 @@
   text-decoration: underline;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
-}
-
-/* ---- the leader: a block of their own ---- */
-.hero {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 72px;
-  margin-top: 16px;
-  padding: 0 12px;
-  box-sizing: border-box;
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(232, 164, 48, 0.26), #3a362c 62%);
-  border: 1px solid rgba(232, 164, 48, 0.55);
-}
-.heroAvatar {
-  width: 42px;
-  height: 42px;
-  box-sizing: border-box;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--sm-fill);
-  border: 3px solid rgba(232, 164, 48, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.heroAvatarText {
-  color: var(--sm-text);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-weight: 700;
-  font-size: 12px;
-  line-height: 32px;
-}
-.heroText {
-  flex: 1;
-  min-width: 0;
-}
-.heroName {
-  font-family: var(--font-heading);
-  font-size: 16px;
-  line-height: 22px;
-  color: var(--sm-text);
-  white-space: nowrap;
-}
-.heroStat {
-  flex-shrink: 0;
-  text-align: right;
-}
-.heroRecord {
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 700;
-  color: var(--sm-text-2);
-  white-space: nowrap;
-}
-.heroPct {
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 11px;
-  line-height: 15px;
-  font-weight: 700;
-  color: var(--sm-accent-hover);
 }
 
 /* ---- fun facts ---- */

@@ -87,37 +87,13 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionName, 
               {early ? "Early standings" : `Top ${top.length} Rankings`}
             </div>
 
-            {/* The leader gets a block of their own. Every row below still has one
-               fixed height and structure, which sidesteps a real html2canvas bug
-               hit while this used a podium: a flex row whose children had
-               different heights (staggered margins for #2/#3) rendered with
-               badly wrong vertical positions during capture, overlapping the
-               row below, even though it looked fine on screen. */}
-            {top[0] && (
-              <div className={styles.hero}>
-                <span className={styles.heroAvatar}>
-                  <span className={styles.heroAvatarText} data-xfix>
-                    {top[0].initials}
-                  </span>
-                </span>
-                <div className={styles.heroText}>
-                  <div className={styles.heroName} data-xfix>{shortName(top[0].name, 13)}</div>
-                </div>
-                <div className={styles.heroStat}>
-                  <div className={styles.heroRecord} data-xfix>
-                    <span className={styles.win}>{top[0].wins}W</span>
-                    <span className={styles.statDash}>–</span>
-                    <span className={styles.loss}>{top[0].losses}L</span>
-                  </div>
-                  <div className={styles.heroPct} data-xfix>
-                    {top[0].winPct}%
-                  </div>
-                </div>
-              </div>
-            )}
-
+            {/* Every row, the leader's included, has one fixed height and structure.
+               That sidesteps a real html2canvas bug hit while this used a podium: a
+               flex row whose children had different heights (staggered margins for
+               #2/#3) rendered with badly wrong vertical positions during capture,
+               overlapping the row below, even though it looked fine on screen. */}
             <div className={styles.list}>
-              {top.slice(1).map((r) => (
+              {top.map((r) => (
                 <div className={`${styles.row} ${r.medal ? styles["medal" + r.medal] : ""}`} key={r.rank}>
                   <span className={styles.rankBadge} data-xfix>{r.medal ? MEDAL[r.medal] : r.rank}</span>
                   <span className={`${styles.avatar} ${r.medal ? styles["avatar" + r.medal] : ""}`}>
