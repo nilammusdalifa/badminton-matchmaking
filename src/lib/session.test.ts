@@ -948,6 +948,9 @@ describe("share card extras", () => {
       expect(shortName("Siti Nurhaliza Putri", 12)).toBe("Siti P.");
       expect(shortName("Muhammad Alfarizi Pratama", 13)).toBe("Muhammad P.");
     });
+    it("falls back to the first name alone when first name + initial is still too long", () => {
+      expect(shortName("Muhammad Raden Wijaya", 10)).toBe("Muhammad");
+    });
     it("cuts what still doesn't fit, with an ellipsis", () => {
       expect(shortName("Bartholomeus", 8)).toBe("Barthol…");
       expect(shortName("Bartholomeus Kristianto", 8).length).toBeLessThanOrEqual(8);

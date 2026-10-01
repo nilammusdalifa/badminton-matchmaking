@@ -21,243 +21,239 @@
   margin: auto;
 }
 
-/* 9:16 — a real Instagram/WhatsApp Story frame, not a feed post. Width
-   shrinks to fit narrow phones (min() against the viewport, minus the
-   backdrop/wrap gutters). Height is an explicit pixel value rather than
-   `aspect-ratio: 9/16` on purpose — html2canvas (this library predates that
-   CSS property) computed a shorter height for the card during capture than
-   the real browser did, squeezing the podium and the row below it into an
-   overlap that never showed up on screen. A literal `height` is something
-   both the browser and html2canvas read the same way. */
+/* 9:16 — a real Instagram/WhatsApp Story frame, not a feed post. Width shrinks to
+   fit narrow phones. Height is a literal pixel value on purpose: html2canvas
+   (which draws the exported picture) predates `aspect-ratio` and computed a
+   shorter card than the browser did.
+
+   The look is a sports leaderboard poster in the GoBadmin logo's colours: deep
+   navy, orange, cream. It is its own palette, not the app's, so the picture
+   reads as the group's, wherever it is shared. */
 .card {
+  --navy: #0c2340;
+  --orange: #ff4d1c;
+  --cream: #f3eee3;
   position: relative;
   width: min(270px, calc(100vw - 64px));
   height: 480px;
-  /* The app's own look: the warm dark brown page colour with its teal, sage and
-     peach glows and dot grid, so the picture reads as the same product as the
-     app it was taken from. */
-  background: var(--sm-bg);
-  border: 1px solid var(--sm-border-soft);
+  background:
+    radial-gradient(110% 55% at 100% 0%, rgba(255, 77, 28, 0.3), transparent 62%),
+    linear-gradient(165deg, #123360 0%, #0c2340 48%, #071730 100%);
+  border: 1px solid rgba(243, 238, 227, 0.14);
   border-radius: 24px;
-  /* Symmetric now that the footer (which the old 26/16 split was balancing
-     against) is gone — centering the wordmark+list block via cardBody's
-     justify-content:center only reads as centered if the card's own padding
-     doesn't add extra weight to one side first. */
-  padding: 20px 18px;
-  font-family: var(--font-body), sans-serif;
-  color: var(--sm-text);
+  padding: 20px 18px 18px;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--cream);
   box-sizing: border-box;
   overflow: hidden;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
 }
-.glow1 {
+/* diagonal speed bands: hard-stop gradients, which the exporter draws exactly as the browser does */
+.band1 {
   position: absolute;
-  top: -90px;
-  right: -90px;
-  width: 280px;
-  height: 280px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(63, 182, 168, 0.16), transparent 70%);
-}
-.glow2 {
-  position: absolute;
-  bottom: -60px;
-  left: -100px;
-  width: 260px;
-  height: 260px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(174, 191, 146, 0.14), transparent 70%);
-}
-.glow3 {
-  position: absolute;
-  top: 120px;
-  left: -40px;
-  width: 350px;
-  height: 350px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 198, 165, 0.06), transparent 65%);
+  inset: 0;
+  background: linear-gradient(118deg, transparent 0 58%, rgba(255, 77, 28, 0.13) 58% 66%, transparent 66% 70%, rgba(243, 238, 227, 0.05) 70% 73%, transparent 73%);
 }
 .dots {
   position: absolute;
   inset: 0;
   opacity: 0.5;
-  background-image: radial-gradient(rgba(249, 244, 237, 0.06) 1px, transparent 1px);
-  background-size: 22px 22px;
+  background-image: radial-gradient(rgba(243, 238, 227, 0.07) 1px, transparent 1px);
+  background-size: 18px 18px;
 }
-
-/* The tall 9:16 frame has more room than the content strictly needs, so
-   sections get generous fixed margins (below) to spread across it instead
-   of clumping at the top. Deliberately NOT `justify-content: space-evenly`
-   here — html2canvas computed a different available height for this flex
-   container than the live browser did, so the "even" gaps came out
-   different sizes in each, and the podium overlapped the row below it in
-   the exported image despite looking fine on screen. Fixed margins can't
-   drift like that. */
 .cardBody {
   position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   min-height: 0;
 }
 
-/* The group's logo on a white plate: it is dark navy and orange on a transparent
-   background, so it needs a light surface to be readable on the dark card. */
-.logoRow {
-  display: flex;
-  justify-content: center;
-}
-.logoPlate {
-  background: #fff;
-  border-radius: 14px;
-  padding: 9px 14px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
-}
+/* Text in this card is nudged up in the exported picture only (see data-xfix in
+   renderRankingsImage): html2canvas paints text about 0.4 x its font size lower
+   than the browser. So every piece of text that sits inside a box (a badge, a
+   row, a pill) is its own element with the line-height of that box, and the
+   box itself, with the background, is never moved. */
 .logo {
   display: block;
-  width: 168px;
+  width: 120px;
   height: auto;
 }
-
-.subheading {
-  /* Plain centred text with an inline icon, not a flex row: html2canvas puts a
-     flex-centred SVG several pixels higher than the text next to it in the
-     exported picture, while it lays out inline content as the browser does. */
+.title {
+  margin-top: 14px;
+}
+.titleA {
+  font-size: 28px;
+  line-height: 30px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: var(--orange);
+  white-space: nowrap;
+}
+.titleB {
+  font-size: 21px;
+  line-height: 24px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: #fff;
+  white-space: nowrap;
+}
+.pillRow {
+  margin-top: 10px;
+  display: flex;
+}
+.pill {
+  height: 18px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--orange);
+  box-sizing: border-box;
+}
+.pillText {
   display: block;
-  text-align: center;
+  font-size: 9px;
   line-height: 18px;
-  margin-top: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--sm-text-2);
-  /* Bold Figtree specifically comes out corrupted (overlapping/duplicated
-     glyphs) when html2canvas rasterizes this card, even after waiting for
-     the Font Loading API — a system stack sidesteps the custom-webfont
-     parsing entirely instead of chasing that bug further. Applies to every
-     bold non-heading, non-mono label in this card (see below). */
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  white-space: nowrap;
 }
-.subheadingIcon {
-  /* A glyph in the same line of text, like the medals below: it is placed by the
-     same text layout as "Top 5 Rankings", in the browser and in the exported
-     picture. (An inline SVG came out about 3px above the text in the export,
-     however it was aligned.) */
-  margin-right: 6px;
-  font-size: 14px;
+.colHead {
+  margin-top: 12px;
+  padding-right: 4px;
+  text-align: right;
+  font-size: 8px;
+  line-height: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(243, 238, 227, 0.62);
 }
 
-/* ---- ranked list — every row shares the exact same structure/height ---- */
+/* ---- the list: every row has one fixed height and structure ---- */
 .list {
+  margin-top: 4px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 16px;
+  gap: 4px;
 }
-/* Each row has one fixed height, and its text is centred by line-height equal
-   to it, so the on-screen card is exactly centred. The exported picture is drawn
-   by html2canvas, which paints text lower than the browser does (about 0.4 x the
-   font size, measured on real phone captures); that is corrected only in the
-   copy it draws, by a small upward shift on every element marked data-xfix (see
-   renderRankingsImage), so the preview is not thrown off by it.
-
-   Rows are the app's own: the brown surface colour, and for the top three the
-   same gold / silver / bronze tint and ring as the Rankings tab. */
 .row {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 40px;
-  padding: 0 10px;
+  height: 36px;
+  padding: 0 6px 0 6px;
   box-sizing: border-box;
-  border-radius: 14px;
-  background: var(--sm-surface);
-  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #f6f2ea;
+  position: relative;
 }
-.medal1 {
-  background: linear-gradient(135deg, rgba(232, 164, 48, 0.14), #3a362c 55%);
-  border-color: rgba(232, 164, 48, 0.35);
-}
-.medal2 {
-  background: linear-gradient(135deg, rgba(184, 190, 199, 0.12), #3a362c 55%);
-  border-color: rgba(184, 190, 199, 0.3);
-}
-.medal3 {
-  background: linear-gradient(135deg, rgba(181, 112, 58, 0.14), #3a362c 55%);
-  border-color: rgba(181, 112, 58, 0.3);
-}
-.rankBadge {
-  width: 16px;
-  text-align: center;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-weight: 700;
-  font-size: 12px;
-  line-height: 38px;
-  color: var(--sm-text-3);
-  flex-shrink: 0;
-}
-.avatar {
+.rank {
   width: 24px;
   height: 24px;
-  box-sizing: border-box;
   flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--sm-fill);
-  border: 2px solid transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: 7px;
+  background: var(--navy);
+  box-sizing: border-box;
+  position: relative;
 }
-.avatarText {
-  color: var(--sm-text);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-weight: 700;
-  font-size: 9.5px;
-  line-height: 20px;
+.rankText {
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  line-height: 24px;
+  font-weight: 800;
+  color: #fff;
 }
-.avatar1 { border-color: rgba(232, 164, 48, 0.6); }
-.avatar2 { border-color: rgba(184, 190, 199, 0.55); }
-.avatar3 { border-color: rgba(181, 112, 58, 0.55); }
-.rowName {
+.rank1 { background: #e8a430; }
+.rank1 .rankText { color: var(--navy); }
+.rank2 { background: #b8bec7; }
+.rank2 .rankText { color: var(--navy); }
+.rank3 { background: #c47c46; }
+.crown {
+  position: absolute;
+  top: -9px;
+  left: -5px;
+  width: 14px;
+  height: 12px;
+}
+.crownText {
+  display: block;
+  font-size: 11px;
+  line-height: 12px;
+}
+.name {
   flex: 1;
   min-width: 0;
-  font-weight: 700;
-  font-size: 11.5px;
-  line-height: 38px;
-  white-space: nowrap;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-/* record over win %: the same two numbers as the Rankings tab, stacked so a
-   name has room */
-.statBlock {
-  flex-shrink: 0;
-  text-align: right;
-}
-.statLine {
-  font-size: 9.5px;
-  line-height: 13px;
-  font-weight: 700;
-  color: var(--sm-text-2);
-  /* Not monospace: html2canvas clips glyphs (W, L) under bold monospace
-     fonts specifically — system, JetBrains, doesn't matter — same bug class
-     as the earlier Figtree corruption, just a different codepath. The
-     system sans stack used everywhere else in this card is the one proven
-     clean across repeated real downloads, so stat text uses it too. */
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  white-space: nowrap;
-}
-.statDash { color: var(--sm-text-4); }
-.win { color: var(--sm-accent); }
-.loss { color: var(--sm-danger-text); }
-/* the win rate leads each row by colour and weight, never bigger than the name (11.5px); the record sits small under it */
-.statPct {
   font-size: 11px;
-  line-height: 15px;
+  line-height: 34px;
   font-weight: 800;
-  color: var(--sm-accent-hover);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  text-transform: uppercase;
+  color: var(--navy);
+  white-space: nowrap;
+}
+.record {
+  flex-shrink: 0;
+  font-size: 9px;
+  line-height: 34px;
+  font-weight: 700;
+  color: rgba(12, 35, 64, 0.58);
+  white-space: nowrap;
+}
+.pct {
+  flex-shrink: 0;
+  width: 42px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--orange);
+  box-sizing: border-box;
+}
+.pctText {
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  line-height: 22px;
+  font-weight: 800;
+  color: #fff;
+}
+
+/* ---- fun facts and footer ---- */
+.highlights {
+  margin-top: 12px;
+  padding-top: 9px;
+  border-top: 1px dashed rgba(243, 238, 227, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.highlight {
+  font-size: 9.5px;
+  line-height: 15px;
+  white-space: nowrap;
+  color: rgba(243, 238, 227, 0.78);
+}
+.highlightIcon { margin-right: 4px; }
+.highlightLabel {
+  font-weight: 800;
+  color: #fff;
+  margin-right: 5px;
+}
+.footer {
+  margin-top: auto;
+  text-align: center;
+  font-size: 9px;
+  line-height: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(243, 238, 227, 0.6);
 }
 
 .actions {
@@ -291,14 +287,6 @@
   font-family: var(--font-body), sans-serif;
 }
 
-.footer {
-  margin-top: 14px;
-  text-align: center;
-  font-size: 9.5px;
-  font-weight: 600;
-  color: var(--sm-text-3);
-}
-
 .fallbackImg {
   width: 100%;
   max-width: min(270px, calc(100vw - 64px));
@@ -325,43 +313,3 @@
   font-family: var(--font-body), sans-serif;
 }
 
-/* ---- fun facts ---- */
-.highlights {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--sm-border);
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.highlight {
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 9.5px;
-  line-height: 15px;
-  white-space: nowrap;
-  color: var(--sm-text-2);
-}
-.highlightIcon { margin-right: 4px; }
-.highlightLabel {
-  font-weight: 700;
-  color: var(--sm-text);
-  margin-right: 5px;
-}
-.highlightText { color: var(--sm-text-2); }
-
-/* ---- confetti: plain dots ---- */
-.confetti {
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0.85;
-}
-/* kept in the side margins, clear of the name, the rows and the facts, wherever
-   the centred content happens to start */
-.c1 { top: 56px; left: 14px; width: 6px; height: 6px; background: #e8a430; }
-.c2 { top: 16px; left: 60px; width: 4px; height: 4px; background: #3fb6a8; }
-.c3 { top: 78px; right: 14px; width: 5px; height: 5px; background: #ffc6a5; }
-.c4 { top: 18px; right: 62px; width: 4px; height: 4px; background: #aebf92; }
-.c5 { top: 150px; left: 8px; width: 4px; height: 4px; background: #ffc6a5; }
-.c6 { top: 214px; right: 8px; width: 5px; height: 5px; background: #3fb6a8; }
-.c7 { bottom: 12px; right: 18px; width: 5px; height: 5px; background: #e8a430; }
-.c8 { bottom: 14px; left: 22px; width: 4px; height: 4px; background: #aebf92; }

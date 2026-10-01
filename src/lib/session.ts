@@ -1009,14 +1009,17 @@ export function buildStandings(players: Player[], resultMode: ResultMode = "scor
 
 /** A name that fits a fixed-width spot on the share card. The exporter cuts
  * overflowing text off without an ellipsis, so the name is shortened here: a
- * long full name becomes first name + last initial ("Siti N."), and anything
- * still too long is cut with an ellipsis. */
+ * long full name becomes first name + last initial ("Siti N."), else the first
+ * name alone, and anything still too long is cut with an ellipsis. */
 export function shortName(name: string, max: number): string {
   const trimmed = name.trim();
   if (trimmed.length <= max) return trimmed;
   const words = trimmed.split(/\s+/);
   const compact = words.length > 1 ? `${words[0]} ${words[words.length - 1][0].toUpperCase()}.` : trimmed;
-  return compact.length <= max ? compact : compact.slice(0, max - 1).trimEnd() + "…";
+  if (compact.length <= max) return compact;
+  // "Muhammad W." too long for the spot but "Muhammad" fits: the first name alone beats a cut-off one
+  if (words[0].length <= max) return words[0];
+  return compact.slice(0, max - 1).trimEnd() + "…";
 }
 
 /** A fun fact for the share card, built only from results that happened. */
