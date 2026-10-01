@@ -45,7 +45,7 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionSchedu
                 {early ? "Early" : `Top ${top.length}`}
               </div>
               <div className={styles.titleB} data-xfix>
-                {early ? "Standings" : "Rankings"}
+                {early ? "Standings" : "Leaderboard"}
               </div>
             </div>
             <div className={styles.pillRow}>
@@ -62,7 +62,7 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionSchedu
             <div className={styles.list}>
               {top.map((r) => (
                 <div className={styles.row} key={r.rank}>
-                  <span className={`${styles.rank} ${r.medal ? styles["rank" + r.medal] : ""}`}>
+                  <span className={styles.rank}>
                     <span className={styles.rankText} data-xfix>
                       {r.rank}
                     </span>
@@ -75,18 +75,20 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionSchedu
                       </span>
                     )}
                   </span>
-                  <span className={styles.name} data-xfix>
-                    {shortName(r.name, 10)}
-                  </span>
-                  {/* W/L letters are drawn in the system sans: html2canvas has clipped glyphs (W, L) under bold monospace fonts. */}
-                  <span className={styles.record} data-xfix>
-                    {r.wins}W–{r.losses}L
-                  </span>
-                  <span className={styles.pct}>
-                    <span className={styles.pctText} data-xfix>
-                      {r.winPct}%
+                  <div className={styles.bar}>
+                    <span className={styles.name} data-xfix>
+                      {shortName(r.name, 12)}
                     </span>
-                  </span>
+                    {/* W/L letters are drawn in the system sans: html2canvas has clipped glyphs (W, L) under bold monospace fonts. */}
+                    <span className={styles.record} data-xfix>
+                      {r.wins}W–{r.losses}L
+                    </span>
+                    <span className={styles.pct}>
+                      <span className={styles.pctText} data-xfix>
+                        {r.winPct}%
+                      </span>
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

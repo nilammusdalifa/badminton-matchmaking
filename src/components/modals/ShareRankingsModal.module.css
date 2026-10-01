@@ -39,9 +39,8 @@
   background:
     radial-gradient(110% 55% at 100% 0%, rgba(255, 77, 28, 0.3), transparent 62%),
     linear-gradient(165deg, #123360 0%, #0c2340 48%, #071730 100%);
-  border: 1px solid rgba(243, 238, 227, 0.14);
-  border-radius: 24px;
-  padding: 20px 18px 18px;
+  border-radius: 0;
+  padding: 22px 18px 18px;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--cream);
   box-sizing: border-box;
@@ -85,7 +84,7 @@
   margin-top: 14px;
 }
 .titleA {
-  font-size: 28px;
+  font-size: 27px;
   line-height: 30px;
   font-weight: 900;
   font-style: italic;
@@ -95,8 +94,8 @@
   white-space: nowrap;
 }
 .titleB {
-  font-size: 21px;
-  line-height: 24px;
+  font-size: 22px;
+  line-height: 26px;
   font-weight: 900;
   font-style: italic;
   letter-spacing: -0.01em;
@@ -105,7 +104,7 @@
   white-space: nowrap;
 }
 .pillRow {
-  margin-top: 10px;
+  margin-top: 8px;
   display: flex;
 }
 .pill {
@@ -126,7 +125,7 @@
   white-space: nowrap;
 }
 .colHead {
-  margin-top: 12px;
+  margin-top: 10px;
   padding-right: 4px;
   text-align: right;
   font-size: 8px;
@@ -139,48 +138,40 @@
 
 /* ---- the list: every row has one fixed height and structure ---- */
 .list {
-  margin-top: 4px;
+  margin-top: 6px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 .row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
+  gap: 4px;
   height: 36px;
-  padding: 0 6px 0 6px;
-  box-sizing: border-box;
-  border-radius: 10px;
-  background: #f6f2ea;
   position: relative;
 }
+/* the rank sits in its own dark block, like the reference poster */
 .rank {
-  width: 24px;
-  height: 24px;
+  width: 30px;
   flex-shrink: 0;
-  border-radius: 7px;
-  background: var(--navy);
+  border-radius: 5px;
+  background: #050f1f;
+  border: 1px solid rgba(243, 238, 227, 0.2);
   box-sizing: border-box;
   position: relative;
 }
 .rankText {
   display: block;
   text-align: center;
-  font-size: 11px;
-  line-height: 24px;
-  font-weight: 800;
+  font-size: 12px;
+  line-height: 34px;
+  font-weight: 900;
   color: #fff;
 }
-.rank1 { background: #e8a430; }
-.rank1 .rankText { color: var(--navy); }
-.rank2 { background: #b8bec7; }
-.rank2 .rankText { color: var(--navy); }
-.rank3 { background: #c47c46; }
 .crown {
   position: absolute;
-  top: -9px;
-  left: -5px;
+  top: -10px;
+  left: -6px;
   width: 14px;
   height: 12px;
 }
@@ -189,12 +180,23 @@
   font-size: 11px;
   line-height: 12px;
 }
+/* the white bar: name and record, with the win rate block flush at the right end */
+.bar {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding-left: 9px;
+  border-radius: 5px;
+  background: #fff;
+}
 .name {
   flex: 1;
   min-width: 0;
   font-size: 11px;
-  line-height: 34px;
-  font-weight: 800;
+  line-height: 36px;
+  font-weight: 900;
   text-transform: uppercase;
   color: var(--navy);
   white-space: nowrap;
@@ -202,25 +204,23 @@
 .record {
   flex-shrink: 0;
   font-size: 9px;
-  line-height: 34px;
+  line-height: 36px;
   font-weight: 700;
-  color: rgba(12, 35, 64, 0.58);
+  color: rgba(12, 35, 64, 0.55);
   white-space: nowrap;
 }
 .pct {
   flex-shrink: 0;
-  width: 42px;
-  height: 22px;
-  border-radius: 7px;
+  width: 46px;
+  border-radius: 0 5px 5px 0;
   background: var(--orange);
-  box-sizing: border-box;
 }
 .pctText {
   display: block;
   text-align: center;
   font-size: 11px;
-  line-height: 22px;
-  font-weight: 800;
+  line-height: 36px;
+  font-weight: 900;
   color: #fff;
 }
 
