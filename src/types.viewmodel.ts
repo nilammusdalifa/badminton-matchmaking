@@ -127,8 +127,11 @@ export interface RankingEntry {
   mostGames: number;
   wins: number;
   losses: number;
-  /** Smoothed win rate as a whole percentage — the number the order is decided on. */
+  /** Real win rate as a whole percentage (5–0 is 100%). The order itself uses
+   * a smoothed rate, so this is for reading, not for sorting by. */
   winPct: number;
+  /** Per game, the other team's tier points minus their own (A=3, B=2, C=1). */
+  oppEdge: number;
   /** Smoothed share of points won, as a whole percentage; null when scores aren't recorded. */
   pointsPct: number | null;
   pointsFor: number;
@@ -181,6 +184,7 @@ export interface ShareRankingEntry {
   level: SkillLevel;
   wins: number;
   losses: number;
+  /** Real win rate, as a whole percentage. */
   winPct: number;
 }
 

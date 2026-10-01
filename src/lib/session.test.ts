@@ -68,6 +68,32 @@ describe("rankings", () => {
   });
 });
 
+describe("opponent strength", () => {
+  const tiered = (name: string, level: Player["level"]): Player => ({ ...player(name), level });
+  const roster = [tiered("Ana", "A"), tiered("Bo", "A"), tiered("Cy", "B"), tiered("Di", "C")];
+
+  it("is the other team's tier points minus their own, per counted game", () => {
+    // A+A (6) vs B+C (3): the A pair played an easier match (-3), the others a harder one (+3)
+    const s = recomputePlayerStats(roster, [completed("m1", ["ana", "bo"], ["cy", "di"], 21, 10)]);
+    const edge = (n: string) => s.find((p) => p.name === n)!.oppEdge;
+    expect([edge("Ana"), edge("Bo"), edge("Cy"), edge("Di")]).toEqual([-3, -3, 3, 3]);
+  });
+
+  it("averages over games, and uneven teams show up per game", () => {
+    const s = recomputePlayerStats(roster, [
+      completed("m1", ["ana", "bo"], ["cy", "di"], 21, 10),
+      completed("m2", ["ana", "di"], ["bo", "cy"], 21, 19), // A+C (4) vs A+B (5)
+    ]);
+    expect(s.find((p) => p.name === "Ana")!.oppEdge).toBeCloseTo((-3 + 1) / 2);
+    expect(s.find((p) => p.name === "Di")!.oppEdge).toBeCloseTo((3 + 1) / 2);
+  });
+
+  it("ignores a match that ended early and a player with no games", () => {
+    const early = { ...completed("m1", ["ana", "bo"], ["cy", "di"], 5, 3), counted: false };
+    expect(recomputePlayerStats(roster, [early]).every((p) => p.oppEdge === 0)).toBe(true);
+  });
+});
+
 describe("standings", () => {
   // a player with a given record and points, in the rotation unless said otherwise
   const stat = (name: string, wins: number, losses: number, pf = 0, pa = 0, status: Player["status"] = "ready", extra: Partial<Player> = {}): Player => ({
@@ -120,6 +146,19 @@ describe("standings", () => {
     it("equal records: the bigger share of points won ranks higher", () => {
       const rows = rankPlayers([stat("Close", 2, 1, 60, 58), stat("Big", 2, 1, 63, 40)]);
       expect(names(rows)).toEqual(["Big", "Close"]);
+    });
+
+    it("equal records: the player who faced tougher teams ranks higher, ahead of points", () => {
+      const rows = rankPlayers([
+        stat("Easy", 2, 1, 80, 40, "ready", { oppEdge: -1 }),
+        stat("Hard", 2, 1, 60, 58, "ready", { oppEdge: 1 }),
+        stat("Even", 2, 1, 70, 50, "ready", { oppEdge: 0 }),
+      ]);
+      expect(names(rows)).toEqual(["Hard", "Even", "Easy"]);
+    });
+
+    it("tougher matches never beat a better win rate", () => {
+      expect(names(rankPlayers([stat("Won", 3, 0, 63, 30, "ready", { oppEdge: -2 }), stat("Lost", 2, 1, 60, 58, "ready", { oppEdge: 2 })]))).toEqual(["Won", "Lost"]);
     });
 
     it("an equal win rate is a tie, not a lead: falls to games, then name", () => {

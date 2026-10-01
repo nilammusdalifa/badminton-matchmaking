@@ -42,6 +42,10 @@ export interface Player {
   toughOpp: string;
   toughOppLoss: number;
   toughOppGames: number;
+  /** How hard their counted games were, per game: the other team's tier points
+   * minus their own team's (A=3, B=2, C=1). Above 0 = they usually faced the
+   * stronger team. A tie-break between equal records. */
+  oppEdge: number;
   avgWait: number;
   maxConsecutive: number;
   /** A host sits out the first round (one match on every open court), then

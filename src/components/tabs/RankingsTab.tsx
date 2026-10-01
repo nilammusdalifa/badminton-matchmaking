@@ -11,13 +11,16 @@ type Row = RankingsTabProps["rankingsVM"][number];
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
 const RULE: Record<string, string> = {
-  score: "Best win rate first · ties by points won",
-  winner: "Best win rate first · ties by games played",
+  score: "Best win rate first · ties by tougher matches",
+  winner: "Best win rate first · ties by tougher matches",
   none: "This session doesn't record results.",
 };
 
 // Wins/losses behind a rounded percentage ("won 2 of 3" reads better than "67%").
 const share = (pct: number, games: number) => Math.round((pct * games) / 100);
+
+// "Tougher" only once the gap is clear; a few stray games shouldn't read as a verdict.
+const difficulty = (edge: number) => (edge >= 0.25 ? "Tougher than their team" : edge <= -0.25 ? "Easier than their team" : "About even");
 
 export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRankings, hideTier }: RankingsTabProps) {
   const [infoOpen, setInfoOpen] = useState(false);
@@ -52,7 +55,7 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
             </div>
             {resultMode !== "none" && r.played > 0 && (
               <span className={styles.rates}>
-                {r.winPct}% wins{r.pointsPct !== null && ` · ${r.pointsPct}% points`}
+                {r.winPct}% won{r.pointsPct !== null && ` · ${r.pointsPct}% points`}
               </span>
             )}
           </div>
@@ -72,6 +75,14 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
                     </strong>
                   </>
                 )}
+              </span>
+            </div>
+          )}
+          {resultMode !== "none" && r.played > 0 && (
+            <div className={styles.detailRow}>
+              <span className={styles.detailLabel}>Opponents</span>
+              <span>
+                <strong className={styles.detailStrong}>{difficulty(r.oppEdge)}</strong>
               </span>
             </div>
           )}
@@ -182,17 +193,20 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
               <div className={styles.sheetTitle}>How rankings work</div>
               <ol className={styles.sheetList}>
                 <li>
-                  <strong>Win rate first.</strong> Everyone starts at 1 win, 1 loss, so one lucky game doesn&apos;t put you on top. The % shown is the one that
-                  decides the order.
+                  <strong>Win rate first.</strong> The order counts everyone as starting with 1 win and 1 loss, so one lucky game doesn&apos;t put you on
+                  top. The % shown on each row is your real win rate.
+                </li>
+                <li>
+                  <strong>Same win rate?</strong> Whoever played tougher matches is higher: the other team&apos;s tiers against their own, on average.
                 </li>
                 {resultMode === "score" ? (
                   <li>
-                    <strong>Same win rate?</strong> Whoever won more of the points is higher. That % also starts everyone at an even split, so a couple of
+                    <strong>Still level?</strong> Whoever won more of the points is higher. That % also starts everyone at an even split, so a couple of
                     games can&apos;t swing it.
                   </li>
                 ) : (
                   <li>
-                    <strong>Same win rate?</strong> More games played is higher.
+                    <strong>Still level?</strong> More games played is higher.
                   </li>
                 )}
                 <li>

@@ -760,6 +760,9 @@ export function applyMatchStart(players: Player[], matches: Match[], four: reado
 /** Games together / faced before partner and opponent stats are shown. */
 const MIN_PAIR_GAMES = 2;
 
+/** Tier as a number, for comparing two teams: A=3, B=2, C=1. */
+const tierPoints = (level: SkillLevel): number => (level === "A" ? 3 : level === "B" ? 2 : 1);
+
 export function recomputePlayerStats(players: Player[], matches: Match[]): Player[] {
   interface PartnerStat {
     games: number;
@@ -777,9 +780,12 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
   const pointsFor = new Map<string, number>();
   const pointsAgainst = new Map<string, number>();
   const recent = new Map<string, number[]>();
+  const edge = new Map<string, number>();
   const partner = new Map<string, Map<string, PartnerStat>>();
   const opp = new Map<string, Map<string, OppStat>>();
   const bump = (m: Map<string, number>, id: string, by: number) => m.set(id, (m.get(id) || 0) + by);
+  const tierOf = new Map(players.map((p) => [p.id, tierPoints(p.level)]));
+  const teamPoints = (ids: readonly [string, string]) => (tierOf.get(ids[0]) ?? 2) + (tierOf.get(ids[1]) ?? 2);
 
   const process = (ids: readonly [string, string], own: number, oppScore: number, won: boolean, tie: boolean, oppIds: readonly [string, string]) => {
     const lost = !tie && !won;
@@ -789,6 +795,7 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
       bump(diff, id, own - oppScore);
       bump(pointsFor, id, own);
       bump(pointsAgainst, id, oppScore);
+      bump(edge, id, teamPoints(oppIds) - teamPoints(ids));
       if (won) bump(wins, id, 1);
       else if (lost) bump(losses, id, 1);
       if (!tie) {
@@ -898,6 +905,7 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
       toughOpp,
       toughOppLoss,
       toughOppGames,
+      oppEdge: (rankGames.get(p.id) || 0) > 0 ? (edge.get(p.id) || 0) / (rankGames.get(p.id) || 1) : 0,
     };
   });
 }
@@ -947,12 +955,14 @@ export interface Standings {
 }
 
 const key4 = (x: number) => Math.round(x * 10000);
+const key2 = (x: number) => Math.round((x || 0) * 100);
 
 /** Leaderboard, in words anyone can check. Of the players who count in the
  * rankings, only those with at least 3 games and at least half as many as the
- * player with the most get a rank number: best smoothed win rate first, then —
- * where scores are recorded — the bigger share of points won, then more games,
- * then name. Everyone else with games goes in "not enough games yet" (record
+ * player with the most get a rank number: best smoothed win rate first, then
+ * the tougher matches (the other team's tiers against their own, on average),
+ * then — where scores are recorded — the bigger share of points won, then more
+ * games, then name. Everyone else with games goes in "not enough games yet" (record
  * shown, no rank), and players switched out of the rankings (hosts, guests)
  * sit under "not ranked"; neither affects anyone's rank, the most-games bar or
  * the early check. Win rates compare to 4 decimals, so equal records tie
@@ -978,6 +988,7 @@ export function buildStandings(players: Player[], resultMode: ResultMode = "scor
     .sort(
       (a, b) =>
         key4(winRate(b)) - key4(winRate(a)) ||
+        key2(b.oppEdge) - key2(a.oppEdge) ||
         (resultMode === "score" ? key4(pointsShare(b)) - key4(pointsShare(a)) : 0) ||
         b.rankGames - a.rankGames ||
         a.name.localeCompare(b.name),
@@ -1087,6 +1098,7 @@ export function makeBlankPlayer(id: string, name: string, level: SkillLevel, sta
     toughOpp: "—",
     toughOppLoss: 0,
     toughOppGames: 0,
+    oppEdge: 0,
     avgWait: 0,
     maxConsecutive: 0,
   };
@@ -1121,6 +1133,7 @@ export function resetPlayersForNewSession(players: Player[]): Player[] {
       toughOpp: "—",
       toughOppLoss: 0,
       toughOppGames: 0,
+      oppEdge: 0,
       avgWait: 0,
       maxConsecutive: 0,
     };
