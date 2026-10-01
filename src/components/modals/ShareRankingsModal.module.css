@@ -364,16 +364,6 @@
   color: var(--sm-text);
   white-space: nowrap;
 }
-.heroTag {
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 9.5px;
-  line-height: 14px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #f0bd5a;
-  white-space: nowrap;
-}
 .heroStat {
   flex-shrink: 0;
   text-align: right;

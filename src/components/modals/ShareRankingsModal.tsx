@@ -102,7 +102,6 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionName, 
                 </span>
                 <div className={styles.heroText}>
                   <div className={styles.heroName} data-xfix>{shortName(top[0].name, 13)}</div>
-                  <div className={styles.heroTag} data-xfix>{top[0].medal === 1 ? "👑 Champion" : "👑 In the lead"}</div>
                 </div>
                 <div className={styles.heroStat}>
                   <div className={styles.heroRecord} data-xfix>
