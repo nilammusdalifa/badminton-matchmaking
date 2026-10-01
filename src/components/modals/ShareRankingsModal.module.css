@@ -248,10 +248,10 @@
 .statDash { color: var(--sm-text-4); }
 .win { color: var(--sm-accent); }
 .loss { color: var(--sm-danger-text); }
-/* the win rate is the headline of each row; the record sits small under it */
+/* the win rate leads each row by colour and weight, never bigger than the name (11.5px); the record sits small under it */
 .statPct {
-  font-size: 15px;
-  line-height: 19px;
+  font-size: 11px;
+  line-height: 15px;
   font-weight: 800;
   color: var(--sm-accent-hover);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
