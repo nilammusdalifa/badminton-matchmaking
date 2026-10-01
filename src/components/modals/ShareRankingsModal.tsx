@@ -34,7 +34,7 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionName, 
   const [wordA, wordB, joiner] = splitWordmark(cardTitle(sessionName));
   // the schedule if there is one (cut short so the line fits), otherwise today's date
   const schedule = sessionSchedule.trim();
-  const when = schedule ? (schedule.length > 18 ? schedule.slice(0, 17).trimEnd() + "…" : schedule) : new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const when = schedule ? (schedule.length > 28 ? schedule.slice(0, 27).trimEnd() + "…" : schedule) : new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
   // Where a phone can't save from the page (some browsers, home-screen apps),
   // the picture itself is shown: press and hold it to save.
@@ -96,19 +96,23 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionName, 
             {top[0] && (
               <div className={styles.hero}>
                 <span className={styles.heroAvatar}>
-                  <span className={styles.heroAvatarText}>{top[0].initials}</span>
+                  <span className={styles.heroAvatarText} data-xfix>
+                    {top[0].initials}
+                  </span>
                 </span>
                 <div className={styles.heroText}>
-                  <div className={styles.heroName}>{shortName(top[0].name, 13)}</div>
-                  <div className={styles.heroTag}>{top[0].medal === 1 ? "👑 Champion" : "👑 In the lead"}</div>
+                  <div className={styles.heroName} data-xfix>{shortName(top[0].name, 13)}</div>
+                  <div className={styles.heroTag} data-xfix>{top[0].medal === 1 ? "👑 Champion" : "👑 In the lead"}</div>
                 </div>
                 <div className={styles.heroStat}>
-                  <div className={styles.heroRecord}>
+                  <div className={styles.heroRecord} data-xfix>
                     <span className={styles.win}>{top[0].wins}W</span>
                     <span className={styles.statDash}>–</span>
                     <span className={styles.loss}>{top[0].losses}L</span>
                   </div>
-                  <div className={styles.heroPct}>{top[0].winPct}%</div>
+                  <div className={styles.heroPct} data-xfix>
+                    {top[0].winPct}%
+                  </div>
                 </div>
               </div>
             )}
@@ -116,11 +120,13 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionName, 
             <div className={styles.list}>
               {top.slice(1).map((r) => (
                 <div className={`${styles.row} ${r.medal ? styles["medal" + r.medal] : ""}`} key={r.rank}>
-                  <span className={styles.rankBadge}>{r.medal ? MEDAL[r.medal] : r.rank}</span>
+                  <span className={styles.rankBadge} data-xfix>{r.medal ? MEDAL[r.medal] : r.rank}</span>
                   <span className={`${styles.avatar} ${r.medal ? styles["avatar" + r.medal] : ""}`}>
-                    <span className={styles.avatarText}>{r.initials}</span>
+                    <span className={styles.avatarText} data-xfix>
+                      {r.initials}
+                    </span>
                   </span>
-                  <span className={styles.rowName}>{shortName(r.name, 12)}</span>
+                  <span className={styles.rowName} data-xfix>{shortName(r.name, 12)}</span>
                   <div className={styles.statBlock}>
                     {/* W/L letters: an earlier version dropped them because
                        html2canvas rendered a capital "L" as "I" in one capture
@@ -128,12 +134,14 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionName, 
                        PNG shows them correctly (checked by exporting the card).
                        If they ever come out wrong on a device, drop the letters
                        and let the colours carry the win/loss distinction. */}
-                    <div className={styles.statLine}>
+                    <div className={styles.statLine} data-xfix>
                       <span className={styles.win}>{r.wins}W</span>
                       <span className={styles.statDash}>–</span>
                       <span className={styles.loss}>{r.losses}L</span>
                     </div>
-                    <div className={styles.statPct}>{r.winPct}%</div>
+                    <div className={styles.statPct} data-xfix>
+                      {r.winPct}%
+                    </div>
                   </div>
                 </div>
               ))}
@@ -142,7 +150,7 @@ export function ShareRankingsModal({ open, top, highlights, early, sessionName, 
             {highlights.length > 0 && (
               <div className={styles.highlights}>
                 {highlights.map((h) => (
-                  <div className={styles.highlight} key={h.label}>
+                  <div className={styles.highlight} key={h.label} data-xfix>
                     <span className={styles.highlightIcon}>{h.icon}</span>
                     <span className={styles.highlightLabel}>{h.label}</span>
                     <span className={styles.highlightText}>{h.text}</span>

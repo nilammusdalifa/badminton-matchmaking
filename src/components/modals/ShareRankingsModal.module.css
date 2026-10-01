@@ -153,17 +153,12 @@
   gap: 6px;
   margin-top: 10px;
 }
-/* Fixed height + line-height matched to it, instead of vertical padding +
-   align-items:center. html2canvas's flex cross-axis centering measurably
-   disagrees with the real browser for this row (text rendered visibly low —
-   confirmed via a real downloaded capture — and a tight line-height:1 made
-   it worse, clipping glyphs outright since their rendered extent exceeded
-   that shrunk line box). Giving each text child a line-height equal to the
-   row's own content height gets it close, but a real downloaded capture
-   still measured every text child sitting ~5px lower than the pill's true
-   center — html2canvas has its own baseline-vs-line-top offset for text that
-   doesn't match the real browser's. A small negative margin-top on each text
-   child is the direct, measured correction for that residual bias.
+/* Each row has one fixed height, and its text is centred by line-height equal
+   to it, so the on-screen card is exactly centred. The exported picture is drawn
+   by html2canvas, which paints text lower than the browser does (about 0.4 x the
+   font size, measured on real phone captures); that is corrected only in the
+   copy it draws, by a small upward shift on every element marked data-xfix (see
+   renderRankingsImage), so the preview is not thrown off by it.
 
    Rows are the app's own: the brown surface colour, and for the top three the
    same gold / silver / bronze tint and ring as the Rankings tab. */
@@ -197,7 +192,6 @@
   font-weight: 700;
   font-size: 12px;
   line-height: 38px;
-  margin-top: -5px;
   color: var(--sm-text-3);
   flex-shrink: 0;
 }
@@ -213,10 +207,7 @@
   align-items: center;
   justify-content: center;
 }
-/* Same measured correction as the other text in the row (see above): the
-   exported picture draws text lower than the browser does. */
 .avatarText {
-  margin-top: -5px;
   color: var(--sm-text);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-weight: 700;
@@ -232,9 +223,6 @@
   font-weight: 700;
   font-size: 12.5px;
   line-height: 38px;
-  margin-top: -5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -243,7 +231,6 @@
 .statBlock {
   flex-shrink: 0;
   text-align: right;
-  margin-top: -5px;
 }
 .statLine {
   font-size: 10.5px;
@@ -359,10 +346,7 @@
   align-items: center;
   justify-content: center;
 }
-/* Same measured correction as the other text in the card: the exported picture
-   draws text lower than the browser does. */
 .heroAvatarText {
-  margin-top: -5px;
   color: var(--sm-text);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-weight: 700;
@@ -372,19 +356,12 @@
 .heroText {
   flex: 1;
   min-width: 0;
-  margin-top: -5px;
 }
 .heroName {
   font-family: var(--font-heading);
   font-size: 17px;
   line-height: 22px;
-  /* the exporter draws text lower than the browser: without room under the
-     line, the box clips the bottom of the letters */
-  padding-bottom: 6px;
-  margin-bottom: -6px;
   color: var(--sm-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .heroTag {
@@ -400,7 +377,6 @@
 .heroStat {
   flex-shrink: 0;
   text-align: right;
-  margin-top: -5px;
 }
 .heroRecord {
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -432,8 +408,6 @@
   font-size: 9.5px;
   line-height: 15px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   color: var(--sm-text-2);
 }
 .highlightIcon { margin-right: 4px; }

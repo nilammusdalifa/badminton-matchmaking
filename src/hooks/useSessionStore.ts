@@ -118,6 +118,9 @@ interface AppState {
 
 const MAX_COURTS = 6;
 
+/** How far html2canvas paints text below where the browser puts it, as a share of the font size. */
+const EXPORT_TEXT_LIFT = 0.4;
+
 function initialState(): AppState {
   const identity = loadIdentity() ?? { sessionId: "s" + Date.now(), sessionPin: generateSessionPin() };
   saveIdentity(identity);
@@ -1122,7 +1125,23 @@ export function useSessionStore() {
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     // Card's base size is a 270px-wide 9:16 frame — scale 4 lands on a
     // real 1080x1920 Instagram/WhatsApp Story resolution.
-    const canvas = await html2canvas(node, { backgroundColor: "#1a1712", scale: 4 });
+    const canvas = await html2canvas(node, {
+      backgroundColor: "#1a1712",
+      scale: 4,
+      // html2canvas paints text lower than the browser lays it out: about 0.4 x
+      // the font size, measured on real phone captures (names and initials sat
+      // 2-3px low in their rows and circles, and the last lines were clipped).
+      // The card on screen is centred exactly, so the correction is made only in
+      // the copy html2canvas draws from: each marked element is lifted by that
+      // fraction of its own font size.
+      onclone: (doc) => {
+        doc.querySelectorAll<HTMLElement>("[data-xfix]").forEach((el) => {
+          const size = parseFloat(doc.defaultView?.getComputedStyle(el).fontSize ?? "") || 12;
+          el.style.position = "relative";
+          el.style.top = `${-EXPORT_TEXT_LIFT * size}px`;
+        });
+      },
+    });
     return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/png"));
   }, []);
 
