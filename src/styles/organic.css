@@ -1,7 +1,7 @@
 /* Organic design system — tokens and component classes, imported from the
    claude.ai/design project this app was built from. Source of truth for
    spacing, radii, and shared control styles (.btn, .input, .tag, .dialog…). */
-@import url('https://fonts.googleapis.com/css2?family=Caprasimo:wght@400&family=Figtree:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caprasimo:wght@400&family=Figtree:wght@400;600;700&family=Poppins:wght@700;800;900&family=Manrope:wght@600;700;800&display=swap');
 
 :root {
   --color-bg: #f5ead8;

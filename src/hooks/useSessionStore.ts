@@ -49,6 +49,8 @@ import {
   teamNames,
   withListDefaults,
 } from "../lib/session";
+import { SHARE_CARD_H, SHARE_CARD_W, SHARE_TOP_COUNT } from "../lib/shareCard";
+import { prepareSharePhoto } from "../lib/sharePhoto";
 import type { Court, Match, PauseReason, Player, QueueItem, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion, Tab } from "../types";
 import type {
   CourtViewModel,
@@ -1101,7 +1103,24 @@ export function useSessionStore() {
       .then(() => showToast("Live link copied"))
       .catch(() => showToast("Couldn't copy. Select the link below."));
   }, [shareUrl, showToast]);
-  const closeShareRankings = useCallback(() => setState((s) => ({ ...s, shareRankingsOpen: false })), []);
+  // The 1st-place photo for the card: picked at share time, kept only while the
+  // card is open (it is a picture of a person, so it isn't saved with the session).
+  const [sharePhoto, setSharePhoto] = useState<{ url: string; id: number } | null>(null);
+  const pickSharePhoto = useCallback(
+    async (file: File) => {
+      try {
+        setSharePhoto({ url: await prepareSharePhoto(file), id: Date.now() });
+      } catch {
+        showToast("Couldn't use that photo");
+      }
+    },
+    [showToast],
+  );
+  const clearSharePhoto = useCallback(() => setSharePhoto(null), []);
+  const closeShareRankings = useCallback(() => {
+    setSharePhoto(null);
+    setState((s) => ({ ...s, shareRankingsOpen: false }));
+  }, []);
   // Saving the card as a picture. The picture is drawn as soon as the card
   // opens, so that tapping Save can act at once: a phone only lets a page open
   // its share sheet straight after a tap, and drawing the card first can take
@@ -1122,11 +1141,11 @@ export function useSessionStore() {
     // capturing mid-swap.
     await document.fonts.ready;
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    // Card's base size is a 270px-wide 9:16 frame — scale 4 lands on a
-    // real 1080x1920 Instagram/WhatsApp Story resolution.
+    // The card is laid out at its real SHARE_CARD_W x SHARE_CARD_H and only
+    // scaled down by a transform for the preview, so it is drawn at scale 1.
     const canvas = await html2canvas(node, {
-      backgroundColor: "#1a1712",
-      scale: 4,
+      backgroundColor: "#0b1420",
+      scale: 1,
       // html2canvas paints text lower than the browser lays it out: about 0.4 x
       // the font size, measured on real phone captures (names and initials sat
       // 2-3px low in their rows and circles, and the last lines were clipped).
@@ -1134,6 +1153,17 @@ export function useSessionStore() {
       // the copy html2canvas draws from: each marked element is lifted by that
       // fraction of its own font size.
       onclone: (doc) => {
+        // undo the preview's scale-down: the copy is laid out at full size
+        const frame = doc.querySelector<HTMLElement>("[data-share-frame]");
+        if (frame) {
+          frame.style.width = `${SHARE_CARD_W}px`;
+          frame.style.height = `${SHARE_CARD_H}px`;
+          frame.style.overflow = "visible";
+          frame.style.borderRadius = "0";
+          frame.style.boxShadow = "none";
+        }
+        const card = doc.querySelector<HTMLElement>("[data-share-card]");
+        if (card) card.style.transform = "none";
         doc.querySelectorAll<HTMLElement>("[data-xfix]").forEach((el) => {
           const size = parseFloat(doc.defaultView?.getComputedStyle(el).fontSize ?? "") || 12;
           el.style.position = "relative";
@@ -1166,13 +1196,13 @@ export function useSessionStore() {
       return;
     }
     const slug = state.sessionName.replace(/^\s*smash\s*match\b[\s·\-–—:|]*/i, "").trim().replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
-    const fileName = (slug || "rankings") + "-top5.png";
+    const fileName = (slug || "gobadmin") + "-rankings.png";
     const file = new File([blob], fileName, { type: "image/png" });
     // Phones: the share sheet has "Save Image", WhatsApp, Instagram…
     const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
     if (nav.canShare?.({ files: [file] })) {
       try {
-        await nav.share({ files: [file], title: "Top 5 Rankings" });
+        await nav.share({ files: [file], title: "Rankings" });
         return;
       } catch (err) {
         if ((err as Error).name === "AbortError") return; // closed the sheet: nothing went wrong
@@ -1904,7 +1934,7 @@ export function useSessionStore() {
     () =>
       rankingsVM
         .filter((r): r is typeof r & { rank: number } => r.rank !== null)
-        .slice(0, 5)
+        .slice(0, SHARE_TOP_COUNT)
         .map((r) => ({
           rank: r.rank,
           medal: r.medal,
@@ -1919,7 +1949,7 @@ export function useSessionStore() {
   );
 
   const shareHighlights = useMemo(() => buildHighlights(livePlayers, state.sessionResultMode), [livePlayers, state.sessionResultMode]);
-  const shareCardKey = JSON.stringify([shareRankingsTop, shareHighlights, standings.early, state.sessionName, state.sessionSchedule, state.players.length, state.completedCount]);
+  const shareCardKey = JSON.stringify([shareRankingsTop, shareHighlights, standings.early, sharePhoto?.id ?? null, state.sessionName, state.sessionSchedule, state.players.length, state.completedCount]);
   useEffect(() => {
     if (!state.shareRankingsOpen) {
       shareBlobRef.current = null;
@@ -2168,6 +2198,9 @@ export function useSessionStore() {
       close: closeShareRankings,
       download: downloadRankingsImage,
       cardRef: shareCardRef,
+      photo: sharePhoto?.url ?? null,
+      onPickPhoto: pickSharePhoto,
+      onClearPhoto: clearSharePhoto,
       fallbackImageUrl: shareFallbackUrl,
       onOpenImage: openRankingsImage,
       onCloseImage: closeRankingsImage,
