@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Court, Match, Player, SkillLevel } from "../types";
 import type { QueueItem } from "../types";
+import { carriesSinceHard, isHardMatch } from "./hardGames";
 import { applyMatchStart, courtSuggestions, courtsDueToPause, dropStarted, lockableWaiting, lockedCount, makeBlankPlayer, planQueue, recomputePlayerStats } from "./session";
 
 /** Plays whole evenings through the app's own matchmaking functions — the
@@ -31,6 +32,8 @@ interface Scenario {
   /** Skill tier mix: the first `a` players are A, the next `b` are B, the rest C.
    * Default is today's thirds. */
   levels?: [a: number, b: number, c: number];
+  /** Plan hard (all-A/B) games for upper players who carried twice. Default off. */
+  hardGames?: boolean;
 }
 
 const clock = (min: number) => new Date(2026, 8, 30, Math.floor(min / 60), min % 60, 0, 0);
@@ -58,6 +61,12 @@ interface Night {
   fromQueue: number;
   /** Share of the time "Then" included players from the court that has been playing longest. */
   thenMix: number;
+  /** Hard games played per A/B player (a hard match counts once for each of its four). */
+  hardPerUpper: number;
+  /** Worst carries any A/B player had reached (since their last hard game) when a match started. */
+  maxCarries: number;
+  /** Worst `skipped` of a C player at the moment they start a match. */
+  maxWaitC: number;
 }
 
 function playNight(scenario: Scenario, random: () => number, shuffleRoster: boolean): Night {
@@ -84,6 +93,8 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
   let thenSamples = 0;
   let thenWithLongest = 0;
   let maxWaitMin = 0;
+  let maxCarries = 0;
+  let maxWaitC = 0;
   let straightBack = 0;
   const lastEnd = new Map<string, number>();
   const hostIds = new Set(players.slice(0, 0).map((p) => p.id));
@@ -117,9 +128,9 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
       const live = recomputePlayerStats(players, matches);
       // mirrors the store: the plan is one match per open court; with Plan ahead on, all of it is
       // locked once 8+ players wait, below that it is only a live preview (full goes to courtSuggestions)
-      const full = planQueue({ players: live, matches, courts: open, requestedPairs: [], existing: queue, now, enabled: Boolean(scenario.planAhead) });
+      const full = planQueue({ players: live, matches, courts: open, requestedPairs: [], existing: queue, now, enabled: Boolean(scenario.planAhead), hardGames: scenario.hardGames });
       queue = full.slice(0, lockedCount(full.length, true, lockableWaiting(live, matches, open, now, queue.length > 0)));
-      const suggestions = courtSuggestions(open, live, matches, [], {}, now, full);
+      const suggestions = courtSuggestions(open, live, matches, [], {}, now, full, scenario.hardGames);
       const first = matches.find((m) => m.status === "in_progress");
       if (full.length === 2 && first) {
         thenSamples++;
@@ -136,6 +147,9 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
         maxWaitMin = Math.max(maxWaitMin, waited);
         if (lastEnd.has(id) && waited === 0) straightBack++;
       }
+      const carries = [...carriesSinceHard(live, matches).values()];
+      if (carries.length) maxCarries = Math.max(maxCarries, ...carries);
+      for (const p of live) if (p.level === "C" && ids.includes(p.id)) maxWaitC = Math.max(maxWaitC, p.skipped);
       queue = dropStarted(queue, ids);
       players = applyMatchStart(players, matches, ids);
       const match: Match = {
@@ -180,6 +194,9 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
     }
   }
   const partnerTwice = [...partnerCount.values()].filter((n) => n > 1).length;
+  const levelOf = new Map(finished.map((p) => [p.id, p.level] as const));
+  const upperCount = finished.filter((p) => p.level === "A" || p.level === "B").length;
+  const hardAppearances = matches.filter((m) => isHardMatch(m, (id) => levelOf.get(id))).length * 4;
   const games = finished.filter((p) => Number(p.id.slice(1)) < lateFrom).map((p) => p.games);
   return {
     matches: matches.length,
@@ -195,6 +212,9 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
     maxWaitMin,
     fromQueue,
     thenMix: thenSamples ? thenWithLongest / thenSamples : 0,
+    hardPerUpper: upperCount ? hardAppearances / upperCount : 0,
+    maxCarries,
+    maxWaitC,
     hostFirstStart: hostFirstStart,
     otherGames: finished.filter((p) => !hostIds.has(p.id)).reduce((sum, p) => sum + p.games, 0) / Math.max(1, finished.filter((p) => !hostIds.has(p.id)).length),
   };
@@ -220,6 +240,9 @@ export function summarize(scenario: Scenario, nights: number, shuffleRoster: boo
     maxWaitMin: worst((n) => n.maxWaitMin),
     fromQueueShare: avg((n) => (n.matches ? n.fromQueue / n.matches : 0)),
     thenMix: avg((n) => n.thenMix),
+    hardPerUpper: avg((n) => n.hardPerUpper),
+    maxCarries: worst((n) => n.maxCarries),
+    maxWaitC: worst((n) => n.maxWaitC),
     waitOneCourt: worst((n) => n.waitOneCourt),
     minRatio: Math.min(...results.map((n) => n.distinctFoursomes / n.matches)),
     hostGames: avg((n) => n.hostGames),
@@ -389,6 +412,22 @@ describe("one planned match per court (locked at 8+ waiting, previews below) vs 
       expect(r.maxWaitMin).toBeLessThanOrEqual(b.maxWaitMin);
       expect(r.gap).toBeLessThanOrEqual(b.gap);
       expect(r.inARow).toBeLessThanOrEqual(Math.max(2, b.inARow));
+    });
+  }
+});
+
+describe("hard games on a 3A/5B/7C night", () => {
+  for (const [label, courts] of [["2 courts", twoCourts], ["1 court", oneCourt]] as const) {
+    it(`${label}: every A/B gets hard games, Cs wait no longer`, () => {
+      const night = { players: 15, courts: [...courts], levels: [3, 5, 7] as [number, number, number], planAhead: true };
+      const off = summarize(night, NIGHTS, false);
+      const on = summarize({ ...night, hardGames: true }, NIGHTS, false);
+      expect(on.hardPerUpper).toBeGreaterThanOrEqual(1);
+      expect(on.maxCarries).toBeLessThanOrEqual(3);
+      expect(on.maxWaitC).toBeLessThanOrEqual(off.maxWaitC + 1);
+      expect(on.wait).toBeLessThanOrEqual(ceilQuarter(15) + 1);
+      expect(on.inARow).toBeLessThanOrEqual(2);
+      expect(on.gap).toBeLessThanOrEqual(off.gap + 1);
     });
   }
 });
