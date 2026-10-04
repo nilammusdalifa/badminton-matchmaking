@@ -1139,6 +1139,55 @@ describe("hard games", () => {
     expect(off[0].hard).toBeFalsy();
   });
 
+  describe("one at a time across courts", () => {
+    const courts = [{ id: "1", name: "Court 1" }, { id: "2", name: "Court 2" }];
+    const now = new Date(2026, 9, 5, 19, 30);
+    // a1 and a3 are both due, and there are eight upper players: enough for two hard games
+    const both = [...history, completed("h3", ["a3", "c2"], ["xb", "xc"], 21, 15), completed("h4", ["a3", "c2"], ["xb", "xc"], 21, 15)];
+    const eight = () => [...roster(), T("a3", "A"), T("a4", "A"), T("b3", "B"), T("b4", "B")];
+
+    it("a hard game picked for one court keeps the other court from getting one", () => {
+      const out = courtSuggestions(courts, eight(), both, [], {}, now, [], true);
+      expect(out["1"]!.hard).toBe(true);
+      expect(out["2"]!.hard).toBeFalsy();
+    });
+
+    it("a planned hard game keeps the other court from getting one", () => {
+      const planned = { team1: ["a1", "b1"] as [string, string], team2: ["a2", "b2"] as [string, string], seed: 0, reasons: [], balanceNote: null, hard: true };
+      const out = courtSuggestions(courts, eight(), both, [], {}, now, [planned], true);
+      expect(out["1"]!.queueIndex).toBe(0);
+      expect(out["2"]!.hard).toBeFalsy();
+    });
+
+    it("a planned match marked hard that is no longer all A/B (a tier changed) does not block one", () => {
+      // c4 was a B when this was planned; it can't start now (c4 is resting), so court 1 picks fresh
+      const stale = { team1: ["a2", "b1"] as [string, string], team2: ["b2", "c4"] as [string, string], seed: 0, reasons: [], balanceNote: null, hard: true };
+      const players = roster().map((p) => (p.id === "c4" ? { ...p, status: "paused" as const } : p));
+      const out = courtSuggestions([courts[0]], players, history, [], {}, now, [stale], true);
+      expect(out["1"]!.queueIndex).toBeUndefined();
+      expect(out["1"]!.hard).toBe(true);
+    });
+
+    it("a kept planned hard game is re-picked once a tier change makes it not all A/B", () => {
+      const q = planQueue({ players: roster(), matches: history, courts: [courts[0]], requestedPairs: [], existing: [], now, enabled: true, hardGames: true });
+      expect(q[0].hard).toBe(true);
+      const someone = q[0].team2[1];
+      const demoted = roster().map((p) => (p.id === someone ? { ...p, level: "C" as const } : p));
+      const next = planQueue({ players: demoted, matches: history, courts: [courts[0]], requestedPairs: [], existing: q, now, enabled: true, hardGames: true });
+      expect(next[0].hard).toBeFalsy();
+    });
+  });
+
+  it("with the switch on but no hard game planned or on court, an A with a C is not avoided", () => {
+    // first four in line are an A and three Cs; nobody is due, so nothing is hard
+    const players = [T("a9", "A"), T("c5", "C"), T("c6", "C"), T("c7", "C"), T("b5", "B")];
+    const on = buildSuggestion(players, [], [], [], 0, { hardGames: true })!;
+    const off = buildSuggestion(players, [], [], [], 0, {})!;
+    expect(on.hard).toBeFalsy();
+    expect(four(on)).toEqual(four(off));
+    expect(four(on)).toEqual(["a9", "c5", "c6", "c7"]);
+  });
+
   describe("the match planned before a hard game", () => {
     // Court 1 (started first) has a1, who has carried twice; court 2 is all C. "Up next" comes from
     // the waiting players, where nobody is due; "Then" is the hard game once court 1 is back.

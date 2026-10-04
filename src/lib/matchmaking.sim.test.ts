@@ -27,7 +27,8 @@ interface Scenario {
   /** The first `count` players are hosts. "flag" marks them isHost; "checkin"
    * checks them in only once every open court has started its first match. */
   hosts?: { count: number; mode: "flag" | "checkin" };
-  /** Plan two matches ahead and lock them (the "Up next" / "Then" queue). */
+  /** "Lock planned matches": the plan (one match per open court) is locked once 8+
+   * players wait. Off, it is only a live preview. Either way it is planned. */
   planAhead?: boolean;
   /** Skill tier mix: the first `a` players are A, the next `b` are B, the rest C.
    * Default is today's thirds. */
@@ -303,7 +304,7 @@ const BASELINE: Record<string, { minRatio: number; maxWaitMin: number; gap: numb
   "8x1": { minRatio: 0.75, maxWaitMin: 45, gap: 1, inARow: 2 },
 };
 
-const ceilQuarter =(n: number) => Math.ceil(n / 4);
+const ceilQuarter = (n: number) => Math.ceil(n / 4);
 
 describe("whole evenings, 2 courts (A until 22:00, B until 21:00)", () => {
   // Before the wait cap scaled with the pool, 16, 20 and 24 players fell into 4, 5
@@ -379,7 +380,8 @@ describe("hosts on a 16-player night", () => {
   }
 });
 
-describe("planning two matches ahead (Up next, Then)", () => {
+describe("Lock planned matches on vs off (Up next, Then, …: one planned match per court)", () => {
+  // "today": the same plan, shown only as previews; "ahead": locked once 8+ players wait
   const compare = (players: number, courts: typeof twoCourts, extra: Partial<Scenario> = {}) => ({
     today: summarize({ players, courts, ...extra }, NIGHTS, false),
     ahead: summarize({ players, courts, planAhead: true, ...extra }, NIGHTS, false),
@@ -424,7 +426,7 @@ describe("planning two matches ahead (Up next, Then)", () => {
     expect(ahead.inARow).toBeLessThanOrEqual(2);
   });
 
-  it("20 players, 3 courts: one locked, nobody 4 in a row", () => {
+  it("20 players, 3 courts: locked plan, still new groups, nobody 3 in a row", () => {
     const { ahead } = compare(20, threeCourts);
     expect(ahead.minRatio).toBeGreaterThanOrEqual(0.9);
     expect(ahead.inARow).toBeLessThanOrEqual(2);

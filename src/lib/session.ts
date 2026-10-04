@@ -499,8 +499,8 @@ export function pickFour(
       return { four, familiarity, cost };
     })
     .sort((x, y) => x.cost - y.cost);
-  // forced players from outside `pool` can leave too few others to fill the four
-  if (ranked.length === 0) return null;
+  // never empty: `pool` has 4+ players and at most `must.length` of them are in `must`,
+  // so `rest` always holds the 4 - must.length still needed
   return ranked[seed % Math.min(ranked.length, SHUFFLE_CHOICES)].four;
 }
 
@@ -741,8 +741,8 @@ export function dropStarted(queue: QueueItem[], four: readonly string[]): QueueI
  * BEFORE a freshly picked hard game are then picked once more avoiding an A
  * with a C too (upper tiers on one court, lower on the other); that second
  * plan is used only if the hard game is still there, otherwise the first.
- * Kept (locked) slots are never re-picked for this. With it off, a kept hard
- * game is re-picked as a normal match. */
+ * Kept (locked) slots are never re-picked for this. With it off, or once a
+ * tier change means it is no longer all A/B, a kept hard game is re-picked. */
 export function planQueue(args: {
   players: Player[];
   matches: Match[];
@@ -766,6 +766,9 @@ export function planQueue(args: {
   const running = matches.filter((m) => m.status === "in_progress"); // in the order they started
   const depth = open.length; // one match per open court; stops early at the first slot that can't find four
   const options: SuggestionOptions = { singleCourt: open.length === 1 };
+  const level = new Map(players.map((p) => [p.id, p.level] as const));
+  // a kept hard game goes when the switch is off, or when a tier change means it is no longer all A/B
+  const staleHard = (item: QueueItem) => !!item.hard && (!hardGames || !isHardMatch({ t1: item.team1, t2: item.team2 }, (id) => level.get(id)));
 
   // One planning pass; fresh picks before slot `avoidACBefore` avoid an A with a C.
   const pass = (avoidACBefore: number) => {
@@ -779,7 +782,7 @@ export function planQueue(args: {
     for (let j = 0; j < depth; j++) {
       let item: QueueItem | null = null;
       const kept = existing[j];
-      if (keeping && kept && !(seedAt && seedAt.index === j) && !(kept.hard && !hardGames)) {
+      if (keeping && kept && !(seedAt && seedAt.index === j) && !staleHard(kept)) {
         const ready = new Set(readyPool(P, M).map((p) => p.id));
         const ids = itemIds(kept);
         if (new Set(ids).size === 4 && ids.every((id) => ready.has(id))) item = kept;
@@ -852,7 +855,9 @@ export function courtSuggestions(
     singleCourt: openCourts(courts, matches, now).length === 1,
     hardGames,
   };
-  let hardPlanned = queue.some((q) => q.hard);
+  // by the current tiers, not the stored flag: a tier changed mid-session may have made it (not) hard
+  const level = new Map(players.map((p) => [p.id, p.level] as const));
+  let hardPlanned = queue.some((q) => isHardMatch({ t1: q.team1, t2: q.team2 }, (id) => level.get(id)));
   let next = 0; // how far into the queue the free courts have got
   for (const court of courts) {
     if (court.paused || isCourtClosingSoon(court, matches, now)) continue;

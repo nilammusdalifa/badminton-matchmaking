@@ -13,7 +13,8 @@ export interface WaitingEntry {
   waitMin: number | null;
   /** "Host · plays after round 1" while a host is still being held back. */
   note?: string;
-  /** In a locked planned match: "Up next" or "Then". */
+  /** In a planned match, locked or a preview: "Up next" for the first, "Then"
+   * for any later one. */
   queueTag?: string;
   onSkip: () => void;
   onPause: () => void;
