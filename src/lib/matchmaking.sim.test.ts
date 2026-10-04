@@ -28,6 +28,9 @@ interface Scenario {
   hosts?: { count: number; mode: "flag" | "checkin" };
   /** Plan two matches ahead and lock them (the "Up next" / "Then" queue). */
   planAhead?: boolean;
+  /** Skill tier mix: the first `a` players are A, the next `b` are B, the rest C.
+   * Default is today's thirds. */
+  levels?: [a: number, b: number, c: number];
 }
 
 const clock = (min: number) => new Date(2026, 8, 30, Math.floor(min / 60), min % 60, 0, 0);
@@ -62,7 +65,8 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
   const hostCount = scenario.hosts?.count ?? 0;
   const lateFrom = scenario.players - (scenario.late?.count ?? 0);
   let players: Player[] = Array.from({ length: scenario.players }, (_, i) => {
-    const level = levels[Math.min(2, Math.floor((i * 3) / scenario.players))];
+    const mix = scenario.levels;
+    const level = mix ? (i < mix[0] ? "A" : i < mix[0] + mix[1] ? "B" : "C") : levels[Math.min(2, Math.floor((i * 3) / scenario.players))];
     const p = makeBlankPlayer("p" + i, "P" + String(i + 1).padStart(2, "0"), level, i >= lateFrom || (i < hostCount && scenario.hosts?.mode === "checkin") ? "expected" : "ready");
     if (i < hostCount && scenario.hosts?.mode === "flag") p.isHost = true;
     return p;
@@ -227,7 +231,18 @@ const both = (open: string, close: string) => ({ opens: open, closes: close });
 const twoCourts = [both("19:00", "22:00"), both("19:00", "21:00")];
 const threeCourts = [both("19:00", "22:00"), both("19:00", "22:00"), both("19:00", "22:00")];
 
-const ceilQuarter = (n: number) => Math.ceil(n / 4);
+const oneCourt = [both("19:00", "22:00")];
+
+/** Today's numbers (planAhead: true, default tier thirds), recorded before the
+ * arrival-order / one-plan-per-court change. Later tasks assert against these. */
+export const BASELINE: Record<string, { minRatio: number; maxWaitMin: number; gap: number; inARow: number }> = {
+  "12x2": { minRatio: 0.8666666666666667, maxWaitMin: 56, gap: 2, inARow: 2 },
+  "15x2": { minRatio: 1, maxWaitMin: 61, gap: 2, inARow: 2 },
+  "16x2": { minRatio: 1, maxWaitMin: 62, gap: 2, inARow: 1 },
+  "8x1": { minRatio: 0.75, maxWaitMin: 45, gap: 1, inARow: 2 },
+};
+
+const ceilQuarter =(n: number) => Math.ceil(n / 4);
 
 describe("whole evenings, 2 courts (A until 22:00, B until 21:00)", () => {
   // Before the wait cap scaled with the pool, 16, 20 and 24 players fell into 4, 5
