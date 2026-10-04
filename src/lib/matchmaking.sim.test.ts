@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Court, Match, Player, SkillLevel } from "../types";
 import type { QueueItem } from "../types";
-import { applyMatchStart, courtSuggestions, courtsDueToPause, dropStarted, makeBlankPlayer, planQueue, recomputePlayerStats } from "./session";
+import { applyMatchStart, courtSuggestions, courtsDueToPause, dropStarted, lockableWaiting, lockedCount, makeBlankPlayer, planQueue, recomputePlayerStats } from "./session";
 
 /** Plays whole evenings through the app's own matchmaking functions — the
  * same ones the Session tab uses — with random game lengths, and measures how
@@ -115,13 +115,16 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
     const open = courts.filter((_, i) => opens[i] <= t);
     for (;;) {
       const live = recomputePlayerStats(players, matches);
-      queue = planQueue({ players: live, matches, courts: open, requestedPairs: [], existing: queue, now, enabled: Boolean(scenario.planAhead) });
-      const suggestions = courtSuggestions(open, live, matches, [], {}, now, queue);
+      // mirrors the store: the plan is one match per open court; with Plan ahead on, all of it is
+      // locked once 8+ players wait, below that it is only a live preview (full goes to courtSuggestions)
+      const full = planQueue({ players: live, matches, courts: open, requestedPairs: [], existing: queue, now, enabled: Boolean(scenario.planAhead) });
+      queue = full.slice(0, lockedCount(full.length, true, lockableWaiting(live, matches, open, now, queue.length > 0)));
+      const suggestions = courtSuggestions(open, live, matches, [], {}, now, full);
       const first = matches.find((m) => m.status === "in_progress");
-      if (queue.length === 2 && first) {
+      if (full.length === 2 && first) {
         thenSamples++;
         const longest = [...first.t1, ...first.t2];
-        if ([...queue[1].team1, ...queue[1].team2].some((id) => longest.includes(id))) thenWithLongest++;
+        if ([...full[1].team1, ...full[1].team2].some((id) => longest.includes(id))) thenWithLongest++;
       }
       const courtId = Object.keys(suggestions).find((id) => suggestions[id]);
       if (!courtId) break;
@@ -235,7 +238,7 @@ const oneCourt = [both("19:00", "22:00")];
 
 /** Today's numbers (planAhead: true, default tier thirds), recorded before the
  * arrival-order / one-plan-per-court change. Later tasks assert against these. */
-export const BASELINE: Record<string, { minRatio: number; maxWaitMin: number; gap: number; inARow: number }> = {
+const BASELINE: Record<string, { minRatio: number; maxWaitMin: number; gap: number; inARow: number }> = {
   "12x2": { minRatio: 0.8666666666666667, maxWaitMin: 56, gap: 2, inARow: 2 },
   "15x2": { minRatio: 1, maxWaitMin: 61, gap: 2, inARow: 2 },
   "16x2": { minRatio: 1, maxWaitMin: 62, gap: 2, inARow: 1 },
@@ -355,9 +358,9 @@ describe("planning two matches ahead (Up next, Then)", () => {
     expect(ahead.maxWaitMin).toBeLessThanOrEqual(today.maxWaitMin);
   });
 
-  it("12 players, 2 courts: nobody left to mix, so nothing is locked (and nothing gets worse)", () => {
+  it("12 players, 2 courts: both courts are planned but only 4 wait, so the plan is a live preview, not locked (and nothing gets worse)", () => {
     const { today, ahead } = compare(12, twoCourts);
-    // locked only in the single-court phase after Court B closes, and then only one ahead
+    // below 8 waiting nothing is locked: locking would pin the same groups
     expect(ahead.minRatio).toBeGreaterThanOrEqual(today.minRatio - 0.1);
     expect(ahead.gap).toBeLessThanOrEqual(2);
     expect(ahead.inARow).toBeLessThanOrEqual(2);
@@ -375,4 +378,17 @@ describe("planning two matches ahead (Up next, Then)", () => {
     expect(r.latestHostStart).toBeLessThanOrEqual(25);
     expect(r.minRatio).toBeGreaterThanOrEqual(0.95);
   });
+});
+
+describe("one planned match per court (locked at 8+ waiting, previews below) vs today", () => {
+  for (const [key, players, courts] of [["12x2", 12, twoCourts], ["15x2", 15, twoCourts], ["16x2", 16, twoCourts], ["8x1", 8, oneCourt]] as const) {
+    it(`${key}: no worse than before`, () => {
+      const r = summarize({ players, courts: [...courts], planAhead: true }, NIGHTS, false);
+      const b = BASELINE[key];
+      expect(r.minRatio).toBeGreaterThanOrEqual(b.minRatio);
+      expect(r.maxWaitMin).toBeLessThanOrEqual(b.maxWaitMin);
+      expect(r.gap).toBeLessThanOrEqual(b.gap);
+      expect(r.inARow).toBeLessThanOrEqual(Math.max(2, b.inARow));
+    });
+  }
 });

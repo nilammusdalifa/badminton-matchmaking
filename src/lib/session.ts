@@ -588,16 +588,25 @@ export function fewPlayersHint(readyCount: number, openCourts: number): string |
   return `Only ${readyCount} players ready. Consider ${courts} ${courts === 1 ? "court" : "courts"} for now.`;
 }
 
-/** How many matches to lock ahead: two when there are enough waiting players
- * for every open court twice over, one when at least 8 wait (3+ courts), none
- * (just today's "likely" preview) otherwise. With one court open it is at most
- * one. With fewer waiting there's nobody
- * left over to mix, and locking would freeze the groups again. */
-export function queueDepth(waiting: number, openCourts: number): 0 | 1 | 2 {
-  // one court left (the other closed or paused): never two ahead, there's too
-  // little to mix and the same groups would come round again
-  if (openCourts <= 1) return waiting >= 8 ? 1 : 0;
-  return waiting >= 4 * openCourts ? 2 : waiting >= 8 ? 1 : 0;
+/** How many players are waiting once every idle open court has taken its four,
+ * i.e. as it will look with all courts busy (counting the four who have just
+ * finished would trip the lock for a moment on 12 players / 2 courts). Open =
+ * not paused and not closing soon, as in `planQueue`. With `hasLocked`, one
+ * extra: while matches are locked, resting one player must not drop the lock
+ * when exactly 8 wait. */
+export function lockableWaiting(players: Player[], matches: Match[], courts: Court[], now: Date, hasLocked: boolean): number {
+  const open = courts.filter((c) => !c.paused && !isCourtClosingSoon(c, matches, now));
+  const idle = open.filter((c) => !matches.some((m) => m.status === "in_progress" && m.courtId === c.id)).length;
+  return Math.max(0, readyPool(players, matches).length - 4 * idle) + (hasLocked ? 1 : 0);
+}
+
+/** How many of the planned matches are locked: none when Plan ahead is off (the
+ * plan is then only a preview that recomputes live); with it on, the whole plan
+ * once at least 8 players wait, otherwise none. With fewer waiting there is
+ * nobody left over to mix, and locking would pin the same groups again — which
+ * the old queue-depth threshold avoided. `waiting` comes from `lockableWaiting`. */
+export function lockedCount(depth: number, planAhead: boolean, waiting: number): number {
+  return !planAhead ? 0 : waiting >= 8 ? depth : 0;
 }
 
 const itemIds = (item: Pick<QueueItem, "team1" | "team2">): string[] => [...item.team1, ...item.team2];
@@ -624,7 +633,7 @@ export function dropStarted(queue: QueueItem[], four: readonly string[]): QueueI
   return queue.filter((item) => itemIds(item).sort().join("|") !== key);
 }
 
-/** Plans the matches after the ones already on court, up to `queueDepth`.
+/** Plans the matches after the ones already on court: one per open court.
  *
  * Item `j` (0 = "Up next", 1 = "Then") is picked as the world will look when it
  * starts: the `j` longest-playing courts have finished (they started first, so
@@ -647,6 +656,8 @@ export function planQueue(args: {
   now: Date;
   enabled: boolean;
   seedAt?: { index: number; seed: number };
+  /** Seeds for re-picked positions (preview shuffles), keyed by position. */
+  seeds?: Record<number, number>;
 }): QueueItem[] {
   const { players, matches, courts, existing, now, enabled, seedAt } = args;
   if (!enabled) return [];
@@ -654,17 +665,7 @@ export function planQueue(args: {
   const open = courts.filter((c) => !c.paused && !isCourtClosingSoon(c, matches, now));
   if (open.length === 0) return [];
   const running = matches.filter((m) => m.status === "in_progress"); // in the order they started
-  // How many are waiting once every idle open court has taken its four, i.e. as
-  // it will look with all courts busy. Counting the four who have just finished
-  // would trip the lock for a moment on 12 players / 2 courts, where it freezes
-  // the groups.
-  const idle = open.filter((c) => !running.some((m) => m.courtId === c.id)).length;
-  // While matches are already locked, one player fewer doesn't take them away:
-  // otherwise resting someone from "Up next" with exactly 8 waiting would drop
-  // the whole queue just when it needs re-picking.
-  const slack = existing.length > 0 ? 1 : 0;
-  const depth = queueDepth(Math.max(0, readyPool(players, matches).length - 4 * idle) + slack, open.length);
-  if (depth === 0) return [];
+  const depth = open.length; // one match per open court; stops early at the first slot that can't find four
   const options: SuggestionOptions = { singleCourt: open.length === 1 };
   let P = players;
   let M = matches;
@@ -683,7 +684,7 @@ export function planQueue(args: {
     if (!item) {
       keeping = false;
       const extraReady = 4 * Math.max(j, running.length ? 1 : 0);
-      const seed = seedAt && seedAt.index === j ? seedAt.seed : 0;
+      const seed = seedAt && seedAt.index === j ? seedAt.seed : (args.seeds?.[j] ?? 0);
       const sug = buildSuggestion(P, M, pairs, [], seed, { ...options, holdHosts: hostsHolding(courts, M), extraReady });
       if (!sug) break;
       item = {

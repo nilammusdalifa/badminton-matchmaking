@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { buildHighlights, shortName, dropStarted, planQueue, queueDepth, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import { buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -772,11 +772,26 @@ describe("matches planned ahead (Up next, Then)", () => {
   };
   const ids = (q: { team1: string[]; team2: string[] }) => [...q.team1, ...q.team2];
 
-  it("locks two matches when at least 4 per court wait, one with 3+ courts, none with fewer", () => {
-    expect([queueDepth(8, 2), queueDepth(16, 2), queueDepth(7, 2), queueDepth(4, 2)]).toEqual([2, 2, 0, 0]);
-    expect([queueDepth(8, 3), queueDepth(12, 3), queueDepth(7, 3)]).toEqual([1, 2, 0]);
-    // one court open: at most one ahead
-    expect([queueDepth(20, 1), queueDepth(8, 1), queueDepth(7, 1)]).toEqual([1, 1, 0]);
+  it("plans one match per open court", () => {
+    expect(plan()).toHaveLength(2);
+    const three = [...courts, { id: "3", name: "Court 3" }];
+    const matches = [live("a", ["p0", "p1", "p2", "p3"], "1"), live("b", ["p4", "p5", "p6", "p7"], "2"), live("c", ["p8", "p9", "p10", "p11"], "3")];
+    let players = applyMatchStart(roster(24), [], ["p0", "p1", "p2", "p3"]);
+    players = applyMatchStart(players, [matches[0]], ["p4", "p5", "p6", "p7"]);
+    players = applyMatchStart(players, matches.slice(0, 2), ["p8", "p9", "p10", "p11"]);
+    expect(planQueue({ players, matches, courts: three, requestedPairs: [], existing: [], now, enabled: true })).toHaveLength(3);
+    expect(plan({ courts: [courts[0], { ...courts[1], paused: true }] })).toHaveLength(1);
+    expect(plan({ courts: [courts[0], { ...courts[1], closesAt: "19:40" }] })).toHaveLength(1); // now = 19:30
+  });
+
+  it("15 players on 2 busy courts: Up next from the 7 waiting, Then may use the longest court", () => {
+    const matches = [live("a", ["p0", "p1", "p2", "p3"], "1"), live("b", ["p4", "p5", "p6", "p7"], "2")];
+    const players = applyMatchStart(applyMatchStart(roster(15), [], ["p0", "p1", "p2", "p3"]), [matches[0]], ["p4", "p5", "p6", "p7"]);
+    const q = planQueue({ players, matches, courts, requestedPairs: [], existing: [], now, enabled: true });
+    expect(q).toHaveLength(2);
+    expect(ids(q[0]).every((id) => Number(id.slice(1)) >= 8)).toBe(true);
+    expect(ids(q[1]).some((id) => ["p4", "p5", "p6", "p7"].includes(id))).toBe(false);
+    expect(ids(q[1]).filter((id) => ids(q[0]).includes(id))).toEqual([]);
   });
 
   it("plans 'Up next' and 'Then' for 16 players on 2 busy courts, with four different players each", () => {
@@ -838,10 +853,36 @@ describe("matches planned ahead (Up next, Then)", () => {
     expect(shuffled[1].seed).toBe(1);
   });
 
-  it("plans nothing with 12 players on 2 courts (nobody left to mix), or when switched off", () => {
+  it("12 players on 2 courts now plans both; switched off plans nothing", () => {
     const matches = [live("a", ["p0", "p1", "p2", "p3"], "1"), live("b", ["p4", "p5", "p6", "p7"], "2")];
-    expect(planQueue({ players: applyMatchStart(roster(12), [], ["p0", "p1", "p2", "p3"]), matches, courts, requestedPairs: [], existing: [], now, enabled: true })).toEqual([]);
+    const players = applyMatchStart(applyMatchStart(roster(12), [], ["p0", "p1", "p2", "p3"]), [matches[0]], ["p4", "p5", "p6", "p7"]);
+    expect(planQueue({ players, matches, courts, requestedPairs: [], existing: [], now, enabled: true })).toHaveLength(2);
     expect(plan({ enabled: false })).toEqual([]);
+  });
+
+  it("preview seeds re-pick only their own position", () => {
+    const q = plan();
+    const reseeded = plan({ existing: q.slice(0, 1), seeds: { 1: 3 } });
+    expect(reseeded[0]).toEqual(q[0]);
+    expect(reseeded[1].seed).toBe(3);
+  });
+
+  it("locks the whole plan only when 8+ wait; below that, or with Plan ahead off, nothing", () => {
+    expect([lockedCount(2, true, 8), lockedCount(2, true, 7), lockedCount(3, true, 12), lockedCount(2, false, 20)]).toEqual([2, 0, 3, 0]);
+  });
+
+  it("lockableWaiting: ready pool minus four per idle open court, +1 when something is locked", () => {
+    const { matches, players } = busy(); // 16 players, both courts busy, 8 waiting
+    expect(lockableWaiting(players, matches, courts, now, false)).toBe(8);
+    expect(lockableWaiting(players, matches, courts, now, true)).toBe(9);
+    // Court 2 frees: its four are back in the pool (12), but the idle court takes four of them
+    expect(lockableWaiting(players, [matches[0]], courts, now, false)).toBe(8);
+    // a paused or closing-soon court is not open, so it takes nobody
+    expect(lockableWaiting(players, [matches[0]], [courts[0], { ...courts[1], paused: true }], now, false)).toBe(12);
+    expect(lockableWaiting(players, [matches[0]], [courts[0], { ...courts[1], closesAt: "19:40" }], now, false)).toBe(12); // now = 19:30
+    // never negative
+    expect(lockableWaiting(players, [], courts, now, false)).toBe(8);
+    expect(lockableWaiting(players.slice(0, 5), [], courts, now, false)).toBe(0);
   });
 
   it("with one court open, plans one ahead at most", () => {
@@ -849,13 +890,6 @@ describe("matches planned ahead (Up next, Then)", () => {
     const players = applyMatchStart(roster(16), [], ["p0", "p1", "p2", "p3"]);
     const q = planQueue({ players, matches, courts: [courts[0], { ...courts[1], paused: true }], requestedPairs: [], existing: [], now, enabled: true });
     expect(q).toHaveLength(1);
-  });
-
-  it("does not count the four who just finished as waiting (so 12 players on 2 courts never lock)", () => {
-    // Court 1 just freed: its four are 'waiting' for a moment, 8 in all
-    const matches = [live("b", ["p4", "p5", "p6", "p7"], "2")];
-    const players = applyMatchStart(roster(12), [], ["p4", "p5", "p6", "p7"]);
-    expect(planQueue({ players, matches, courts, requestedPairs: [], existing: [], now, enabled: true })).toEqual([]);
   });
 
   it("free courts start the locked matches in order, and the rest are picked fresh", () => {
