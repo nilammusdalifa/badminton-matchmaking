@@ -906,6 +906,40 @@ export function useSessionStore() {
       showToast("Not enough waiting players to auto-fill");
       return;
     }
+    // A free court showing a planned match ignores its own court seed, so cycle
+    // that plan position instead: re-pick it with the next seed, keeping the
+    // locked matches before it. Only fills the pickers (and, for a preview, its
+    // seed on this device); nothing here is written to the locked queue.
+    const qi = sug.queueIndex;
+    if (qi !== undefined) {
+      const key = "plan" + qi;
+      const seed = (state.suggestSeed[key] ?? plan[qi]?.seed ?? 0) + 1;
+      const pick = planQueue({
+        players: livePlayers,
+        matches: state.matches,
+        courts: state.courts,
+        requestedPairs: state.requestedPairs,
+        existing: state.queue.slice(0, Math.min(qi, state.queue.length)),
+        now: new Date(),
+        enabled: true,
+        seedAt: { index: qi, seed },
+        seeds: planSeeds,
+        hardGames: state.hardGames,
+      })[qi];
+      if (!pick) {
+        showToast("Not enough waiting players to auto-fill");
+        return;
+      }
+      setState((s) => ({
+        ...s,
+        editT1A: pick.team1[0],
+        editT1B: pick.team1[1],
+        editT2A: pick.team2[0],
+        editT2B: pick.team2[1],
+        suggestSeed: { ...s.suggestSeed, [key]: seed },
+      }));
+      return;
+    }
     setState((s) => ({
       ...s,
       editT1A: sug.team1[0].id,
@@ -914,7 +948,7 @@ export function useSessionStore() {
       editT2B: sug.team2[1].id,
       suggestSeed: { ...s.suggestSeed, [courtId]: (s.suggestSeed[courtId] || 0) + 1 },
     }));
-  }, [state.editCourtId, state.editQueueIndex, state.suggestSeed, state.queue, state.matches, state.courts, state.requestedPairs, state.hardGames, livePlayers, suggestions, showToast]);
+  }, [state.editCourtId, state.editQueueIndex, state.suggestSeed, state.queue, state.matches, state.courts, state.requestedPairs, state.hardGames, livePlayers, suggestions, plan, planSeeds, showToast]);
   const closeEdit = useCallback(() => setState((s) => ({ ...s, editCourtId: null, editQueueIndex: null })), []);
   const onEditStart = useCallback(() => {
     const { editCourtId, editQueueIndex, editT1A, editT1B, editT2A, editT2B } = state;
