@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Court, Match, Player, SkillLevel } from "../types";
 import type { QueueItem } from "../types";
 import { carriesSinceHard, isHardMatch } from "./hardGames";
-import { applyMatchStart, courtSuggestions, courtsDueToPause, dropStarted, lockableWaiting, lockedCount, makeBlankPlayer, planQueue, recomputePlayerStats } from "./session";
+import { applyAfterMatch, applyMatchStart, courtSuggestions, courtsDueToPause, dropStarted, lockableWaiting, lockedCount, makeBlankPlayer, markReady, planQueue, recomputePlayerStats } from "./session";
 
 /** Plays whole evenings through the app's own matchmaking functions — the
  * same ones the Session tab uses — with random game lengths, and measures how
@@ -59,6 +59,8 @@ interface Night {
   maxWaitMin: number;
   /** Matches that started exactly as the queue had shown them. */
   fromQueue: number;
+  /** Matches that started as a locked (not preview) planned match. */
+  fromLocked: number;
   /** Share of the time "Then" included players from the court that has been playing longest. */
   thenMix: number;
   /** Hard games played per A/B player (a hard match counts once for each of its four). */
@@ -95,6 +97,7 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
   let waitOneCourt = 0;
   let queue: QueueItem[] = [];
   let fromQueue = 0;
+  let fromLocked = 0;
   let thenSamples = 0;
   let thenWithLongest = 0;
   let maxWaitMin = 0;
@@ -108,20 +111,25 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
   const arriveAt = scenario.late ? minutes(scenario.late.at) : Infinity;
   const start = Math.min(...opens);
   const latest = Math.max(...scenario.courts.map((c) => minutes(c.closes))) + 60;
+  // as in the store: everyone here at the start is checked in together (Check In All), so they
+  // share one arrival time and roster order breaks the tie; later check-ins and match ends stamp their own
+  players = players.map((p) => (p.status === "ready" ? markReady(p, clock(start).getTime()) : p));
 
   for (let t = start; t <= latest; t++) {
     const now = clock(t);
     // late arrivals check in
-    if (t >= arriveAt) players = players.map((p) => (p.status === "expected" && p.name > "P" + String(lateFrom).padStart(2, "0") ? { ...p, status: "ready" as const } : p));
+    if (t >= arriveAt) players = players.map((p) => (p.status === "expected" && p.name > "P" + String(lateFrom).padStart(2, "0") ? markReady(p, now.getTime()) : p));
     // hosts checked in by hand once round 1 is under way
     if (scenario.hosts?.mode === "checkin" && matches.length >= scenario.courts.length) {
-      players = players.map((p) => (hostIds.has(p.id) && p.status === "expected" ? { ...p, status: "ready" as const } : p));
+      players = players.map((p) => (hostIds.has(p.id) && p.status === "expected" ? markReady(p, now.getTime()) : p));
     }
     // finish matches whose time is up
     for (const m of matches) {
       if (m.status === "in_progress" && (endsAt.get(m.id) ?? 0) <= t) {
         matches = matches.map((x) => (x.id === m.id ? { ...x, status: "completed", s1: 21, s2: Math.floor(random() * 20) } : x));
         for (const id of [...m.t1, ...m.t2]) lastEnd.set(id, t);
+        // saving the result stamps the four free again, as the store does
+        players = applyAfterMatch(players, m, now.getTime());
       }
     }
     // courts that have reached closing time pause themselves
@@ -131,10 +139,11 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
     const open = courts.filter((_, i) => opens[i] <= t);
     for (;;) {
       const live = recomputePlayerStats(players, matches);
-      // mirrors the store: the plan is one match per open court; with Plan ahead on, all of it is
-      // locked once 8+ players wait, below that it is only a live preview (full goes to courtSuggestions)
-      const full = planQueue({ players: live, matches, courts: open, requestedPairs: [], existing: queue, now, enabled: Boolean(scenario.planAhead), hardGames: scenario.hardGames });
-      queue = full.slice(0, lockedCount(full.length, true, lockableWaiting(live, matches, open, now, queue.length > 0)));
+      // mirrors the store: the plan is always one match per open court; with "Lock planned matches"
+      // (planAhead) on, all of it is locked once 8+ players wait, otherwise it is only a live preview
+      // (the full plan goes to courtSuggestions either way)
+      const full = planQueue({ players: live, matches, courts: open, requestedPairs: [], existing: queue, now, enabled: true, hardGames: scenario.hardGames });
+      queue = full.slice(0, lockedCount(full.length, Boolean(scenario.planAhead), lockableWaiting(live, matches, open, now, queue.length > 0)));
       const suggestions = courtSuggestions(open, live, matches, [], {}, now, full, scenario.hardGames);
       const first = matches.find((m) => m.status === "in_progress");
       if (full.length === 2 && first) {
@@ -155,6 +164,7 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
       const carries = [...carriesSinceHard(live, matches).values()];
       if (carries.length) maxCarries = Math.max(maxCarries, ...carries);
       for (const p of live) if (p.level === "C" && ids.includes(p.id)) maxWaitC = Math.max(maxWaitC, p.skipped);
+      if (dropStarted(queue, ids).length < queue.length) fromLocked++;
       queue = dropStarted(queue, ids);
       players = applyMatchStart(players, matches, ids);
       const match: Match = {
@@ -228,6 +238,7 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
     straightBack,
     maxWaitMin,
     fromQueue,
+    fromLocked,
     thenMix: thenSamples ? thenWithLongest / thenSamples : 0,
     hardPerUpper: upperCount ? hardAppearances / upperCount : 0,
     maxCarries,
@@ -258,6 +269,7 @@ export function summarize(scenario: Scenario, nights: number, shuffleRoster: boo
     straightBack: avg((n) => n.straightBack),
     maxWaitMin: worst((n) => n.maxWaitMin),
     fromQueueShare: avg((n) => (n.matches ? n.fromQueue / n.matches : 0)),
+    lockedShare: avg((n) => (n.matches ? n.fromLocked / n.matches : 0)),
     thenMix: avg((n) => n.thenMix),
     hardPerUpper: avg((n) => n.hardPerUpper),
     maxCarries: worst((n) => n.maxCarries),
@@ -439,9 +451,12 @@ describe("one planned match per court (locked at 8+ waiting, previews below) vs 
   }
 });
 
+/** A match lasts 14-23 minutes in the sim: the most one extra match of waiting can add. */
+const ONE_MATCH_MIN = 23;
+
 describe("hard games on a 3A/5B/7C night", () => {
   for (const [label, courts] of [["2 courts", twoCourts], ["1 court", oneCourt]] as const) {
-    it(`${label}: every A/B gets hard games, Cs wait no longer`, () => {
+    it(`${label}: every A/B gets hard games, Cs wait at most one match longer`, () => {
       const night = { players: 15, courts: [...courts], levels: [3, 5, 7] as [number, number, number], planAhead: true };
       const off = summarize(night, NIGHTS, false);
       const on = summarize({ ...night, hardGames: true }, NIGHTS, false);
@@ -449,10 +464,39 @@ describe("hard games on a 3A/5B/7C night", () => {
       // the baseline already satisfies >= 1, so this is the assertion that proves the switch does something
       expect(on.hardPerUpper).toBeGreaterThan(off.hardPerUpper);
       expect(on.maxCarries).toBeLessThanOrEqual(3);
+      // accepted price of hard games: a C may wait one extra match, never more
       expect(on.maxWaitC).toBeLessThanOrEqual(off.maxWaitC + 1);
       expect(on.wait).toBeLessThanOrEqual(ceilQuarter(15) + 1);
+      expect(on.maxWaitMin).toBeLessThanOrEqual(off.maxWaitMin + ONE_MATCH_MIN);
       expect(on.inARow).toBeLessThanOrEqual(2);
       expect(on.gap).toBeLessThanOrEqual(off.gap + 1);
+      expect(on.minRatio).toBeGreaterThanOrEqual(0.85);
     });
   }
+
+  it("2 courts: the other court rarely holds an A with a C next to a hard game", () => {
+    const night = { players: 15, courts: twoCourts, levels: [3, 5, 7] as [number, number, number], planAhead: true };
+    const off = summarize(night, NIGHTS, false);
+    const on = summarize({ ...night, hardGames: true }, NIGHTS, false);
+    // measured: 0.27 with hard games off (all-A/B matches that happen by chance), 0.218 with
+    // only the slots planned after a hard game avoiding A+C, 0.165 once the slots planned
+    // before it do too. The 0.2 bound fails if that second pass stops working.
+    expect(on.acOverlap).toBeLessThan(off.acOverlap);
+    expect(on.acOverlap).toBeLessThan(0.2);
+  });
+
+  it("18 players (4A/6B/8C), 2 courts: the plan locks, and hard games still keep their limits", () => {
+    const night = { players: 18, courts: twoCourts, levels: [4, 6, 8] as [number, number, number], planAhead: true };
+    const off = summarize(night, NIGHTS, false);
+    const on = summarize({ ...night, hardGames: true }, NIGHTS, false);
+    // 10 wait while both courts play, so most matches start from a locked plan
+    expect(on.lockedShare).toBeGreaterThan(0.5);
+    expect(on.hardPerUpper).toBeGreaterThan(off.hardPerUpper);
+    expect(on.maxCarries).toBeLessThanOrEqual(3);
+    expect(on.maxWaitC).toBeLessThanOrEqual(off.maxWaitC + 1);
+    expect(on.maxWaitMin).toBeLessThanOrEqual(off.maxWaitMin + ONE_MATCH_MIN);
+    expect(on.inARow).toBeLessThanOrEqual(2);
+    expect(on.minRatio).toBeGreaterThanOrEqual(0.85);
+    expect(on.acOverlap).toBeLessThan(off.acOverlap);
+  });
 });
