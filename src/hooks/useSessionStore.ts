@@ -477,14 +477,17 @@ export function useSessionStore() {
   }, [state.tick, state.courts, state.matches, state.sessionEnded, runsSession, showToast]);
 
   // Shuffle on a preview (a planned match that isn't locked) bumps the seed for
-  // that position; the locked part keeps the seed it was picked with.
+  // that position. These seeds live on this device only (never saved or
+  // synced), so they shape only the preview below, never the locked queue: only
+  // positions past the locked ones get one.
   const planSeeds = useMemo(() => {
     const seeds: Record<number, number> = {};
     for (const [key, seed] of Object.entries(state.suggestSeed)) {
-      if (key.startsWith("plan")) seeds[Number(key.slice(4))] = seed;
+      const index = key.startsWith("plan") ? Number(key.slice(4)) : -1;
+      if (index >= state.queue.length) seeds[index] = seed;
     }
     return seeds;
-  }, [state.suggestSeed]);
+  }, [state.suggestSeed, state.queue.length]);
 
   // The plan: one match per open court, "Up next" first. Its first
   // `state.queue.length` matches are the locked ones (kept exactly as stored);
@@ -524,9 +527,11 @@ export function useSessionStore() {
   // edited) is re-picked with everything after it, and new ones are added at the
   // end as players free up. The plan is locked only with "Lock planned matches"
   // on and 8 or more players waiting (see `lockedCount`); otherwise the queue is
-  // empty and the plan is a preview. Uses the preview seeds too, so the moment
-  // it locks it keeps what was on screen. Deterministic, so an organizer's and
-  // an umpire's device that both run this agree and don't fight over it.
+  // empty and the plan is a preview. Deterministic from synced state alone, so
+  // an organizer's and an umpire's device that both run this compute the same
+  // queue and don't fight over it. That is why the preview Shuffle seeds
+  // (`planSeeds`) are left out: they exist only on the device that shuffled, so
+  // a shuffled preview may be re-picked at the moment the plan locks.
   useEffect(() => {
     if (state.sessionEnded || !runsSession) return;
     const now = new Date();
@@ -538,13 +543,12 @@ export function useSessionStore() {
       existing: state.queue,
       now,
       enabled: true,
-      seeds: planSeeds,
       hardGames: state.hardGames,
     });
     const waiting = lockableWaiting(livePlayers, state.matches, state.courts, now, state.queue.length > 0);
     const next = full.slice(0, lockedCount(full.length, state.planAhead, waiting));
     if (JSON.stringify(next) !== JSON.stringify(state.queue)) setState((s) => ({ ...s, queue: next }));
-  }, [livePlayers, state.matches, state.courts, state.requestedPairs, state.queue, state.planAhead, state.hardGames, planSeeds, state.sessionEnded, runsSession, state.tick]);
+  }, [livePlayers, state.matches, state.courts, state.requestedPairs, state.queue, state.planAhead, state.hardGames, state.sessionEnded, runsSession, state.tick]);
 
   const isPlaying = useCallback((id: string, matches?: Match[]) => isPlayingFn(id, matches ?? state.matches), [state.matches]);
 
@@ -749,8 +753,9 @@ export function useSessionStore() {
         const requestedPairs = s.requestedPairs.filter(
           ([a, b]) => !((ids1.includes(a) && ids1.includes(b)) || (ids2.includes(a) && ids2.includes(b))),
         );
-        // Preview shuffles were for the plan as it was; once a match starts the
-        // positions move up, so every preview goes back to its best pick.
+        // Preview shuffles (this device only) were for the plan as it was; once
+        // a match starts the positions move up, so every preview goes back to
+        // its best pick instead of carrying an old shuffle all night.
         const suggestSeed = Object.fromEntries(Object.entries(s.suggestSeed).filter(([key]) => !key.startsWith("plan")));
         return { ...s, matches: [...s.matches, newMatch], players, requestedPairs, queue: dropStarted(s.queue, four), suggestSeed };
       });
