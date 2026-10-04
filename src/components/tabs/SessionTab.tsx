@@ -15,7 +15,6 @@ export function SessionTab({
   hasExpected,
   onCheckInAll,
   courtsVM,
-  upNext,
   queueVM,
   waitingVM,
   waitingCount,
@@ -80,6 +79,7 @@ export function SessionTab({
         <div className={styles.upNextPanel} key={q.index}>
           <div className={styles.upNextHeading}>
             {q.label}
+            {!q.locked && " · may change"}
             {q.detail && <span className={styles.queueDetail}> · {q.detail}</span>}
           </div>
           <div className={styles.upNextTeams}>
@@ -92,27 +92,15 @@ export function SessionTab({
               <button className={styles.upNextShuffleBtn} onClick={q.onShuffle}>
                 Shuffle
               </button>
-              <button className={styles.upNextShuffleBtn} onClick={q.onEdit}>
-                Edit
-              </button>
+              {q.onEdit && (
+                <button className={styles.upNextShuffleBtn} onClick={q.onEdit}>
+                  Edit
+                </button>
+              )}
             </div>
           )}
         </div>
       ))}
-
-      {upNext && (
-        <div className={styles.upNextPanel}>
-          <div className={styles.upNextHeading}>Next Up · all courts busy</div>
-          <div className={styles.upNextTeams}>
-            <span className={styles.upNextTeamA}>{upNext.team1Label}</span> <span className={styles.upNextVs}>vs</span>{" "}
-            <span className={styles.upNextTeamB}>{upNext.team2Label}</span>
-          </div>
-          <div className={styles.upNextReason}>{upNext.reason}</div>
-          <button className={styles.upNextShuffleBtn} onClick={upNext.onRegenerate}>
-            Shuffle
-          </button>
-        </div>
-      )}
 
       <div className={styles.panel}>
         <div className={styles.panelTitle}>Waiting ({waitingCount})</div>

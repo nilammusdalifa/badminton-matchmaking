@@ -10,7 +10,6 @@ import {
   buildCounterSnapshot,
   canRemovePlayer,
   buildSessionSummary,
-  buildSuggestion,
   courtSuggestions,
   dropStarted,
   planQueue,
@@ -26,6 +25,9 @@ import {
   isFirstRun,
   keepCourtOpen,
   isOverTarget,
+  lockableWaiting,
+  lockedCount,
+  openCourts,
   isPlaying as isPlayingFn,
   liveScoreFor,
   makeBlankPlayer,
@@ -65,7 +67,6 @@ import type {
   RequestedPairEntry,
   SessionHealth,
   ShareRankingEntry,
-  UpNextEntry,
   WaitingEntry,
 } from "../types.viewmodel";
 
@@ -84,9 +85,13 @@ interface AppState {
   sessionResultMode: ResultMode;
   history: SessionHistoryEntry[];
   photoReminderShown: boolean;
-  /** The next matches, planned ahead and locked. See `planQueue`. */
+  /** The locked part of the plan (see `planQueue`, `lockedCount`): the next
+   * matches, started exactly as shown. Empty while the plan is only a preview. */
   queue: QueueItem[];
+  /** "Lock planned matches" in Manage. */
   planAhead: boolean;
+  /** "Hard games" in Manage: an A/B player who has carried a C partner twice may get an all-A/B match. */
+  hardGames: boolean;
   /** Which queue position the manual-assign dialog is editing, instead of a court. */
   editQueueIndex: number | null;
   scorekeeperMatchId: string | null;
@@ -145,6 +150,7 @@ function initialState(): AppState {
     photoReminderShown: false,
     queue: [],
     planAhead: true,
+    hardGames: true,
     editQueueIndex: null,
     scorekeeperMatchId: null,
     scorekeeperT1: 0,
@@ -359,6 +365,7 @@ export function useSessionStore() {
       photoReminderShown: state.photoReminderShown,
       queue: state.queue,
       planAhead: state.planAhead,
+      hardGames: state.hardGames,
     };
     // This change arrived FROM a merge (see applyRemoteUpdate) rather than a
     // fresh local action — adopt it locally but don't push it right back to
@@ -417,6 +424,7 @@ export function useSessionStore() {
     state.photoReminderShown,
     state.queue,
     state.planAhead,
+    state.hardGames,
   ]);
 
   // Rankings/matchmaking always read this instead of state.players directly —
@@ -468,34 +476,75 @@ export function useSessionStore() {
     showToast(due.map((c) => c.name).join(" and ") + (due.length === 1 ? " closed and is paused" : " closed and are paused"));
   }, [state.tick, state.courts, state.matches, state.sessionEnded, runsSession, showToast]);
 
-  // One suggestion per open court, computed once per render so the court card,
-  // Start Match, the manual-assign modal and auto-fill always agree on who
-  // plays where.
-  const suggestions = useMemo(
-    () => courtSuggestions(state.courts, livePlayers, state.matches, state.requestedPairs, state.suggestSeed, new Date(), state.queue),
+  // Shuffle on a preview (a planned match that isn't locked) bumps the seed for
+  // that position; the locked part keeps the seed it was picked with.
+  const planSeeds = useMemo(() => {
+    const seeds: Record<number, number> = {};
+    for (const [key, seed] of Object.entries(state.suggestSeed)) {
+      if (key.startsWith("plan")) seeds[Number(key.slice(4))] = seed;
+    }
+    return seeds;
+  }, [state.suggestSeed]);
+
+  // The plan: one match per open court, "Up next" first. Its first
+  // `state.queue.length` matches are the locked ones (kept exactly as stored);
+  // the rest are previews that recompute live.
+  const plan = useMemo<QueueItem[]>(
+    () =>
+      state.sessionEnded
+        ? []
+        : planQueue({
+            players: livePlayers,
+            matches: state.matches,
+            courts: state.courts,
+            requestedPairs: state.requestedPairs,
+            existing: state.queue,
+            now: new Date(),
+            enabled: true,
+            seeds: planSeeds,
+            hardGames: state.hardGames,
+          }),
     // state.tick moves the closing-soon cut-off along with the clock
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.courts, livePlayers, state.matches, state.requestedPairs, state.suggestSeed, state.queue, state.tick],
+    [livePlayers, state.matches, state.courts, state.requestedPairs, state.queue, planSeeds, state.hardGames, state.sessionEnded, state.tick],
+  );
+
+  // One suggestion per open court, computed once per render so the court card,
+  // Start Match, the manual-assign modal and auto-fill always agree on who
+  // plays where. A free court takes the plan in order.
+  const suggestions = useMemo(
+    () => courtSuggestions(state.courts, livePlayers, state.matches, state.requestedPairs, state.suggestSeed, new Date(), plan, state.hardGames),
+    // state.tick moves the closing-soon cut-off along with the clock
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.courts, livePlayers, state.matches, state.requestedPairs, state.suggestSeed, plan, state.hardGames, state.tick],
   );
 
   // Keeps the locked queue up to date: matches that are still valid stay exactly
   // as they were shown, the first one that isn't (a player rested, left or was
   // edited) is re-picked with everything after it, and new ones are added at the
-  // end as players free up. Deterministic, so an organizer's and an umpire's
-  // device that both run this agree and don't fight over it.
+  // end as players free up. The plan is locked only with "Lock planned matches"
+  // on and 8 or more players waiting (see `lockedCount`); otherwise the queue is
+  // empty and the plan is a preview. Uses the preview seeds too, so the moment
+  // it locks it keeps what was on screen. Deterministic, so an organizer's and
+  // an umpire's device that both run this agree and don't fight over it.
   useEffect(() => {
     if (state.sessionEnded || !runsSession) return;
-    const next = planQueue({
+    const now = new Date();
+    const full = planQueue({
       players: livePlayers,
       matches: state.matches,
       courts: state.courts,
       requestedPairs: state.requestedPairs,
       existing: state.queue,
-      now: new Date(),
-      enabled: state.planAhead,
+      now,
+      enabled: true,
+      seeds: planSeeds,
+      hardGames: state.hardGames,
     });
+    const waiting = lockableWaiting(livePlayers, state.matches, state.courts, now, state.queue.length > 0);
+    const next = full.slice(0, lockedCount(full.length, state.planAhead, waiting));
     if (JSON.stringify(next) !== JSON.stringify(state.queue)) setState((s) => ({ ...s, queue: next }));
-  }, [livePlayers, state.matches, state.courts, state.requestedPairs, state.queue, state.planAhead, state.sessionEnded, runsSession, state.tick]);
+  }, [livePlayers, state.matches, state.courts, state.requestedPairs, state.queue, state.planAhead, state.hardGames, planSeeds, state.sessionEnded, runsSession, state.tick]);
 
   const isPlaying = useCallback((id: string, matches?: Match[]) => isPlayingFn(id, matches ?? state.matches), [state.matches]);
 
@@ -700,7 +749,10 @@ export function useSessionStore() {
         const requestedPairs = s.requestedPairs.filter(
           ([a, b]) => !((ids1.includes(a) && ids1.includes(b)) || (ids2.includes(a) && ids2.includes(b))),
         );
-        return { ...s, matches: [...s.matches, newMatch], players, requestedPairs, queue: dropStarted(s.queue, four) };
+        // Preview shuffles were for the plan as it was; once a match starts the
+        // positions move up, so every preview goes back to its best pick.
+        const suggestSeed = Object.fromEntries(Object.entries(s.suggestSeed).filter(([key]) => !key.startsWith("plan")));
+        return { ...s, matches: [...s.matches, newMatch], players, requestedPairs, queue: dropStarted(s.queue, four), suggestSeed };
       });
       showToast("Match started on Court " + courtId);
     },
@@ -728,8 +780,15 @@ export function useSessionStore() {
 
   // Re-picks one planned match with another seed (Shuffle). Matches before it
   // stay as they are; the ones after it depend on it, so they are re-picked too.
+  // A locked match is re-picked into the queue; a preview just moves on to the
+  // next seed for its position (see `planSeeds`).
   const shuffleQueue = useCallback(
     (index: number) => {
+      if (index >= state.queue.length) {
+        setState((s) => ({ ...s, suggestSeed: { ...s.suggestSeed, ["plan" + index]: (s.suggestSeed["plan" + index] || 0) + 1 } }));
+        showToast("New match suggested");
+        return;
+      }
       const seed = (state.queue[index]?.seed ?? 0) + 1;
       setState((s) => ({
         ...s,
@@ -740,8 +799,9 @@ export function useSessionStore() {
           requestedPairs: s.requestedPairs,
           existing: s.queue.slice(0, index),
           now: new Date(),
-          enabled: s.planAhead,
+          enabled: true,
           seedAt: { index, seed },
+          hardGames: s.hardGames,
         }),
       }));
       showToast("New match suggested");
@@ -752,6 +812,13 @@ export function useSessionStore() {
   const togglePlanAhead = useCallback(() => {
     if (!isOwner) return;
     setState((s) => ({ ...s, planAhead: !s.planAhead, queue: [] }));
+  }, [isOwner]);
+
+  // Turning hard games off leaves matches on court alone; a planned hard game
+  // not yet started is re-picked as a normal match by `planQueue` itself.
+  const toggleHardGames = useCallback(() => {
+    if (!isOwner) return;
+    setState((s) => ({ ...s, hardGames: !s.hardGames }));
   }, [isOwner]);
 
   // ---- edit match ---------------------------------------------------
@@ -810,6 +877,7 @@ export function useSessionStore() {
         now: new Date(),
         enabled: true,
         seedAt: { index: qIndex, seed },
+        hardGames: state.hardGames,
       })[qIndex];
       if (!pick) {
         showToast("Not enough waiting players to auto-fill");
@@ -840,7 +908,7 @@ export function useSessionStore() {
       editT2B: sug.team2[1].id,
       suggestSeed: { ...s.suggestSeed, [courtId]: (s.suggestSeed[courtId] || 0) + 1 },
     }));
-  }, [state.editCourtId, state.editQueueIndex, state.suggestSeed, state.queue, state.matches, state.courts, state.requestedPairs, livePlayers, suggestions, showToast]);
+  }, [state.editCourtId, state.editQueueIndex, state.suggestSeed, state.queue, state.matches, state.courts, state.requestedPairs, state.hardGames, livePlayers, suggestions, showToast]);
   const closeEdit = useCallback(() => setState((s) => ({ ...s, editCourtId: null, editQueueIndex: null })), []);
   const onEditStart = useCallback(() => {
     const { editCourtId, editQueueIndex, editT1A, editT1B, editT2A, editT2B } = state;
@@ -865,6 +933,7 @@ export function useSessionStore() {
         existing: [...state.queue.slice(0, editQueueIndex), item],
         now: new Date(),
         enabled: true,
+        hardGames: state.hardGames,
       });
       // The plan keeps it only if all four will be available when it starts.
       const kept = next[editQueueIndex];
@@ -1538,7 +1607,7 @@ export function useSessionStore() {
   // the ones planned into "Then", so the umpire can tell them early.
   const longestRunning = state.matches.find((m) => m.status === "in_progress") ?? null;
   const nextButOneCourtId =
-    longestRunning && state.queue[1] && [...longestRunning.t1, ...longestRunning.t2].some((id) => [...state.queue[1].team1, ...state.queue[1].team2].includes(id))
+    longestRunning && plan[1] && [...longestRunning.t1, ...longestRunning.t2].some((id) => [...plan[1].team1, ...plan[1].team2].includes(id))
       ? longestRunning.courtId
       : null;
 
@@ -1653,55 +1722,35 @@ export function useSessionStore() {
     suggestionReason,
   ]);
 
-  // A preview of the next match once every court is occupied — otherwise
-  // "who's up next" only ever showed up on a free court's own card, so with
-  // e.g. 1 court running, waiting players had no visibility into who's next
-  // until that court actually finished. Non-binding: doesn't reserve a court
-  // or mark anyone as playing, just previews what buildSuggestion would pick
-  // right now. Recomputes automatically as availability/results change.
-  const upNext = useMemo<UpNextEntry | null>(() => {
-    if (state.courts.length === 0) return null;
-    const now = new Date();
-    const anyCourtFree = state.courts.some((c) => !c.paused && !isCourtClosingSoon(c, state.matches, now) && !state.matches.some((m) => m.status === "in_progress" && m.courtId === c.id));
-    if (anyCourtFree) return null; // a free court's own card already shows this suggestion
-    const seed = state.suggestSeed["upnext"] || 0;
-    const sug = buildSuggestion(livePlayers, state.matches, state.requestedPairs, [], seed);
-    if (!sug) return null;
-    return {
-      team1Label: sug.team1.map((p) => p.name).join(" & "),
-      team2Label: sug.team2.map((p) => p.name).join(" & "),
-      reason: suggestionReason(sug),
-      onRegenerate: () => rerollSuggestion("upnext"),
-    };
-    // state.tick moves the closing-soon cut-off along with the clock
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.courts, state.matches, livePlayers, state.suggestSeed, state.requestedPairs, state.tick, rerollSuggestion, suggestionReason]);
-
-  // The planned matches that no free court has taken, for the panel under the
-  // courts. "Then" says where its players come from when some of them are on the
-  // court that has been playing longest.
+  // The plan under the courts, minus the matches a free court has already
+  // taken. "Then" says where its players come from when some of them are on
+  // the court that will have finished by then (the (index)-th longest running).
+  // The first `state.queue.length` are locked; the rest are previews.
   const queueVM = useMemo<QueueEntry[]>(() => {
     const used = new Set(Object.values(suggestions).flatMap((sg) => (sg && sg.queueIndex !== undefined ? [sg.queueIndex] : [])));
     const names = (ids: readonly string[]) => ids.map((id) => livePlayers.find((p) => p.id === id)?.name ?? "?").join(" & ");
-    const first = state.matches.find((m) => m.status === "in_progress");
-    return state.queue.flatMap((item, index) => {
+    const running = state.matches.filter((m) => m.status === "in_progress"); // in the order they started
+    return plan.flatMap((item, index) => {
       if (used.has(index)) return [];
-      const fromLongest = first && index === 1 && [...item.team1, ...item.team2].some((id) => [...first.t1, ...first.t2].includes(id));
-      const court = first ? state.courts.find((c) => c.id === first.courtId) : undefined;
+      const from = index >= 1 ? running[index - 1] : undefined;
+      const fromCourt = from && [...item.team1, ...item.team2].some((id) => [...from.t1, ...from.t2].includes(id)) ? state.courts.find((c) => c.id === from.courtId) : undefined;
+      const playedMin = from ? Math.floor(Math.max(0, from.elapsedAtTick0 + state.tick) / 60) : 0;
+      const locked = index < state.queue.length;
       return [
         {
           index,
-          label: index === 0 ? "Up next · first court to free" : "Then",
-          detail: fromLongest && court && first ? `includes ${court.name} players (playing longest, ${Math.floor(Math.max(0, first.elapsedAtTick0 + state.tick) / 60)} min)` : null,
+          label: index === 0 ? "Up next · first court to free" : "Then · next court to free",
+          detail: fromCourt ? `includes ${fromCourt.name} players (${index === 1 ? "playing longest, " : "playing "}${playedMin} min)` : null,
           team1Label: names(item.team1),
           team2Label: names(item.team2),
           reason: [...item.reasons, ...(item.balanceNote && !hideTiers ? [item.balanceNote] : [])].join(" · "),
+          locked,
           onShuffle: () => shuffleQueue(index),
-          onEdit: () => openEditQueue(index),
+          ...(locked ? { onEdit: () => openEditQueue(index) } : {}),
         },
       ];
     });
-  }, [suggestions, state.queue, state.matches, state.courts, state.tick, livePlayers, hideTiers, shuffleQueue, openEditQueue]);
+  }, [suggestions, plan, state.queue.length, state.matches, state.courts, state.tick, livePlayers, hideTiers, shuffleQueue, openEditQueue]);
 
   // Hosts wait out the first round: until every open court has started a match.
   const holdingHosts = hostsHolding(state.courts, state.matches);
@@ -1788,6 +1837,10 @@ export function useSessionStore() {
 
   const waitingVM = useMemo<WaitingEntry[]>(() => {
     const now = Date.now();
+    const queueTagFor = (id: string) => {
+      const index = plan.findIndex((item) => [...item.team1, ...item.team2].includes(id));
+      return index === -1 ? undefined : index === 0 ? "Up next" : "Then";
+    };
     return orderedReady.map((p) => ({
         id: p.id,
         name: p.name,
@@ -1799,13 +1852,13 @@ export function useSessionStore() {
         consec: p.consecutiveGames,
         waitMin: p.idleSince ? Math.max(0, Math.floor((now - p.idleSince) / 60000)) : null,
         note: p.isHost && holdingHosts ? "Host · plays after round 1" : undefined,
-        queueTag: state.queue[0] && [...state.queue[0].team1, ...state.queue[0].team2].includes(p.id) ? "Up next" : state.queue[1] && [...state.queue[1].team1, ...state.queue[1].team2].includes(p.id) ? "Then" : undefined,
+        queueTag: queueTagFor(p.id),
         onSkip: () => skipNext(p.id),
         onPause: () => pausePlayer(p.id, "rest"),
       }));
     // state.tick keeps the minutes waited current
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderedReady, holdingHosts, state.queue, state.tick, skipNext, pausePlayer]);
+  }, [orderedReady, holdingHosts, plan, state.tick, skipNext, pausePlayer]);
 
   const notInRotationVM = useMemo<NotInRotationEntry[]>(() => {
     const notInRotation = state.players.filter((p) => p.status === "paused" || (p.skipNextRound && p.status === "ready" && !isPlaying(p.id)));
@@ -1941,7 +1994,7 @@ export function useSessionStore() {
   // Too few players for the courts open: advice, not a rule.
   const playersHint = fewPlayersHint(
     state.players.filter((p) => p.status === "ready").length,
-    state.courts.filter((c) => !c.paused && !isCourtClosingSoon(c, state.matches, new Date())).length,
+    openCourts(state.courts, state.matches, new Date()).length,
   );
   const activeMatchesCount = useMemo(() => state.matches.filter((m) => m.status === "in_progress").length, [state.matches]);
   const pendingDeleteMatch = state.pendingDeleteMatchId ? state.matches.find((m) => m.id === state.pendingDeleteMatchId) : null;
@@ -2028,7 +2081,6 @@ export function useSessionStore() {
       hasExpected: expectedCount > 0,
       onCheckInAll: checkInAll,
       courtsVM,
-      upNext: queueVM.length > 0 ? null : upNext,
       queueVM,
       waitingVM,
       waitingCount: waitingVM.length,
@@ -2069,6 +2121,8 @@ export function useSessionStore() {
       onRemoveCourt,
       planAhead: state.planAhead,
       onTogglePlanAhead: togglePlanAhead,
+      hardGames: state.hardGames,
+      onToggleHardGames: toggleHardGames,
       courtHours: state.courts.map((c) => ({ id: c.id, name: c.name, closesAt: c.closesAt ?? "" })),
       onSetCourtClosesAt: setCourtClosesAt,
       onOpenSetup: openSetup,

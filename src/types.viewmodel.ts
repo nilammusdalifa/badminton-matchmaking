@@ -228,9 +228,9 @@ export interface MatchLogEntry {
   onDelete: () => void;
 }
 
-/** A match planned ahead and locked: shown as "Up next" or "Then". */
+/** A planned match, one per open court: shown as "Up next" or "Then". */
 export interface QueueEntry {
-  /** 0 = Up next (the first court to free), 1 = Then. */
+  /** Position in the plan: 0 = Up next (the first court to free), 1+ = Then. */
   index: number;
   label: string;
   /** Where the players come from, e.g. "includes Court 1 players (playing longest, 18 min)". */
@@ -238,15 +238,11 @@ export interface QueueEntry {
   team1Label: string;
   team2Label: string;
   reason: string;
+  /** Starts exactly as shown; otherwise a preview that may change. */
+  locked: boolean;
   onShuffle: () => void;
-  onEdit: () => void;
-}
-
-export interface UpNextEntry {
-  team1Label: string;
-  team2Label: string;
-  reason: string;
-  onRegenerate: () => void;
+  /** Only for locked matches. */
+  onEdit?: () => void;
 }
 
 export interface SessionHealth {

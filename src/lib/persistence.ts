@@ -15,10 +15,12 @@ export interface PersistedState {
   requestedPairs: [string, string][];
   history: SessionHistoryEntry[];
   photoReminderShown: boolean;
-  /** Matches planned ahead and locked (Up next, Then). */
+  /** The locked part of the plan (Up next, Then): one match per open court. */
   queue: QueueItem[];
-  /** Plan matches ahead at all. Off: only today's "likely" preview. */
+  /** "Lock planned matches". Off: the plan is only a preview that keeps updating. */
   planAhead: boolean;
+  /** The "Hard games" switch. Missing (saved before it existed) means on. */
+  hardGames?: boolean;
 }
 
 /** Identity for this device's own session — stable across refreshes so the

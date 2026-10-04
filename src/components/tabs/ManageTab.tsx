@@ -29,6 +29,8 @@ export function ManageTab({
   onRemoveCourt,
   planAhead,
   onTogglePlanAhead,
+  hardGames,
+  onToggleHardGames,
   courtHours,
   onSetCourtClosesAt,
   onOpenSetup,
@@ -93,9 +95,18 @@ export function ManageTab({
           <label className={styles.hostToggle}>
             <input type="checkbox" checked={planAhead} onChange={onTogglePlanAhead} />
             <span>
-              <span className={styles.hostToggleTitle}>Plan 2 matches ahead</span>
+              <span className={styles.hostToggleTitle}>Lock planned matches</span>
               <span className={styles.hostToggleHint}>
-                Shows Up next and Then, and starts them exactly as shown. Off: only a likely preview, as before.
+                One planned match per court. Locked, and started exactly as shown, once 8 or more players are waiting; otherwise a preview that keeps updating.
+              </span>
+            </span>
+          </label>
+          <label className={styles.hostToggle}>
+            <input type="checkbox" checked={hardGames} onChange={onToggleHardGames} />
+            <span>
+              <span className={styles.hostToggleTitle}>Hard games</span>
+              <span className={styles.hostToggleHint}>
+                A/B players who have carried a C partner twice get an all-A/B match — never while a C is overdue.
               </span>
             </span>
           </label>
