@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import { buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, openCourts, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -869,6 +869,11 @@ describe("matches planned ahead (Up next, Then)", () => {
 
   it("locks the whole plan only when 8+ wait; below that, or with Plan ahead off, nothing", () => {
     expect([lockedCount(2, true, 8), lockedCount(2, true, 7), lockedCount(3, true, 12), lockedCount(2, false, 20)]).toEqual([2, 0, 3, 0]);
+  });
+
+  it("openCourts: not paused and not closing soon", () => {
+    const three = [courts[0], { ...courts[1], paused: true }, { id: "3", name: "Court 3", closesAt: "19:40" }, { id: "4", name: "Court 4", closesAt: "22:00" }];
+    expect(openCourts(three, [], now).map((c) => c.id)).toEqual(["1", "4"]); // now = 19:30
   });
 
   it("lockableWaiting: ready pool minus four per idle open court, +1 when something is locked", () => {

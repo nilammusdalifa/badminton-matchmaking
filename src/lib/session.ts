@@ -100,6 +100,11 @@ export function isCourtClosingSoon(court: Court, matches: Match[], now: Date): b
   return left !== null && left <= COURT_CLOSING_SOON_MINUTES && !court.paused && !keptOpen(court, matches);
 }
 
+/** Courts that can take a new match: not paused and not closing soon. */
+export function openCourts(courts: Court[], matches: Match[], now: Date): Court[] {
+  return courts.filter((c) => !c.paused && !isCourtClosingSoon(c, matches, now));
+}
+
 /** Open past the closing window on the organizer's say-so, with one more
  * match still to start — what the court card reports as "kept open". */
 export function isCourtKeptOpen(court: Court, matches: Match[], now: Date): boolean {
@@ -590,12 +595,12 @@ export function fewPlayersHint(readyCount: number, openCourts: number): string |
 
 /** How many players are waiting once every idle open court has taken its four,
  * i.e. as it will look with all courts busy (counting the four who have just
- * finished would trip the lock for a moment on 12 players / 2 courts). Open =
- * not paused and not closing soon, as in `planQueue`. With `hasLocked`, one
+ * finished would trip the lock for a moment on 12 players / 2 courts). Open
+ * courts are those from `openCourts`, as in `planQueue`. With `hasLocked`, one
  * extra: while matches are locked, resting one player must not drop the lock
  * when exactly 8 wait. */
 export function lockableWaiting(players: Player[], matches: Match[], courts: Court[], now: Date, hasLocked: boolean): number {
-  const open = courts.filter((c) => !c.paused && !isCourtClosingSoon(c, matches, now));
+  const open = openCourts(courts, matches, now);
   const idle = open.filter((c) => !matches.some((m) => m.status === "in_progress" && m.courtId === c.id)).length;
   return Math.max(0, readyPool(players, matches).length - 4 * idle) + (hasLocked ? 1 : 0);
 }
@@ -662,7 +667,7 @@ export function planQueue(args: {
   const { players, matches, courts, existing, now, enabled, seedAt } = args;
   if (!enabled) return [];
   // a court about to close can't be given a match to plan around
-  const open = courts.filter((c) => !c.paused && !isCourtClosingSoon(c, matches, now));
+  const open = openCourts(courts, matches, now);
   if (open.length === 0) return [];
   const running = matches.filter((m) => m.status === "in_progress"); // in the order they started
   const depth = open.length; // one match per open court; stops early at the first slot that can't find four
@@ -732,7 +737,7 @@ export function courtSuggestions(
   const out: Record<string, Suggestion | null> = {};
   const options: SuggestionOptions = {
     holdHosts: hostsHolding(courts, matches),
-    singleCourt: courts.filter((c) => !c.paused && !isCourtClosingSoon(c, matches, now)).length === 1,
+    singleCourt: openCourts(courts, matches, now).length === 1,
   };
   let next = 0; // how far into the queue the free courts have got
   for (const court of courts) {
