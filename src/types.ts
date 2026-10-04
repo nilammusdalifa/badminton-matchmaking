@@ -71,6 +71,11 @@ export interface CounterSnapshot {
   consecutiveGames: number;
   skipNextRound: boolean;
   maxConsecutive: number;
+  /** For the four who started: when they became free before it (see
+   * `Player.idleSince`), so cancelling the match gives them their place in line
+   * back. Absent when they had none, and on snapshots saved before this existed
+   * (cancelling then stamps them free at that moment). */
+  idleSince?: number;
 }
 
 export interface Match {

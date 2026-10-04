@@ -8,6 +8,7 @@ import {
   applyAfterMatch,
   applyMatchStart,
   buildCounterSnapshot,
+  cancelMatchPlayers,
   canRemovePlayer,
   buildSessionSummary,
   courtSuggestions,
@@ -1471,7 +1472,7 @@ export function useSessionStore() {
           // otherwise a mis-started match leaves permanent fairness drift
           // even after being cancelled. A completed match's players really
           // did play, so deleting its *result* never touches rotation state.
-          players: target.status === "in_progress" ? applyAfterMatch(reverseCounterSnapshot(s.players, target.counterSnapshot), target, now) : s.players,
+          players: target.status === "in_progress" ? cancelMatchPlayers(s.players, target, now) : s.players,
           confirmAction: null,
           pendingDeleteMatchId: null,
           // If the deleted match happened to be open in the scorekeeper,

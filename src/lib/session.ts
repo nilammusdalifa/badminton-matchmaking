@@ -282,6 +282,9 @@ export function buildCounterSnapshot(players: Player[], matches: Match[], four: 
   for (const p of players) {
     if (four.includes(p.id) || (p.status === "ready" && !isPlaying(p.id, matches))) {
       snapshot[p.id] = { skipped: p.skipped, consecutiveGames: p.consecutiveGames, skipNextRound: p.skipNextRound, maxConsecutive: p.maxConsecutive };
+      // only the four lose their place in line (cancelling stamps them); the key is
+      // left out rather than undefined, which Firebase rejects
+      if (four.includes(p.id) && p.idleSince !== undefined) snapshot[p.id].idleSince = p.idleSince;
     }
   }
   return snapshot;
@@ -290,13 +293,23 @@ export function buildCounterSnapshot(players: Player[], matches: Match[], four: 
 /** Restores each player's pre-match rotation fields from a snapshot — used
  * when cancelling a match that never actually finished, so it doesn't leave
  * permanent fairness drift behind. Players no longer on the roster, or not
- * covered by the snapshot, are left untouched. */
+ * covered by the snapshot, are left untouched; `idleSince` only where the
+ * snapshot holds one. */
 export function reverseCounterSnapshot(players: Player[], snapshot: Record<string, CounterSnapshot> | undefined): Player[] {
   if (!snapshot) return players;
   return players.map((p) => {
     const snap = snapshot[p.id];
     return snap ? { ...p, ...snap } : p;
   });
+}
+
+/** The roster after cancelling a match still on court: everyone's rotation
+ * fields go back to just before it started (see `reverseCounterSnapshot`) —
+ * including the four's place in line, so a mis-started round-1 match doesn't
+ * send them to the back — and any "after this match" choice takes effect. A
+ * snapshot saved without arrival times stamps the four free at `now`. */
+export function cancelMatchPlayers(players: Player[], match: Pick<Match, "t1" | "t2" | "counterSnapshot">, now: number): Player[] {
+  return reverseCounterSnapshot(applyAfterMatch(players, match, now), match.counterSnapshot);
 }
 
 export function formatElapsed(match: Match, tick: number): string {

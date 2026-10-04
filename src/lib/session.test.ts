@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player, SkillLevel, Suggestion } from "../types";
-import { buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, openCourts, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import { buildCounterSnapshot, cancelMatchPlayers, buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, openCourts, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -1035,6 +1035,38 @@ describe("arrival order", () => {
     const players = ["a", "b", "c", "d", "e"].map((id) => at(id, 5));
     const out = applyAfterMatch(players, { t1: ["a", "b"], t2: ["c", "d"] }, 777);
     expect(out.map((p) => p.idleSince)).toEqual([777, 777, 777, 777, 5]);
+  });
+
+  it("cancelling a mis-started match gives its four back their place in line", () => {
+    // a-d checked in first (round 1); the match is started by mistake and cancelled
+    const players = ["a", "b", "c", "d", "e", "f", "g", "h"].map((id, i) => at(id, 100 + i * 10));
+    const four = ["a", "b", "c", "d"];
+    const match = { t1: ["a", "b"] as [string, string], t2: ["c", "d"] as [string, string], counterSnapshot: buildCounterSnapshot(players, [], four) };
+    const started = applyMatchStart(players, [], four);
+    const out = cancelMatchPlayers(started, match, 9999);
+    expect(out.map((p) => p.idleSince)).toEqual(players.map((p) => p.idleSince));
+    expect(out.map((p) => p.skipped)).toEqual(players.map((p) => p.skipped));
+    // so the same four come up again
+    expect(buildSuggestion(out, [], [], [], 0)!.four.map((p) => p.id).sort()).toEqual(four);
+  });
+
+  it("a match started before the snapshot kept arrival times still cancels cleanly", () => {
+    const players = ["a", "b", "c", "d", "e"].map((id) => at(id, 5));
+    const snapshot = buildCounterSnapshot(players, [], ["a", "b", "c", "d"]);
+    // an older app version saved the snapshot without idleSince
+    const old = Object.fromEntries(Object.entries(snapshot).map(([id, s]) => [id, { skipped: s.skipped, consecutiveGames: s.consecutiveGames, skipNextRound: s.skipNextRound, maxConsecutive: s.maxConsecutive }]));
+    const started = applyMatchStart(players, [], ["a", "b", "c", "d"]);
+    const out = cancelMatchPlayers(started, { t1: ["a", "b"], t2: ["c", "d"], counterSnapshot: old }, 777);
+    expect(out.map((p) => p.idleSince)).toEqual([777, 777, 777, 777, 5]);
+    expect(out.map((p) => p.skipped)).toEqual([0, 0, 0, 0, 0]);
+  });
+
+  it("the snapshot keeps arrival time only for the four, and leaves the key out when there is none", () => {
+    const players = [at("a", 1), at("b", 2), at("c", 3), at("d"), at("e", 4)];
+    const snapshot = buildCounterSnapshot(players, [], ["a", "b", "c", "d"]);
+    expect(snapshot.a.idleSince).toBe(1);
+    expect("idleSince" in snapshot.d).toBe(false); // Firebase rejects undefined values
+    expect("idleSince" in snapshot.e).toBe(false); // not touched by the start, so not restored
   });
 
   it("markReady stamps the time; a new session clears it", () => {
