@@ -1,5 +1,6 @@
 import type { GamesPlayedRow, GamesPlayedVM } from "../types.viewmodel";
 import type { CounterSnapshot, Court, Match, Player, PlayerStatus, QueueItem, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
+import { carriesSinceHard, hardGamePick, isHardMatch } from "./hardGames";
 
 const PHOTO_REMINDER_LEAD_MINUTES = 30;
 
@@ -420,41 +421,73 @@ function mustPlayAfter(readyCount: number): number {
  * waiting counts double against the other terms. */
 const SINGLE_COURT_WAIT_WEIGHT = 2;
 
+/** Added to the cost of a foursome holding both an A and a C while a hard game
+ * is planned or on court (same scale as `8 × familiarity`). A preference, not a
+ * ban: if every choice has one, the match is still made. */
+const AVOID_AC_PENALTY = 20;
+
+/** The must-play players of a pool: those who have waited a quarter of the
+ * ready players (rounded up), by priority, at most 4. `extraReady`: players
+ * about to join the pool (planned into a match ahead, or on a court about to
+ * finish) count towards the cap too. Without it the cap sees only the players
+ * waiting right now and forces the longest waiters together again, so the same
+ * groups come back. */
+function mustPlayers(pool: Player[], extraReady: number): Player[] {
+  const mustAfter = mustPlayAfter(pool.length + extraReady);
+  return playerPriority(pool)
+    .filter((p) => p.skipped >= mustAfter)
+    .slice(0, 4);
+}
+
 /** Picks who plays next from the ready pool. Rules, in order:
  *  1. Anyone who has waited a quarter of the pool's size (rounded up) must
- *     play (at most 4, by priority).
+ *     play (at most 4, by priority). `opts.forced`, when given, replaces this
+ *     group (a hard game's must-play and due players); its players need not be
+ *     in `pool`, which then only supplies the rest.
  *  2. Nobody plays a third match in a row, unless too few others are ready.
  *  3. The rest are chosen from the next 8 by priority: every combination is
  *     costed as `8 × familiarity − Σ priority + 6 × Σ (games − fewest games)`,
  *     where familiarity is how often each pair of the four has already shared
- *     a match tonight. Lowest cost wins; `seed` (Shuffle) steps through the
+ *     a match tonight, plus `AVOID_AC_PENALTY` for an A with a C when
+ *     `opts.avoidAC`. Lowest cost wins; `seed` (Shuffle) steps through the
  *     next-best few. So four people who just finished together get split up
  *     rather than sent straight back out as the same group. */
-export function pickFour(pool: Player[], meet: Map<string, number>, seed = 0, singleCourt = false, extraReady = 0): Player[] | null {
+export function pickFour(
+  pool: Player[],
+  meet: Map<string, number>,
+  seed = 0,
+  singleCourt = false,
+  extraReady = 0,
+  opts: { forced?: Player[]; avoidAC?: boolean } = {},
+): Player[] | null {
   if (pool.length < 4) return null;
   const waitWeight = singleCourt ? SINGLE_COURT_WAIT_WEIGHT : 1;
-  // `extraReady`: players about to join the pool (planned into a match ahead, or
-  // on a court about to finish) count towards the must-play cap too. Without
-  // it the cap sees only the players waiting right now and forces the longest
-  // waiters together again, so the same groups come back.
-  const mustAfter = mustPlayAfter(pool.length + extraReady);
+  const must = opts.forced
+    ? opts.forced.filter((p, i, all) => all.findIndex((q) => q.id === p.id) === i).slice(0, 4)
+    : mustPlayers(pool, extraReady);
   const sorted = playerPriority(pool);
-  const must = sorted.filter((p) => p.skipped >= mustAfter).slice(0, 4);
-  let rest = sorted.filter((p) => !must.includes(p));
+  let rest = sorted.filter((p) => !must.some((m) => m.id === p.id));
   const rested = rest.filter((p) => p.consecutiveGames < MAX_CONSECUTIVE);
   if (rested.length >= 4 - must.length) rest = rested;
   rest = rest.slice(0, CANDIDATE_WINDOW);
 
-  const minGames = Math.min(...pool.map((p) => p.games));
+  const minGames = Math.min(...[...pool, ...must].map((p) => p.games));
   const ranked = combinations(rest, 4 - must.length)
     .map((combo) => {
       const four = [...must, ...combo];
       let familiarity = 0;
       for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) familiarity += meet.get(pairKey(four[i].id, four[j].id)) || 0;
-      const cost = 8 * familiarity - waitWeight * four.reduce((sum, p) => sum + priorityScore(p), 0) + 6 * four.reduce((sum, p) => sum + (p.games - minGames), 0);
+      const mixesAC = opts.avoidAC && four.some((p) => p.level === "A") && four.some((p) => p.level === "C");
+      const cost =
+        8 * familiarity -
+        waitWeight * four.reduce((sum, p) => sum + priorityScore(p), 0) +
+        6 * four.reduce((sum, p) => sum + (p.games - minGames), 0) +
+        (mixesAC ? AVOID_AC_PENALTY : 0);
       return { four, familiarity, cost };
     })
     .sort((x, y) => x.cost - y.cost);
+  // forced players from outside `pool` can leave too few others to fill the four
+  if (ranked.length === 0) return null;
   return ranked[seed % Math.min(ranked.length, SHUFFLE_CHOICES)].four;
 }
 
@@ -465,6 +498,12 @@ export interface SuggestionOptions {
   singleCourt?: boolean;
   /** Players beyond the pool that the must-play cap should also count (see `pickFour`). */
   extraReady?: number;
+  /** The "Hard games" switch: an A/B player who has carried a C partner twice
+   * since their last all-A/B match may be given one (see `hardGamePick`). */
+  hardGames?: boolean;
+  /** A hard game exists outside `matches` (e.g. in the plan), so no other may
+   * be picked and this pick avoids an A with a C. */
+  hardPlanned?: boolean;
 }
 
 export function buildSuggestion(
@@ -511,7 +550,33 @@ export function buildSuggestion(
     }
   }
 
-  const four = pickFour(pool, meet, seed, options.singleCourt, options.extraReady ?? 0);
+  const extraReady = options.extraReady ?? 0;
+  // Hard games only with the switch on: with it off the night runs as before,
+  // even when an all-A/B match happens to be on court.
+  let four: Player[] | null = null;
+  let hardNote: string | null = null;
+  if (options.hardGames) {
+    const level = new Map(players.map((p) => [p.id, p.level] as const));
+    const hardActive = !!options.hardPlanned || matches.some((m) => m.status === "in_progress" && isHardMatch(m, (id) => level.get(id)));
+    const carries = carriesSinceHard(players, matches);
+    const pick = hardGamePick({
+      pool: ordered.filter((p) => p.consecutiveGames < MAX_CONSECUTIVE),
+      mustPlay: mustPlayers(pool, extraReady),
+      carries,
+      enabled: true,
+      hardActive,
+    });
+    if (pick) {
+      four = pickFour(pick.candidates, meet, seed, options.singleCourt, extraReady, { forced: pick.forced });
+      if (four) {
+        const due = pick.due.filter((p) => four!.some((q) => q.id === p.id));
+        hardNote = due.length > 0 ? `Hard game · ${due.map((p) => p.name).join(" & ")} carried ${Math.max(...due.map((p) => carries.get(p.id) ?? 0))} games · ` : "Hard game · ";
+      }
+    }
+    four ??= pickFour(pool, meet, seed, options.singleCourt, extraReady, { avoidAC: hardActive });
+  } else {
+    four = pickFour(pool, meet, seed, options.singleCourt, extraReady);
+  }
   if (!four) return null;
   const split = pickBalancedFoursome(four, partner);
 
@@ -530,8 +595,8 @@ export function buildSuggestion(
   const streak = four.find((p) => p.consecutiveGames >= 2);
   if (streak) reasons.push(`${streak.name} is playing back-to-back`);
   const levels = (team: [Player, Player]) => team.map((p) => p.level).join("+");
-  const balanceNote = `Teams balanced by tier (${levels(split.team1)} vs ${levels(split.team2)})`;
-  return { team1: split.team1, team2: split.team2, four, reasons, balanceNote };
+  const balanceNote = `${hardNote ?? ""}Teams balanced by tier (${levels(split.team1)} vs ${levels(split.team2)})`;
+  return { team1: split.team1, team2: split.team2, four, reasons, balanceNote, ...(hardNote !== null ? { hard: true } : {}) };
 }
 
 /** Hosts wait out the first round: until one match has started on every open court. */
@@ -629,6 +694,7 @@ function suggestionFromItem(item: QueueItem, players: Player[], matches: Match[]
     reasons: item.reasons,
     balanceNote: item.balanceNote,
     queueIndex,
+    ...(item.hard ? { hard: true } : {}),
   };
 }
 
@@ -651,7 +717,11 @@ export function dropStarted(queue: QueueItem[], four: readonly string[]): QueueI
  * shown. The first one that isn't (someone rested or was edited) is re-picked
  * together with everything after it, since later items depend on earlier ones.
  * `seedAt` re-picks one position with another seed (Shuffle). Late check-ins
- * only ever extend the end. */
+ * only ever extend the end.
+ *
+ * `hardGames` lets a slot become a hard game (see `buildSuggestion`); planned
+ * matches count as on court for the slots after them, so only one is planned
+ * at a time. With it off, a kept hard game is re-picked as a normal match. */
 export function planQueue(args: {
   players: Player[];
   matches: Match[];
@@ -663,8 +733,11 @@ export function planQueue(args: {
   seedAt?: { index: number; seed: number };
   /** Seeds for re-picked positions (preview shuffles), keyed by position. */
   seeds?: Record<number, number>;
+  /** The "Hard games" switch. */
+  hardGames?: boolean;
 }): QueueItem[] {
   const { players, matches, courts, existing, now, enabled, seedAt } = args;
+  const hardGames = args.hardGames ?? false;
   if (!enabled) return [];
   // a court about to close can't be given a match to plan around
   const open = openCourts(courts, matches, now);
@@ -681,7 +754,7 @@ export function planQueue(args: {
   for (let j = 0; j < depth; j++) {
     let item: QueueItem | null = null;
     const kept = existing[j];
-    if (keeping && kept && !(seedAt && seedAt.index === j)) {
+    if (keeping && kept && !(seedAt && seedAt.index === j) && !(kept.hard && !hardGames)) {
       const ready = new Set(readyPool(P, M).map((p) => p.id));
       const ids = itemIds(kept);
       if (new Set(ids).size === 4 && ids.every((id) => ready.has(id))) item = kept;
@@ -690,7 +763,7 @@ export function planQueue(args: {
       keeping = false;
       const extraReady = 4 * Math.max(j, running.length ? 1 : 0);
       const seed = seedAt && seedAt.index === j ? seedAt.seed : (args.seeds?.[j] ?? 0);
-      const sug = buildSuggestion(P, M, pairs, [], seed, { ...options, holdHosts: hostsHolding(courts, M), extraReady });
+      const sug = buildSuggestion(P, M, pairs, [], seed, { ...options, holdHosts: hostsHolding(courts, M), extraReady, hardGames });
       if (!sug) break;
       item = {
         team1: [sug.team1[0].id, sug.team1[1].id],
@@ -698,6 +771,8 @@ export function planQueue(args: {
         seed,
         reasons: sug.reasons,
         balanceNote: sug.balanceNote,
+        // only set when true, never `hard: undefined` (Firebase rejects undefined values)
+        ...(sug.hard ? { hard: true } : {}),
       };
     }
     out.push(item);
@@ -723,7 +798,8 @@ export function planQueue(args: {
  * locked queue in order (`queueIndex` says which), then fresh picks that
  * exclude whoever earlier courts already claimed. A court that is paused,
  * busy or closing soon has no entry; `null` means it's open but too few
- * players are waiting. */
+ * players are waiting. With `hardGames`, a fresh pick may be a hard game unless
+ * one is already planned in `queue` or picked for an earlier court this pass. */
 export function courtSuggestions(
   courts: Court[],
   players: Player[],
@@ -732,13 +808,16 @@ export function courtSuggestions(
   seeds: Record<string, number>,
   now: Date,
   queue: QueueItem[] = [],
+  hardGames = false,
 ): Record<string, Suggestion | null> {
   const claimed: string[] = [];
   const out: Record<string, Suggestion | null> = {};
   const options: SuggestionOptions = {
     holdHosts: hostsHolding(courts, matches),
     singleCourt: openCourts(courts, matches, now).length === 1,
+    hardGames,
   };
+  let hardPlanned = queue.some((q) => q.hard);
   let next = 0; // how far into the queue the free courts have got
   for (const court of courts) {
     if (court.paused || isCourtClosingSoon(court, matches, now)) continue;
@@ -748,9 +827,10 @@ export function courtSuggestions(
       suggestion = suggestionFromItem(queue[next], players, matches, claimed, next);
       next++;
     }
-    suggestion ??= buildSuggestion(players, matches, requestedPairs, claimed, seeds[court.id] || 0, options);
+    suggestion ??= buildSuggestion(players, matches, requestedPairs, claimed, seeds[court.id] || 0, { ...options, hardPlanned });
     out[court.id] = suggestion;
     if (suggestion) claimed.push(...suggestion.four.map((p) => p.id));
+    if (suggestion?.hard) hardPlanned = true;
   }
   return out;
 }

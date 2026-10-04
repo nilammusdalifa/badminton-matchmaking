@@ -141,6 +141,9 @@ export interface QueueItem {
   seed: number;
   reasons: string[];
   balanceNote: string | null;
+  /** Planned as a hard game (all A/B, for a player who has carried a C partner
+   * twice). Absent when not. */
+  hard?: boolean;
 }
 
 export interface Suggestion {
@@ -154,6 +157,8 @@ export interface Suggestion {
   balanceNote: string | null;
   /** Set when this came from the locked queue (position in it) rather than a fresh pick. */
   queueIndex?: number;
+  /** A hard game (see `QueueItem.hard`). Absent when not. */
+  hard?: boolean;
 }
 
 export interface SessionHistoryEntry {

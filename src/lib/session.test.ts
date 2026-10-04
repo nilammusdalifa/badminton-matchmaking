@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Match, Player } from "../types";
+import type { Match, Player, SkillLevel, Suggestion } from "../types";
 import { buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, openCourts, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
@@ -1041,5 +1041,85 @@ describe("arrival order", () => {
     const p = markReady(makeBlankPlayer("a", "A", "B", "expected"), 42);
     expect([p.status, p.idleSince]).toEqual(["ready", 42]);
     expect(resetPlayersForNewSession([p])[0].idleSince).toBeUndefined();
+  });
+});
+
+describe("hard games", () => {
+  const T = (id: string, level: SkillLevel, over: Partial<Player> = {}): Player => ({ ...makeBlankPlayer(id, id, level, "ready"), ...over });
+  // a1 has carried c1 twice (against two players who have since left); everyone else is fresh
+  const history = [completed("h1", ["a1", "c1"], ["xb", "xc"], 21, 15), completed("h2", ["a1", "c1"], ["xb", "xc"], 21, 15)];
+  const roster = () => [T("a1", "A"), T("a2", "A"), T("b1", "B"), T("b2", "B"), T("c1", "C"), T("c2", "C"), T("c3", "C"), T("c4", "C"), T("xb", "B", { status: "left" }), T("xc", "C", { status: "left" })];
+  const four = (s: Suggestion | null) => s!.four.map((p) => p.id).sort();
+
+  it("a due A/B player gets an all-A/B match, noted for the organizer", () => {
+    const sug = buildSuggestion(roster(), history, [], [], 0, { hardGames: true })!;
+    expect(sug.hard).toBe(true);
+    expect(four(sug)).toEqual(["a1", "a2", "b1", "b2"]);
+    expect(sug.balanceNote).toMatch(/^Hard game · a1 carried 2 games · Teams balanced by tier/);
+  });
+
+  it("Shuffle on a hard game stays a hard game", () => {
+    for (const seed of [1, 2, 3]) expect(buildSuggestion(roster(), history, [], [], seed, { hardGames: true })!.hard).toBe(true);
+  });
+
+  it("is off when the switch is off", () => {
+    expect(buildSuggestion(roster(), history, [], [], 0, {})!.hard).toBeFalsy();
+  });
+
+  it("a C at must-play blocks it and plays", () => {
+    const players = roster().map((p) => (p.id === "c3" ? { ...p, skipped: 5 } : p));
+    const sug = buildSuggestion(players, history, [], [], 0, { hardGames: true })!;
+    expect(sug.hard).toBeFalsy();
+    expect(four(sug)).toContain("c3");
+  });
+
+  it("only one at a time: not while a hard game is on court or planned", () => {
+    const players = [...roster(), T("a3", "A"), T("a4", "A"), T("b3", "B"), T("b4", "B")];
+    const onCourt: Match = { ...completed("live", ["a3", "a4"], ["b3", "b4"], 0, 0), status: "in_progress" };
+    expect(buildSuggestion(players, [...history, onCourt], [], [], 0, { hardGames: true })!.hard).toBeFalsy();
+    expect(buildSuggestion(roster(), history, [], [], 0, { hardGames: true, hardPlanned: true })!.hard).toBeFalsy();
+  });
+
+  it("needs four A/B players who aren't on their third match in a row", () => {
+    const players = roster().map((p) => (p.id === "b2" ? { ...p, consecutiveGames: 2 } : p));
+    expect(buildSuggestion(players, history, [], [], 0, { hardGames: true })!.hard).toBeFalsy();
+  });
+
+  it("while a hard game is on, the other pick avoids an A with a C", () => {
+    const players = [T("a9", "A"), T("b5", "B"), T("b6", "B"), T("c5", "C"), T("c6", "C"), T("c7", "C"), T("h1", "A"), T("h2", "A"), T("h3", "B"), T("h4", "B")];
+    const onCourt: Match = { ...completed("live", ["h1", "h2"], ["h3", "h4"], 0, 0), status: "in_progress" };
+    const ids = four(buildSuggestion(players, [onCourt], [], [], 0, { hardGames: true }));
+    expect(ids.includes("a9") && ids.some((id) => id.startsWith("c"))).toBe(false);
+  });
+
+  it("a requested partner pair wins over a due hard game", () => {
+    const sug = buildSuggestion(roster(), history, [["a1", "c2"]], [], 0, { hardGames: true })!;
+    expect(sug.hard).toBeFalsy();
+    expect(sug.team1.map((p) => p.id)).toEqual(["a1", "c2"]);
+  });
+
+  it("switching hard games off re-picks a locked planned hard game", () => {
+    const courts = [{ id: "1", name: "Court 1" }];
+    const now = new Date(2026, 9, 5, 19, 30);
+    const q = planQueue({ players: roster(), matches: history, courts, requestedPairs: [], existing: [], now, enabled: true, hardGames: true });
+    expect(q[0].hard).toBe(true);
+    const off = planQueue({ players: roster(), matches: history, courts, requestedPairs: [], existing: q, now, enabled: true, hardGames: false });
+    expect(off[0].hard).toBeFalsy();
+  });
+
+  it("pickFour fills around forced players who are not in the pool", () => {
+    const pool = [T("p1", "B"), T("p2", "B"), T("p3", "B"), T("p4", "B")];
+    const out = pickFour(pool, new Map(), 0, false, 0, { forced: [T("f1", "A"), T("f1", "A")] })!;
+    expect(new Set(out.map((p) => p.id)).size).toBe(4);
+    expect(out.map((p) => p.id)).toContain("f1");
+  });
+
+  it("an upper must-play on a third match in a row still plays the hard game", () => {
+    // b2 is a must-play but left out of the candidates (third in a row); forced keeps them in
+    const players = [...roster(), T("a3", "A")].map((p) => (p.id === "b2" ? { ...p, consecutiveGames: 2, skipped: 5 } : p));
+    const sug = buildSuggestion(players, history, [], [], 0, { hardGames: true })!;
+    expect(sug.hard).toBe(true);
+    expect(new Set(four(sug)).size).toBe(4);
+    expect(four(sug)).toEqual(expect.arrayContaining(["a1", "b2"]));
   });
 });
