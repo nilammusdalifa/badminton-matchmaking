@@ -307,8 +307,23 @@ export function priorityScore(p: Player): number {
   return p.skipped * 10 - p.consecutiveGames * 3 - p.games * 0.5;
 }
 
+/** Highest priority first. Equal scores go to whoever became free earliest
+ * (`idleSince`); players with no recorded time sort after any with one; still
+ * equal keeps the input (roster) order, since the sort is stable. */
 export function playerPriority(pool: Player[]): Player[] {
-  return [...pool].sort((a, b) => priorityScore(b) - priorityScore(a));
+  return [...pool].sort((a, b) => {
+    const byScore = priorityScore(b) - priorityScore(a);
+    if (byScore !== 0) return byScore;
+    const ai = a.idleSince ?? Infinity;
+    const bi = b.idleSince ?? Infinity;
+    if (ai === bi) return 0;
+    return ai < bi ? -1 : 1;
+  });
+}
+
+/** Marks a player ready and records when they became free to play. */
+export function markReady(p: Player, now: number): Player {
+  return { ...p, status: "ready", idleSince: now };
 }
 
 const LEVEL_RANK: Record<SkillLevel, number> = { A: 3, B: 2, C: 1 };
@@ -1139,16 +1154,21 @@ export function resetPlayersForNewSession(players: Player[]): Player[] {
     };
     // a pending "after this match" belongs to a match that no longer exists
     delete next.afterMatch;
+    // arrival order belongs to the session that just ended
+    delete next.idleSince;
     return next;
   });
 }
 
-/** Applies each player's "after this match" choice now that their match is
- * saved or cancelled: rest (back from the rotation until they return) or leave. */
-export function applyAfterMatch(players: Player[], match: Pick<Match, "t1" | "t2">): Player[] {
+/** Stamps the match's four as free to play again at `now`, then applies each
+ * player's "after this match" choice now that their match is saved or
+ * cancelled: rest (back from the rotation until they return) or leave. */
+export function applyAfterMatch(players: Player[], match: Pick<Match, "t1" | "t2">, now: number): Player[] {
   const ids = [...match.t1, ...match.t2];
-  return players.map((p) => {
-    if (!p.afterMatch || !ids.includes(p.id)) return p;
+  return players.map((stamped) => {
+    if (!ids.includes(stamped.id)) return stamped;
+    const p: Player = { ...stamped, idleSince: now };
+    if (!p.afterMatch) return p;
     const next: Player = p.afterMatch === "rest" ? { ...p, status: "paused", pauseReason: "rest" } : { ...p, status: "left" };
     delete next.afterMatch;
     return next;

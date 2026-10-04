@@ -602,7 +602,7 @@ export function useSessionStore() {
           ...s,
           matches,
           // rest / leave chosen while they were on court takes effect now
-          players: !wasCompleted && target ? applyAfterMatch(s.players, target) : s.players,
+          players: !wasCompleted && target ? applyAfterMatch(s.players, target, Date.now()) : s.players,
           completedCount: wasCompleted ? s.completedCount : s.completedCount + 1,
           scorekeeperMatchId: null,
         };
@@ -626,7 +626,7 @@ export function useSessionStore() {
         return {
           ...s,
           matches: s.matches.map((m) => (m.id === matchId ? { ...m, s1: winner === "t1" ? 1 : 0, s2: winner === "t2" ? 1 : 0, status: "completed" as const } : m)),
-          players: target ? applyAfterMatch(s.players, target) : s.players,
+          players: target ? applyAfterMatch(s.players, target, Date.now()) : s.players,
           completedCount: s.completedCount + 1,
         };
       });
@@ -641,7 +641,7 @@ export function useSessionStore() {
         return {
           ...s,
           matches: s.matches.map((m) => (m.id === matchId ? { ...m, s1: 0, s2: 0, status: "completed" as const } : m)),
-          players: target ? applyAfterMatch(s.players, target) : s.players,
+          players: target ? applyAfterMatch(s.players, target, Date.now()) : s.players,
           completedCount: s.completedCount + 1,
         };
       });
@@ -1382,7 +1382,7 @@ export function useSessionStore() {
           // otherwise a mis-started match leaves permanent fairness drift
           // even after being cancelled. A completed match's players really
           // did play, so deleting its *result* never touches rotation state.
-          players: target.status === "in_progress" ? applyAfterMatch(reverseCounterSnapshot(s.players, target.counterSnapshot), target) : s.players,
+          players: target.status === "in_progress" ? applyAfterMatch(reverseCounterSnapshot(s.players, target.counterSnapshot), target, Date.now()) : s.players,
           confirmAction: null,
           pendingDeleteMatchId: null,
           // If the deleted match happened to be open in the scorekeeper,

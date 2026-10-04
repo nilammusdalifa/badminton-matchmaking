@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { buildHighlights, shortName, dropStarted, planQueue, queueDepth, resetPlayersForNewSession, applyAfterMatch, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import { buildHighlights, shortName, dropStarted, planQueue, queueDepth, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -287,7 +287,7 @@ describe("rest or leave after the match", () => {
 
   it("applies the choice to the players in that match, then clears it", () => {
     const players = roster().map((p) => (p.id === "a" ? { ...p, afterMatch: "rest" as const } : p.id === "c" ? { ...p, afterMatch: "left" as const } : p.id === "e" ? { ...p, afterMatch: "rest" as const } : p));
-    const out = applyAfterMatch(players, onCourt);
+    const out = applyAfterMatch(players, onCourt, 0);
     const get = (id: string) => out.find((p) => p.id === id)!;
     expect([get("a").status, get("a").pauseReason, get("a").afterMatch]).toEqual(["paused", "rest", undefined]);
     expect([get("c").status, get("c").afterMatch]).toEqual(["left", undefined]);
@@ -967,5 +967,40 @@ describe("avatar initials", () => {
   it("keeps the first two letters of a plain name", () => {
     expect(initialsFor("Andi")).toBe("AN");
     expect(initialsFor("")).toBe("?");
+  });
+});
+
+describe("arrival order", () => {
+  const at = (id: string, idleSince?: number, over: Partial<Player> = {}): Player => ({ ...makeBlankPlayer(id, id, "B", "ready"), ...(idleSince === undefined ? {} : { idleSince }), ...over });
+
+  it("equal priority goes to whoever became free first; unknown times last", () => {
+    const order = playerPriority([at("c", 300), at("x"), at("a", 100), at("b", 200)]).map((p) => p.id);
+    expect(order).toEqual(["a", "b", "c", "x"]);
+  });
+
+  it("the same check-in time (Check In All) keeps roster order", () => {
+    expect(playerPriority([at("p2", 50), at("p1", 50), at("p3", 50)]).map((p) => p.id)).toEqual(["p2", "p1", "p3"]);
+  });
+
+  it("waiting count still beats arrival time", () => {
+    expect(playerPriority([at("early", 1), at("late", 999, { skipped: 1 })])[0].id).toBe("late");
+  });
+
+  it("round 1 suggests the first four to check in", () => {
+    const players = ["h", "g", "f", "e", "d", "c", "b", "a"].map((id, i) => at(id, 1000 - i * 10)); // a checked in first
+    const sug = buildSuggestion(players, [], [], [], 0)!;
+    expect(sug.four.map((p) => p.id).sort()).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("a saved or cancelled match stamps its four as free now", () => {
+    const players = ["a", "b", "c", "d", "e"].map((id) => at(id, 5));
+    const out = applyAfterMatch(players, { t1: ["a", "b"], t2: ["c", "d"] }, 777);
+    expect(out.map((p) => p.idleSince)).toEqual([777, 777, 777, 777, 5]);
+  });
+
+  it("markReady stamps the time; a new session clears it", () => {
+    const p = markReady(makeBlankPlayer("a", "A", "B", "expected"), 42);
+    expect([p.status, p.idleSince]).toEqual(["ready", 42]);
+    expect(resetPlayersForNewSession([p])[0].idleSince).toBeUndefined();
   });
 });

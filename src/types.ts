@@ -58,6 +58,10 @@ export interface Player {
   /** Set while they are on court: what to do the moment their match is saved
    * or cancelled. */
   afterMatch?: "rest" | "left";
+  /** Epoch ms when the player last became free to play (checked in, resumed, or
+   * came off court). Breaks ties in who is suggested next: earliest first.
+   * Absent on players saved before this existed. */
+  idleSince?: number;
 }
 
 /** A player's rotation-fairness fields, captured just before a match-start
