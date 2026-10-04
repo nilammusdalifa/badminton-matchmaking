@@ -423,6 +423,8 @@ describe("hard games on a 3A/5B/7C night", () => {
       const off = summarize(night, NIGHTS, false);
       const on = summarize({ ...night, hardGames: true }, NIGHTS, false);
       expect(on.hardPerUpper).toBeGreaterThanOrEqual(1);
+      // the baseline already satisfies >= 1, so this is the assertion that proves the switch does something
+      expect(on.hardPerUpper).toBeGreaterThan(off.hardPerUpper);
       expect(on.maxCarries).toBeLessThanOrEqual(3);
       expect(on.maxWaitC).toBeLessThanOrEqual(off.maxWaitC + 1);
       expect(on.wait).toBeLessThanOrEqual(ceilQuarter(15) + 1);
