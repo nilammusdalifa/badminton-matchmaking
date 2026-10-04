@@ -38,6 +38,7 @@ import {
   buildGamesPlayed,
   buildHighlights,
   buildStandings,
+  markReady,
   pointsShare,
   readyPool as readyPoolFn,
   recomputePlayerStats,
@@ -584,6 +585,7 @@ export function useSessionStore() {
       // not count it a second time — only a genuine in_progress → completed
       // transition increments the total.
       const wasCompleted = state.matches.find((m) => m.id === matchId)?.status === "completed";
+      const now = Date.now();
       setState((s) => {
         const target = s.matches.find((m) => m.id === matchId);
         const matches = s.matches.map((m) => {
@@ -602,7 +604,7 @@ export function useSessionStore() {
           ...s,
           matches,
           // rest / leave chosen while they were on court takes effect now
-          players: !wasCompleted && target ? applyAfterMatch(s.players, target, Date.now()) : s.players,
+          players: !wasCompleted && target ? applyAfterMatch(s.players, target, now) : s.players,
           completedCount: wasCompleted ? s.completedCount : s.completedCount + 1,
           scorekeeperMatchId: null,
         };
@@ -621,12 +623,13 @@ export function useSessionStore() {
   // tie for `resultMode === "score"`, so it won't be mislabeled).
   const quickWin = useCallback(
     (matchId: string, winner: "t1" | "t2") => {
+      const now = Date.now();
       setState((s) => {
         const target = s.matches.find((m) => m.id === matchId);
         return {
           ...s,
           matches: s.matches.map((m) => (m.id === matchId ? { ...m, s1: winner === "t1" ? 1 : 0, s2: winner === "t2" ? 1 : 0, status: "completed" as const } : m)),
-          players: target ? applyAfterMatch(s.players, target, Date.now()) : s.players,
+          players: target ? applyAfterMatch(s.players, target, now) : s.players,
           completedCount: s.completedCount + 1,
         };
       });
@@ -636,12 +639,13 @@ export function useSessionStore() {
   );
   const quickFinish = useCallback(
     (matchId: string) => {
+      const now = Date.now();
       setState((s) => {
         const target = s.matches.find((m) => m.id === matchId);
         return {
           ...s,
           matches: s.matches.map((m) => (m.id === matchId ? { ...m, s1: 0, s2: 0, status: "completed" as const } : m)),
-          players: target ? applyAfterMatch(s.players, target, Date.now()) : s.players,
+          players: target ? applyAfterMatch(s.players, target, now) : s.players,
           completedCount: s.completedCount + 1,
         };
       });
@@ -883,13 +887,15 @@ export function useSessionStore() {
   const checkIn = useCallback(
     (id: string) => {
       const p = getPlayer(id);
-      setState((s) => ({ ...s, players: s.players.map((pl) => (pl.id === id ? { ...pl, status: "ready" as const } : pl)) }));
+      const now = Date.now();
+      setState((s) => ({ ...s, players: s.players.map((pl) => (pl.id === id ? markReady(pl, now) : pl)) }));
       showToast((p ? p.name : "Player") + " checked in");
     },
     [getPlayer, showToast],
   );
   const checkInAll = useCallback(() => {
-    setState((s) => ({ ...s, players: s.players.map((p) => (p.status === "expected" ? { ...p, status: "ready" as const } : p)) }));
+    const now = Date.now();
+    setState((s) => ({ ...s, players: s.players.map((p) => (p.status === "expected" ? markReady(p, now) : p)) }));
     showToast("Everyone checked in");
   }, [showToast]);
   const pausePlayer = useCallback(
@@ -902,9 +908,10 @@ export function useSessionStore() {
   );
   const resumePlayer = useCallback(
     (id: string) => {
+      const now = Date.now();
       setState((s) => ({
         ...s,
-        players: s.players.map((p) => (p.id === id ? { ...p, status: "ready" as const, pauseReason: null, consecutiveGames: 0 } : p)),
+        players: s.players.map((p) => (p.id === id ? { ...markReady(p, now), pauseReason: null, consecutiveGames: 0 } : p)),
       }));
       showToast("Back in the rotation");
     },
@@ -961,7 +968,8 @@ export function useSessionStore() {
 
   const rejoinPlayer = useCallback(
     (id: string) => {
-      setState((s) => ({ ...s, players: s.players.map((p) => (p.id === id ? { ...p, status: "ready" as const } : p)) }));
+      const now = Date.now();
+      setState((s) => ({ ...s, players: s.players.map((p) => (p.id === id ? markReady(p, now) : p)) }));
       showToast("Welcome back");
     },
     [showToast],
@@ -983,7 +991,9 @@ export function useSessionStore() {
         showToast(`${name} is already on the roster. Add a last initial.`);
         return;
       }
-      const player = makeBlankPlayer("p" + Date.now(), name, state.newPlayerLevel, status);
+      const now = Date.now();
+      const blank = makeBlankPlayer("p" + now, name, state.newPlayerLevel, status);
+      const player = status === "ready" ? markReady(blank, now) : blank;
       setState((s) => ({ ...s, players: [...s.players, player], newPlayerName: "" }));
       showToast(name + (status === "expected" ? " added — check them in when they arrive" : " added to the roster"));
     },
@@ -1006,8 +1016,12 @@ export function useSessionStore() {
         seenInBatch.add(key);
         toAdd.push(name);
       }
+      const now = Date.now();
       setState((s) => {
-        const newPlayers = toAdd.map((name, i) => makeBlankPlayer("p" + Date.now() + "_" + i, name, s.newPlayerLevel, status));
+        const newPlayers = toAdd.map((name, i) => {
+          const blank = makeBlankPlayer("p" + now + "_" + i, name, s.newPlayerLevel, status);
+          return status === "ready" ? markReady(blank, now) : blank;
+        });
         return { ...s, players: [...s.players, ...newPlayers], newPlayerName: "" };
       });
       showToast(skipped > 0 ? `${toAdd.length} added, ${skipped} already on roster` : `${toAdd.length} ${toAdd.length === 1 ? "player" : "players"} added`);
@@ -1341,6 +1355,7 @@ export function useSessionStore() {
   );
   const closeConfirm = useCallback(() => setState((s) => ({ ...s, confirmAction: null, pendingDeleteMatchId: null })), []);
   const confirmActionRun = useCallback(() => {
+    const now = Date.now();
     setState((s) => {
       if (s.confirmAction === "end") {
         // Any match still in progress at end-of-session never counted toward
@@ -1382,7 +1397,7 @@ export function useSessionStore() {
           // otherwise a mis-started match leaves permanent fairness drift
           // even after being cancelled. A completed match's players really
           // did play, so deleting its *result* never touches rotation state.
-          players: target.status === "in_progress" ? applyAfterMatch(reverseCounterSnapshot(s.players, target.counterSnapshot), target, Date.now()) : s.players,
+          players: target.status === "in_progress" ? applyAfterMatch(reverseCounterSnapshot(s.players, target.counterSnapshot), target, now) : s.players,
           confirmAction: null,
           pendingDeleteMatchId: null,
           // If the deleted match happened to be open in the scorekeeper,
@@ -1771,9 +1786,9 @@ export function useSessionStore() {
   const readyPlayers = useMemo(() => readyPool(), [readyPool]);
   const orderedReady = useMemo(() => playerPriority(readyPlayers), [readyPlayers]);
 
-  const waitingVM = useMemo<WaitingEntry[]>(
-    () =>
-      orderedReady.map((p) => ({
+  const waitingVM = useMemo<WaitingEntry[]>(() => {
+    const now = Date.now();
+    return orderedReady.map((p) => ({
         id: p.id,
         name: p.name,
         level: p.level,
@@ -1782,13 +1797,15 @@ export function useSessionStore() {
         games: p.games,
         hasStreak: p.consecutiveGames >= 2,
         consec: p.consecutiveGames,
+        waitMin: p.idleSince ? Math.max(0, Math.floor((now - p.idleSince) / 60000)) : null,
         note: p.isHost && holdingHosts ? "Host · plays after round 1" : undefined,
         queueTag: state.queue[0] && [...state.queue[0].team1, ...state.queue[0].team2].includes(p.id) ? "Up next" : state.queue[1] && [...state.queue[1].team1, ...state.queue[1].team2].includes(p.id) ? "Then" : undefined,
         onSkip: () => skipNext(p.id),
         onPause: () => pausePlayer(p.id, "rest"),
-      })),
-    [orderedReady, holdingHosts, state.queue, skipNext, pausePlayer],
-  );
+      }));
+    // state.tick keeps the minutes waited current
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderedReady, holdingHosts, state.queue, state.tick, skipNext, pausePlayer]);
 
   const notInRotationVM = useMemo<NotInRotationEntry[]>(() => {
     const notInRotation = state.players.filter((p) => p.status === "paused" || (p.skipNextRound && p.status === "ready" && !isPlaying(p.id)));

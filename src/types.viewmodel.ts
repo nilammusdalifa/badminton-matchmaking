@@ -9,6 +9,8 @@ export interface WaitingEntry {
   games: number;
   hasStreak: boolean;
   consec: number;
+  /** Whole minutes since they became free to play; null when unknown. */
+  waitMin: number | null;
   /** "Host · plays after round 1" while a host is still being held back. */
   note?: string;
   /** In a locked planned match: "Up next" or "Then". */

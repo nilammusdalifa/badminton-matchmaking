@@ -144,7 +144,7 @@ export function SessionTab({
                       {w.queueTag && <span className={styles.queueTag}>{w.queueTag}</span>}
                     </div>
                     <div className={styles.waitingMeta}>
-                      {i === 0 && "Next up · "}Waited {w.skipped} {w.skipped === 1 ? "match" : "matches"} · {w.games} {w.games === 1 ? "game" : "games"} played
+                      {i === 0 && "Next up · "}Waited {w.skipped} {w.skipped === 1 ? "match" : "matches"}{w.waitMin !== null ? ` · ${w.waitMin} min` : ""} · {w.games} {w.games === 1 ? "game" : "games"} played
                       {w.hasStreak ? ` · back-to-back x${w.consec}` : ""}
                     </div>
                     {w.note && <div className={styles.waitingMeta}>{w.note}</div>}
