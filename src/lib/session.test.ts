@@ -1139,6 +1139,56 @@ describe("hard games", () => {
     expect(off[0].hard).toBeFalsy();
   });
 
+  describe("the match planned before a hard game", () => {
+    // Court 1 (started first) has a1, who has carried twice; court 2 is all C. "Up next" comes from
+    // the waiting players, where nobody is due; "Then" is the hard game once court 1 is back.
+    const courts = [{ id: "1", name: "Court 1" }, { id: "2", name: "Court 2" }];
+    const now = new Date(2026, 9, 5, 19, 30);
+    const live = (id: string, courtId: string, t1: [string, string], t2: [string, string]): Match => ({ ...completed(id, t1, t2, 0, 0), courtId, status: "in_progress" });
+    const levelOf = (id: string): SkillLevel => (id[0] === "a" ? "A" : id[0] === "b" ? "B" : "C");
+    const setup = (waiting: string[], court1: [string, string, string, string] = ["a1", "b1", "c1", "c2"]) => {
+      const onCourt = (id: string) => T(id, levelOf(id), { consecutiveGames: 1 });
+      const players = [
+        ...court1.map(onCourt),
+        ...["c3", "c4", "c5", "c6"].map(onCourt),
+        ...waiting.map((id) => T(id, levelOf(id))),
+        T("xb", "B", { status: "left" }), T("xc", "C", { status: "left" }),
+      ];
+      const matches = [...history, live("live1", "1", [court1[0], court1[1]], [court1[2], court1[3]]), live("live2", "2", ["c3", "c4"], ["c5", "c6"])];
+      return { players, matches, courts, requestedPairs: [] as [string, string][], now, enabled: true, hardGames: true };
+    };
+    const mixesAC = (item: { team1: string[]; team2: string[] }) => {
+      const ids = [...item.team1, ...item.team2];
+      return ids.some((id) => id.startsWith("a")) && ids.some((id) => id.startsWith("c"));
+    };
+
+    // court 1 has three upper players, so the hard game can be made either way;
+    // left alone, "Up next" would be the first four in line: a2 with three Cs
+    const court1: [string, string, string, string] = ["a1", "b1", "b6", "c1"];
+    const waiting = ["a2", "c7", "c8", "c9", "c10", "b2"];
+
+    it("is picked without an A and a C when it can be", () => {
+      const q = planQueue({ ...setup(waiting, court1), existing: [] });
+      expect(q[1].hard).toBe(true);
+      expect(mixesAC(q[0])).toBe(false);
+    });
+
+    it("a locked one is left as it is", () => {
+      const locked = { team1: ["a2", "c7"] as [string, string], team2: ["c8", "c9"] as [string, string], seed: 0, reasons: ["Set by the organizer"], balanceNote: null };
+      const q = planQueue({ ...setup(waiting, court1), existing: [locked] });
+      expect(q[0]).toEqual(locked);
+      expect(q[1].hard).toBe(true);
+    });
+
+    it("stays as first picked when avoiding the A and C would cost the hard game", () => {
+      // the only four in line without an A and a C are all upper: that is a hard game of its
+      // own, and only one is planned at a time, so the hard game for a1 would be lost
+      const q = planQueue({ ...setup(["a2", "c7", "b2", "b3", "a3", "b4", "c8", "c9"]), existing: [] });
+      expect(q[1].hard).toBe(true);
+      expect(mixesAC(q[0])).toBe(true);
+    });
+  });
+
   it("pickFour fills around forced players who are not in the pool", () => {
     const pool = [T("p1", "B"), T("p2", "B"), T("p3", "B"), T("p4", "B")];
     const out = pickFour(pool, new Map(), 0, false, 0, { forced: [T("f1", "A"), T("f1", "A")] })!;

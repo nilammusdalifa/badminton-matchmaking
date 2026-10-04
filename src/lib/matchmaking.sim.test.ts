@@ -67,6 +67,10 @@ interface Night {
   maxCarries: number;
   /** Worst `skipped` of a C player at the moment they start a match. */
   maxWaitC: number;
+  /** Pairs of an all-A/B match and another match on court at the same time… */
+  hardOverlaps: number;
+  /** …where the other match holds both an A and a C. */
+  acOverlaps: number;
 }
 
 function playNight(scenario: Scenario, random: () => number, shuffleRoster: boolean): Night {
@@ -86,6 +90,7 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
   const opens = scenario.courts.map((c) => minutes(c.opens));
   let matches: Match[] = [];
   const endsAt = new Map<string, number>();
+  const startAt = new Map<string, number>();
   let maxWait = 0;
   let waitOneCourt = 0;
   let queue: QueueItem[] = [];
@@ -165,6 +170,7 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
         elapsedAtTick0: 0,
       };
       matches = [...matches, match];
+      startAt.set(match.id, t);
       endsAt.set(match.id, t + 14 + Math.floor(random() * 10));
       const waiting = Math.max(...players.filter((p) => p.status === "ready").map((p) => p.skipped));
       maxWait = Math.max(maxWait, waiting);
@@ -196,7 +202,18 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
   const partnerTwice = [...partnerCount.values()].filter((n) => n > 1).length;
   const levelOf = new Map(finished.map((p) => [p.id, p.level] as const));
   const upperCount = finished.filter((p) => p.level === "A" || p.level === "B").length;
-  const hardAppearances = matches.filter((m) => isHardMatch(m, (id) => levelOf.get(id))).length * 4;
+  const isHard = (m: Match) => isHardMatch(m, (id) => levelOf.get(id));
+  const hardAppearances = matches.filter(isHard).length * 4;
+  let hardOverlaps = 0;
+  let acOverlaps = 0;
+  for (const h of matches.filter(isHard)) {
+    for (const o of matches) {
+      if (o === h || isHard(o) || !(startAt.get(o.id)! < endsAt.get(h.id)! && startAt.get(h.id)! < endsAt.get(o.id)!)) continue;
+      hardOverlaps++;
+      const four = [...o.t1, ...o.t2].map((id) => levelOf.get(id));
+      if (four.includes("A") && four.includes("C")) acOverlaps++;
+    }
+  }
   const games = finished.filter((p) => Number(p.id.slice(1)) < lateFrom).map((p) => p.games);
   return {
     matches: matches.length,
@@ -215,6 +232,8 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
     hardPerUpper: upperCount ? hardAppearances / upperCount : 0,
     maxCarries,
     maxWaitC,
+    hardOverlaps,
+    acOverlaps,
     hostFirstStart: hostFirstStart,
     otherGames: finished.filter((p) => !hostIds.has(p.id)).reduce((sum, p) => sum + p.games, 0) / Math.max(1, finished.filter((p) => !hostIds.has(p.id)).length),
   };
@@ -243,6 +262,10 @@ export function summarize(scenario: Scenario, nights: number, shuffleRoster: boo
     hardPerUpper: avg((n) => n.hardPerUpper),
     maxCarries: worst((n) => n.maxCarries),
     maxWaitC: worst((n) => n.maxWaitC),
+    /** Of every all-A/B match and another on court at the same time, the share
+     * where that other match held both an A and a C (pooled over all nights). */
+    acOverlap: results.reduce((s, n) => s + n.acOverlaps, 0) / Math.max(1, results.reduce((s, n) => s + n.hardOverlaps, 0)),
+    hardOverlaps: results.reduce((s, n) => s + n.hardOverlaps, 0),
     waitOneCourt: worst((n) => n.waitOneCourt),
     minRatio: Math.min(...results.map((n) => n.distinctFoursomes / n.matches)),
     hostGames: avg((n) => n.hostGames),

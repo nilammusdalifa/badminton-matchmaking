@@ -517,6 +517,9 @@ export interface SuggestionOptions {
   /** A hard game exists outside `matches` (e.g. in the plan), so no other may
    * be picked and this pick avoids an A with a C. */
   hardPlanned?: boolean;
+  /** A hard game is planned to start after this pick: avoid an A with a C, but
+   * (unlike `hardPlanned`) a hard game may still be picked. Only with `hardGames`. */
+  avoidAC?: boolean;
 }
 
 export function buildSuggestion(
@@ -586,7 +589,7 @@ export function buildSuggestion(
         hardNote = due.length > 0 ? `Hard game · ${due.map((p) => p.name).join(" & ")} carried ${Math.max(...due.map((p) => carries.get(p.id) ?? 0))} games · ` : "Hard game · ";
       }
     }
-    four ??= pickFour(pool, meet, seed, options.singleCourt, extraReady, { avoidAC: hardActive });
+    four ??= pickFour(pool, meet, seed, options.singleCourt, extraReady, { avoidAC: hardActive || !!options.avoidAC });
   } else {
     four = pickFour(pool, meet, seed, options.singleCourt, extraReady);
   }
@@ -734,7 +737,12 @@ export function dropStarted(queue: QueueItem[], four: readonly string[]): QueueI
  *
  * `hardGames` lets a slot become a hard game (see `buildSuggestion`); planned
  * matches count as on court for the slots after them, so only one is planned
- * at a time. With it off, a kept hard game is re-picked as a normal match. */
+ * at a time, and those slots avoid an A with a C. The freshly picked slots
+ * BEFORE a freshly picked hard game are then picked once more avoiding an A
+ * with a C too (upper tiers on one court, lower on the other); that second
+ * plan is used only if the hard game is still there, otherwise the first.
+ * Kept (locked) slots are never re-picked for this. With it off, a kept hard
+ * game is re-picked as a normal match. */
 export function planQueue(args: {
   players: Player[];
   matches: Match[];
@@ -758,51 +766,65 @@ export function planQueue(args: {
   const running = matches.filter((m) => m.status === "in_progress"); // in the order they started
   const depth = open.length; // one match per open court; stops early at the first slot that can't find four
   const options: SuggestionOptions = { singleCourt: open.length === 1 };
-  let P = players;
-  let M = matches;
-  let pairs = args.requestedPairs;
-  const out: QueueItem[] = [];
-  let keeping = true;
 
-  for (let j = 0; j < depth; j++) {
-    let item: QueueItem | null = null;
-    const kept = existing[j];
-    if (keeping && kept && !(seedAt && seedAt.index === j) && !(kept.hard && !hardGames)) {
-      const ready = new Set(readyPool(P, M).map((p) => p.id));
-      const ids = itemIds(kept);
-      if (new Set(ids).size === 4 && ids.every((id) => ready.has(id))) item = kept;
-    }
-    if (!item) {
-      keeping = false;
-      const extraReady = 4 * Math.max(j, running.length ? 1 : 0);
-      const seed = seedAt && seedAt.index === j ? seedAt.seed : (args.seeds?.[j] ?? 0);
-      const sug = buildSuggestion(P, M, pairs, [], seed, { ...options, holdHosts: hostsHolding(courts, M), extraReady, hardGames });
-      if (!sug) break;
-      item = {
-        team1: [sug.team1[0].id, sug.team1[1].id],
-        team2: [sug.team2[0].id, sug.team2[1].id],
-        seed,
-        reasons: sug.reasons,
-        balanceNote: sug.balanceNote,
-        // only set when true, never `hard: undefined` (Firebase rejects undefined values)
-        ...(sug.hard ? { hard: true } : {}),
-      };
-    }
-    out.push(item);
+  // One planning pass; fresh picks before slot `avoidACBefore` avoid an A with a C.
+  const pass = (avoidACBefore: number) => {
+    let P = players;
+    let M = matches;
+    let pairs = args.requestedPairs;
+    const out: QueueItem[] = [];
+    let firstFresh = depth; // slots from here on were picked, not kept
+    let keeping = true;
 
-    // the world as item j+1 will see it: the next-longest court finishes, then this match starts
-    const done = running[j];
-    if (done) {
-      const finishing = [...done.t1, ...done.t2];
-      M = M.map((m) => (m.id === done.id ? { ...m, status: "completed" as const } : m));
-      P = P.map((p) => (finishing.includes(p.id) ? { ...p, games: p.games + 1 } : p));
+    for (let j = 0; j < depth; j++) {
+      let item: QueueItem | null = null;
+      const kept = existing[j];
+      if (keeping && kept && !(seedAt && seedAt.index === j) && !(kept.hard && !hardGames)) {
+        const ready = new Set(readyPool(P, M).map((p) => p.id));
+        const ids = itemIds(kept);
+        if (new Set(ids).size === 4 && ids.every((id) => ready.has(id))) item = kept;
+      }
+      if (!item) {
+        if (keeping) firstFresh = j;
+        keeping = false;
+        const extraReady = 4 * Math.max(j, running.length ? 1 : 0);
+        const seed = seedAt && seedAt.index === j ? seedAt.seed : (args.seeds?.[j] ?? 0);
+        const sug = buildSuggestion(P, M, pairs, [], seed, { ...options, holdHosts: hostsHolding(courts, M), extraReady, hardGames, avoidAC: j < avoidACBefore });
+        if (!sug) break;
+        item = {
+          team1: [sug.team1[0].id, sug.team1[1].id],
+          team2: [sug.team2[0].id, sug.team2[1].id],
+          seed,
+          reasons: sug.reasons,
+          balanceNote: sug.balanceNote,
+          // only set when true, never `hard: undefined` (Firebase rejects undefined values)
+          ...(sug.hard ? { hard: true } : {}),
+        };
+      }
+      out.push(item);
+
+      // the world as item j+1 will see it: the next-longest court finishes, then this match starts
+      const done = running[j];
+      if (done) {
+        const finishing = [...done.t1, ...done.t2];
+        M = M.map((m) => (m.id === done.id ? { ...m, status: "completed" as const } : m));
+        P = P.map((p) => (finishing.includes(p.id) ? { ...p, games: p.games + 1 } : p));
+      }
+      const ids = itemIds(item);
+      P = applyMatchStart(P, M, ids);
+      M = [...M, { id: "queue" + j, round: 0, num: M.length + 1, courtId: "", status: "in_progress", t1: item.team1, t2: item.team2, s1: 0, s2: 0, elapsedAtTick0: 0 }];
+      pairs = pairs.filter(([a, b]) => !((item!.team1.includes(a) && item!.team1.includes(b)) || (item!.team2.includes(a) && item!.team2.includes(b))));
     }
-    const ids = itemIds(item);
-    P = applyMatchStart(P, M, ids);
-    M = [...M, { id: "queue" + j, round: 0, num: M.length + 1, courtId: "", status: "in_progress", t1: item.team1, t2: item.team2, s1: 0, s2: 0, elapsedAtTick0: 0 }];
-    pairs = pairs.filter(([a, b]) => !((item!.team1.includes(a) && item!.team1.includes(b)) || (item!.team2.includes(a) && item!.team2.includes(b))));
-  }
-  return out;
+    return { out, firstFresh };
+  };
+
+  const first = pass(0);
+  if (!hardGames) return first.out;
+  // a freshly picked hard game with freshly picked slots before it: pick those again avoiding an A with a C
+  const h = first.out.findIndex((item, j) => j >= first.firstFresh && item.hard);
+  if (h <= first.firstFresh) return first.out;
+  const second = pass(h).out;
+  return second[h]?.hard ? second : first.out;
 }
 
 /** Suggestions for every court that can take a match right now, keyed by
