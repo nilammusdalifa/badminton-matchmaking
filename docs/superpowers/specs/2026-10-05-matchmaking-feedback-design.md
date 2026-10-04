@@ -29,7 +29,7 @@ Not adopted: a global skill-strictness setting (conflicts with automatic hard ga
 - With N open courts, N matches are planned (when enough players exist to fill them).
 - Every A/B player gets a hard game after at most about 2–3 carry games, on nights with 4+ A/B players.
 - No C player who has reached "must play" is ever left out because of a hard game.
-- Maximum wait, back-to-back games and repeated foursomes are no worse than today's simulation numbers.
+- Maximum wait, back-to-back games and repeated foursomes are no worse than today's simulation numbers. One accepted exception: on a night with hard games on, a C may wait **one extra match** (a court of four upper-tier players means the Cs sit out a little more; see Section 3).
 - Each waiting player shows how many minutes they have been waiting.
 
 ## Design
@@ -61,11 +61,13 @@ The planned list ("Up next", "Then", …) holds **as many matches as there are o
 
 Example, 15 players / 2 courts: *Up next* comes from the 7 waiting; *Then* from the 3 left over plus the 4 coming off the longest-running court.
 
-**Locking** works as today: a planned match starts exactly as shown on whichever court frees first; if a player in it rests, leaves or is edited, that match and those after it are re-picked. Shuffle and Edit work per planned match. Labels: "Up next · first court to free", "Then · next court to free".
+**Locking** (the Manage switch is called **"Lock planned matches"**, formerly "Plan ahead"): with it on, the whole planned list is locked **only once 8 or more players are waiting** (counted as the ready players minus four for each idle open court, plus one while something is already locked so a single player resting doesn't drop the lock). A locked match starts exactly as shown on whichever court frees first; if a player in it rests, leaves or is edited, that match and those after it are re-picked. With fewer than 8 waiting — e.g. 15 players / 2 courts, where 7 wait — nothing is locked: the same per-court list is shown as **live previews marked "· may change"** that recompute as people finish. Shuffle works on every planned match; **Edit only on locked ones**. Labels: "Up next · first court to free", "Then · next court to free".
 
-**Plan ahead off.** The single "Next Up · all courts busy" preview is replaced by the same per-court list, shown as unlocked previews that recompute live.
+**Lock planned matches off.** The single "Next Up · all courts busy" preview is replaced by the same per-court list, always shown as previews.
 
-**Risk.** The old threshold existed because small groups (e.g. 12 players / 2 courts) can freeze into repeated foursomes when everything is locked ahead. The simulation covers 12, 15, 16 players on 2 courts and 8 on 1 court. If any gets worse than today, the fallback is: lock only the first planned match for that group size and show the rest as previews.
+**Same plan on every device.** The locked list is computed from synced state only. A Shuffle on a preview is remembered on that device only (it is not synced), so it shapes only that device's preview, never what gets locked: a shuffled preview may be re-picked at the moment the list locks.
+
+**Why the 8-waiting rule.** The old threshold existed because small groups (e.g. 12 players / 2 courts) freeze into repeated foursomes when everything is locked ahead. The simulation showed that locking the whole list on 12 players / 2 courts dropped the share of new foursomes from 0.87 to 0.19, and the first fallback considered here (lock only the first planned match) still dropped it to 0.25 — both worse than today. Locking only from 8 waiting keeps every scenario at today's numbers or better, while one match per court is still planned and shown.
 
 ### 3. Automatic hard games
 
@@ -84,11 +86,15 @@ Example, 15 players / 2 courts: *Up next* comes from the 7 waiting; *Then* from 
 
 **Who is picked:** upper-tier must-play players first; then due players, most carries first, ties to the longest waiter; then other upper-tier players by the normal cost (waiting, games, familiarity). Teams are split by `pickBalancedFoursome` as today.
 
-**The other court.** While a hard game is planned or on court, other picks add a cost penalty to any foursome containing both an A and a C. A preference, not a ban: if unavoidable, the match is still made.
+**The other court.** While a hard game is planned or on court, other picks add a cost penalty to any foursome containing both an A and a C. A preference, not a ban: if unavoidable, the match is still made. This covers the matches planned **after** the hard game and, since the first plan can't know a later slot will be hard, also the ones planned **before** it: when a freshly planned slot is a hard game, the freshly planned slots before it are picked once more with the same penalty, and that second plan is kept only if the hard game is still there (avoiding the A and C must not cost the hard game, e.g. when the only foursome without them is itself all upper tier). Locked matches are never re-picked for this.
+
+**Only with the switch on.** The hard-game checks and the A+C penalty run only while the Hard games switch is on. With it off the night runs exactly as before — including when an all-A/B match happens naturally (no A+C avoidance on the other court then).
+
+**The price.** With hard games on, a C may wait **one extra match** compared to a night without them (simulation, 15 players 3A/5B/7C on 2 courts: longest wait 3 → 4 matches, a C's longest wait 3 → 4, games gap 2 → 3). A C who reaches must-play still always plays (condition 4); the extra match comes from a court of four upper-tier players leaving the Cs fewer places. Accepted; the Hard games switch turns it off.
 
 **Display.** The planned match's note reads *Hard game · Budi & Adi carried 2 games*. It goes in `balanceNote`, so the read-only Player view (which hides tiers) leaves it out. Shuffle on a hard game picks another hard game; Edit allows anything.
 
-**The switch.** "Hard games", on by default, in Manage next to "Plan ahead". Saved with the session (missing = on) and synced. Turning it off leaves matches on court alone; planned hard games not yet started are re-picked as normal matches.
+**The switch.** "Hard games", on by default, in Manage next to "Lock planned matches". Saved with the session (missing = on) and synced. Turning it off leaves matches on court alone; planned hard games not yet started are re-picked as normal matches.
 
 Fewer than four upper-tier players present: no hard games, the night runs as today.
 
@@ -112,13 +118,14 @@ Test-first for each unit.
 - Round 1 follows check-in order; missing `idleSince` sorts last.
 - Carry counting, and the reset after both planned and natural hard games.
 - Each trigger condition 1–5 in isolation, especially a C at must-play blocking the hard game.
-- A+C penalty applies only while a hard game is planned or on court.
+- A+C penalty applies only with the switch on and while a hard game is planned or on court, including to the slots planned before a planned hard game.
 - Planned depth equals open courts; paused and closing-soon courts excluded; previews when Plan ahead is off.
 - Turning the switch off re-picks unstarted planned hard games.
 
 **Simulation** (`matchmaking.sim.test.ts`, seeded):
 - Scenarios: 15 players (3A/5B/7C) on 2 courts and on 1 court; 12 and 16 on 2 courts; 8 on 1 court.
 - New metrics: hard games per upper-tier player per night; the most carries any upper-tier player goes without a hard game (target ≤ 3); count of must-play C players left out by a hard game (must be 0).
-- Existing metrics (max wait, back-to-back, repeated foursomes, games gap) no worse than today; otherwise apply the Section 2 fallback.
+- Existing metrics (max wait, back-to-back, repeated foursomes, games gap) no worse than today (Section 2's 8-waiting lock rule is what keeps them there); on hard-game nights a C may wait one extra match (Section 3).
+- The sim mirrors the store: arrival times are stamped at check-in, late arrival and match end; the plan is always computed and locked by the same rule as the store.
 
 **Manual:** a 15-player, 2-court session in the browser preview through several rounds, checking the plan list, hard-game notes, the A+C avoidance on the other court, and the timer.

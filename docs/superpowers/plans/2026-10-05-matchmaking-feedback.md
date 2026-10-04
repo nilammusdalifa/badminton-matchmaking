@@ -4,7 +4,7 @@
 
 **Goal:** Round 1 follows check-in order, the app plans one match per open court, A/B players who have carried a C partner twice get an automatic all-A/B "hard game" (never at a due C's expense), and waiting players show minutes waited.
 
-**Architecture:** A new per-player `idleSince` timestamp breaks priority ties and drives the timer. `planQueue` plans one item per open court; the store locks a prefix of that plan (all of it when "Plan ahead" is on) and shows the rest as live previews, replacing the single `upNext` preview. Hard-game rules live in a new pure module `src/lib/hardGames.ts`; `buildSuggestion` consults it per slot and `pickFour` gains `forced` / `avoidAC` options.
+**Architecture:** A new per-player `idleSince` timestamp breaks priority ties and drives the timer. `planQueue` plans one item per open court; the store locks all of that plan when "Lock planned matches" (formerly "Plan ahead") is on **and 8 or more players wait** (`lockedCount` + `lockableWaiting`, Task 4 Step 7 as built), and otherwise shows it as live previews marked "· may change", replacing the single `upNext` preview. The lock is computed from synced state only; preview Shuffle seeds live on one device and never reach the locked queue. Hard-game rules live in a new pure module `src/lib/hardGames.ts`; `buildSuggestion` consults it per slot and `pickFour` gains `forced` / `avoidAC` options.
 
 **Tech Stack:** React 18 + TypeScript, Vite, Vitest (`npm test`), Firebase Realtime Database sync.
 
@@ -289,6 +289,8 @@ Expected: PASS.
 
 Change to `lockedCount(depth: number, planAhead: boolean, waiting: number): number` → `!planAhead ? 0 : waiting >= 8 ? depth : Math.min(1, depth)`, where `waiting` = ready pool minus four per idle open court (the figure the old `planQueue` computed before `queueDepth`). Update the Step 1 `lockedCount` test to pass `waiting` (`lockedCount(2, true, 8) === 2`, `lockedCount(2, true, 7) === 1`) and the sim call. Re-run Step 6. If it still fails, stop and report the numbers.
 
+**As built (ruling after Step 7 also failed — 12x2 minRatio 0.19 with the whole plan locked, 0.25 with only the first locked, against 0.87 today):** `lockedCount(depth, planAhead, waiting)` → `!planAhead ? 0 : waiting >= 8 ? depth : 0` — below 8 waiting nothing is locked and the list is all previews. `waiting` comes from one exported helper, `lockableWaiting(players, matches, courts, now, hasLocked)` (ready pool minus four per idle open court, +1 while something is locked), used by both the store and the sim; open courts come from the shared `openCourts`. The sim always plans (`enabled: true`) and locks with `lockedCount(full.length, Boolean(scenario.planAhead), lockableWaiting(…))`, exactly like the store.
+
 - [ ] **Step 8: Commit**
 
 ```bash
@@ -419,6 +421,7 @@ git commit -m "feat: hard-game rules — carries since the last all-A/B game, wh
   - `buildSuggestion` — after the requested-pair branch (which stays first and never flags hard): `hardActive = options.hardPlanned || any in_progress match isHardMatch`; `hardGamePick({ pool: pool without consecutiveGames >= MAX_CONSECUTIVE, mustPlay: mustPlayers(pool, extraReady), carries: carriesSinceHard(players, matches), enabled: !!options.hardGames, hardActive })`. If it returns a pick: `pickFour(pick.candidates, …, { forced: pick.forced })`, `hard: true`, and `balanceNote = "Hard game · " + <due players in the four, joined " & "> + " carried " + <their highest carry count> + " games · " + <today's tier note>`. Otherwise: `pickFour(pool, …, { avoidAC: hardActive })`.
   - `planQueue` args gain `hardGames?: boolean` → passed to `buildSuggestion`; items get `hard: sug.hard`. A kept item is dropped (re-picked) when `kept.hard && !hardGames`.
   - `courtSuggestions(courts, players, matches, requestedPairs, seeds, now, queue = [], hardGames = false)` — fresh picks get `hardGames` and `hardPlanned = queue.some(q => q.hard) || <an earlier court's suggestion this pass was hard>`.
+  - **As built (rulings):** the hard-game check and the A+C penalty run only when `hardGames` is on (switch off = the night exactly as before, even if an all-A/B match happens naturally); hard counts as active if planned or an in-progress match is all upper. Final-review fixes: a kept hard item is also dropped when it is no longer all upper by the current tiers, and `courtSuggestions` seeds `hardPlanned` with `isHardMatch` on the queue items (tiers changed mid-session) rather than `q.hard`. `SuggestionOptions.avoidAC` (A+C penalty without blocking a hard game) lets `planQueue` run a second pass: when a freshly picked slot `h` is a hard game, the freshly picked slots before `h` are re-picked with `avoidAC`, and that plan is used only if slot `h` is still hard; kept (locked) slots are never re-picked.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -532,8 +535,8 @@ git commit -m "feat: plan hard games for A/B players who carried twice, never pa
 
 - [ ] **Step 2: One plan, locked prefix, previews**
 
-- Queue effect: `full = planQueue({ …, existing: state.queue, enabled: true, hardGames: state.hardGames })`; store `full.slice(0, lockedCount(full.length, state.planAhead))`.
-- New `plan` memo (deps include `state.tick`): the same call with `seeds` built from `state.suggestSeed["plan" + i]` for each position.
+- Queue effect: `full = planQueue({ …, existing: state.queue, enabled: true, hardGames: state.hardGames })`; store `full.slice(0, lockedCount(full.length, state.planAhead, lockableWaiting(…)))`. **As built:** the queue effect passes **no** `seeds` — preview seeds are device-local (not synced), so they must not decide what is locked, or the organizer's and umpire's devices could lock different matches.
+- New `plan` memo (deps include `state.tick`): the same call with `seeds` built from `state.suggestSeed["plan" + i]` for each position past the locked ones.
 - `suggestions` memo passes `plan` and `state.hardGames` to `courtSuggestions`.
 - `shuffleQueue(index)`: `index < state.queue.length` → today's behaviour (plus `hardGames`); otherwise bump `suggestSeed["plan" + index]`.
 - `queueVM` iterates `plan` (skipping indexes a free court already took): `label` = index 0 → `"Up next · first court to free"`, else `"Then · next court to free"`; `detail` for index ≥ 1 uses `running[index - 1]` (generalising today's index-1 check); `locked = index < state.queue.length`; `onEdit` only when locked.
@@ -546,7 +549,7 @@ Queue panel heading: `{q.label}{!q.locked && " · may change"}`; render the Edit
 
 - [ ] **Step 4: Manage tab copy**
 
-Plan-ahead toggle: title **"Lock planned matches"**, hint **"One planned match per court, started exactly as shown. Off: the same list as a preview that keeps updating."** New toggle under it: title **"Hard games"**, hint **"A/B players who have carried a C partner twice get an all-A/B match — never while a C is overdue."**
+Plan-ahead toggle: title **"Lock planned matches"**, hint **"One planned match per court, started exactly as shown. Off: the same list as a preview that keeps updating."** (As built, the hint reads **"One planned match per court. Locked, and started exactly as shown, once 8 or more players are waiting; otherwise a preview that keeps updating."**) New toggle under it: title **"Hard games"**, hint **"A/B players who have carried a C partner twice get an all-A/B match — never while a C is overdue."**
 
 - [ ] **Step 5: Type-check, test, lint**
 
@@ -608,6 +611,8 @@ Pass `scenario.hardGames` to `planQueue` and `courtSuggestions`. After the night
 
 Run: `npx vitest run src/lib/matchmaking.sim.test.ts`
 Expected: PASS. If `maxCarries` or `maxWaitC` fails, stop and report the numbers — don't loosen the targets.
+
+**As built (ruling):** the `+1` allowances (`maxWaitC <= off.maxWaitC + 1`, `gap <= off.gap + 1`) are accepted as the price of hard games — a C may wait one extra match on a hard-game night; a must-play C is never passed over. The tests also assert `on.hardPerUpper > off.hardPerUpper` so they fail if hard games stop working.
 
 - [ ] **Step 5: Commit**
 
