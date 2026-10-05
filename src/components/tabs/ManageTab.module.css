@@ -74,11 +74,14 @@
 }
 .rosterMain {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
-.rosterInfo { min-width: 0; }
+/* a basis wide enough for a name keeps the buttons from crushing it to one letter wide:
+   when they don't fit beside it they wrap underneath instead */
+.rosterInfo { min-width: 0; flex: 1 1 140px; }
 .rosterEdit {
   display: flex;
   flex-direction: column;
@@ -103,7 +106,7 @@
 .rosterStatus.default { color: var(--sm-text-2); }
 .rosterStatus.warning { color: var(--sm-accent-hover); }
 .rosterStatus.accent { color: var(--sm-accent); }
-.rosterActions { display: flex; gap: 8px; flex-shrink: 0; }
+.rosterActions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pillBtn {
   padding: 6px 11px;
   border-radius: 999px;
