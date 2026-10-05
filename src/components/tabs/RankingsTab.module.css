@@ -21,17 +21,40 @@
   align-items: center;
   gap: 6px;
 }
+/* The app gives every button a 44px minimum height (index.css) for thumbs, which
+   stretched this 32px circle into an oval. So the button is a 44px hit area and
+   the 32px circle is drawn inside it. The plain "i" replaces the ⓘ glyph, which
+   brought a second circle of its own. */
 .infoBtn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 1px solid var(--sm-border);
+  position: relative;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
   background: transparent;
   color: var(--sm-text-2);
   font-size: 16px;
+  font-weight: 700;
   line-height: 1;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
+}
+.infoBtn::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 32px;
+  height: 32px;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid var(--sm-border);
 }
 .title {
   margin: 0;

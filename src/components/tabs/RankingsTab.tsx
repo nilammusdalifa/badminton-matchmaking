@@ -149,7 +149,7 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
               <h1 className={styles.title}>Rankings</h1>
               {resultMode !== "none" && (
                 <button className={styles.infoBtn} onClick={() => setInfoOpen(true)} aria-label="How rankings work">
-                  ⓘ
+                  i
                 </button>
               )}
             </div>
