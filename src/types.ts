@@ -25,7 +25,10 @@ export interface Player {
   pointsAgainst: number;
   /** How many different partners they have had. */
   partnersCount: number;
-  rating: number;
+  /** Sum over counted games of what each game was worth (result and share of
+   * points) minus what their pair's tiers said to expect. What the Rankings
+   * score is built on (see performanceScore). */
+  perf: number;
   trend: number;
   /** Last 5 completed (non-tie) match results, oldest first: 1 = win, -1 =
    * loss. Same derive-fresh-every-time treatment as `trend` — a short form

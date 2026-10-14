@@ -41,6 +41,7 @@ import {
   buildGamesPlayed,
   buildHighlights,
   buildStandings,
+  scoreLabel,
   markReady,
   pointsShare,
   readyPool as readyPoolFn,
@@ -429,7 +430,7 @@ export function useSessionStore() {
   ]);
 
   // Rankings/matchmaking always read this instead of state.players directly —
-  // games/wins/losses/diff/trend/favPartner/toughOpp/rating are derived fresh
+  // games/wins/losses/diff/trend/favPartner/toughOpp/perf are derived fresh
   // from completed matches every render rather than incrementally mutated, so
   // correcting or deleting a match can never leave a stale running total behind.
   const livePlayers = useMemo(() => recomputePlayerStats(state.players, state.matches), [state.players, state.matches]);
@@ -1559,6 +1560,7 @@ export function useSessionStore() {
         completedCount: s.completedCount,
         courtsCount: s.courts.length,
         players: recomputePlayerStats(s.players, s.matches),
+        resultMode: s.sessionResultMode,
       });
       return {
         ...s,
@@ -1614,6 +1616,7 @@ export function useSessionStore() {
       mostGames: standings.maxGames,
       wins: p.wins,
       losses: p.losses,
+      score: scoreLabel(p),
       winPct: p.rankGames > 0 ? Math.round((p.wins / p.rankGames) * 100) : 0,
       oppEdge: p.oppEdge,
       pointsPct: state.sessionResultMode === "score" ? Math.round(pointsShare(p) * 100) : null,
@@ -2053,7 +2056,7 @@ export function useSessionStore() {
           level: r.level,
           wins: r.wins,
           losses: r.losses,
-          winPct: r.winPct,
+          score: r.score,
         })),
     [rankingsVM],
   );

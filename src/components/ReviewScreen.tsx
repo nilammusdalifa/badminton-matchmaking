@@ -42,7 +42,7 @@ export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, p
               </span>
               {resultMode !== "none" && r.played > 0 && (
                 <span className={`${styles.diff} ${styles.positive}`}>
-                  {r.winPct}%{r.pointsPct !== null && ` · ${r.pointsPct}% pts`}
+                  {r.score} score{r.pointsPct !== null && ` · ${r.pointsPct}% pts`}
                 </span>
               )}
             </div>

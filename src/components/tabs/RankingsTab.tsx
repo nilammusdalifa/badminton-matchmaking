@@ -11,8 +11,8 @@ type Row = RankingsTabProps["rankingsVM"][number];
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
 const RULE: Record<string, string> = {
-  score: "Best win rate first · ties by tougher matches",
-  winner: "Best win rate first · ties by tougher matches",
+  score: "Best score first · counts points and match difficulty",
+  winner: "Best score first · counts wins and match difficulty",
   none: "This session doesn't record results.",
 };
 
@@ -34,7 +34,7 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
         : r.played === 0
           ? "Not played"
           : `${r.wins}W–${r.losses}L · ${r.played} ${r.played === 1 ? "game" : "games"}`;
-    // With results, the win rate is the headline and the record sits small beneath it.
+    // With results, the score is the headline and the record sits small beneath it.
     const showRate = resultMode !== "none" && r.played > 0;
     const hasInsights = r.favPartner !== "—" || r.toughOpp !== "—";
     const rankCell = topRank ? MEDAL[topRank] : r.section === "ranked" ? r.rank : "";
@@ -47,7 +47,14 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
             <span className={styles.name}>
               {r.name} {!hideTier && <span className={styles.level}>Tier {r.level}</span>}
             </span>
-            {showRate ? <span className={styles.winBig}>{r.winPct}%</span> : <span className={styles.record}>{record}</span>}
+            {showRate ? (
+              <span className={styles.winBig}>
+                {r.score}
+                <span className={styles.scoreCaption}>score</span>
+              </span>
+            ) : (
+              <span className={styles.record}>{record}</span>
+            )}
           </div>
           <div className={styles.summaryBottom}>
             <div className={styles.formDots} aria-label="Last 5 results">
@@ -57,7 +64,7 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
             </div>
             {showRate && (
               <span className={styles.rates}>
-                {record}
+                {r.wins}W–{r.losses}L · {r.winPct}% won
                 {r.pointsPct !== null && ` · ${r.pointsPct}% pts`}
               </span>
             )}
@@ -195,29 +202,41 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
             <div className={styles.sheet} role="dialog" aria-label="How rankings work" onClick={(e) => e.stopPropagation()}>
               <div className={styles.sheetTitle}>How rankings work</div>
               <ol className={styles.sheetList}>
-                <li>
-                  <strong>Win rate first.</strong> The order counts everyone as starting with 1 win and 1 loss, so one lucky game doesn&apos;t put you on
-                  top. The % shown on each row is your real win rate.
-                </li>
-                <li>
-                  <strong>Same win rate?</strong> Whoever played tougher matches is higher: the other team&apos;s tiers against their own, on average.
-                </li>
                 {resultMode === "score" ? (
                   <li>
-                    <strong>Still level?</strong> Whoever won more of the points is higher. That % also starts everyone at an even split, so a couple of
-                    games can&apos;t swing it.
+                    <strong>Every game is worth up to 1.</strong> Half for the result (a win 1, a loss 0), half for your share of the points. Any win is
+                    worth more than any loss, and a big win more than a close one.
                   </li>
                 ) : (
                   <li>
-                    <strong>Still level?</strong> More games played is higher.
+                    <strong>Every game is worth 1 for a win, 0 for a loss.</strong>
                   </li>
                 )}
+                <li>
+                  {hideTier ? (
+                    <>
+                      <strong>Against what was expected.</strong> Two even teams are expected ½ each; the stronger team is expected more and the weaker
+                      less. Beating a stronger team counts for more, and an easy draw for less.
+                    </>
+                  ) : (
+                    <>
+                      <strong>Against what was expected.</strong> Two even teams are expected ½ each. Each tier point your pair has over the other (A=3,
+                      B=2, C=1) adds 0.1 to what&apos;s expected of you, and each point less takes 0.1 off. Beating a stronger pair counts for more, and an
+                      easy draw for less.
+                    </>
+                  )}
+                </li>
+                <li>
+                  <strong>A score of 50 is exactly as expected.</strong> Every 0.01 your games beat expectations by, on average, adds a point; falling
+                  short takes one off. Everyone starts with 2 games exactly as expected, so one lucky game doesn&apos;t put you on top. Same score?
+                  Better win rate, then more games.
+                </li>
                 <li>
                   <strong>You need at least 3 games</strong>, and at least half as many as the player with the most, to get a rank. Others are listed under
                   &quot;Not enough games yet&quot;. Medals wait until most players have played 2 games.
                 </li>
               </ol>
-              <div className={styles.sheetNote}>Partners rotate all night, so partner luck evens out.</div>
+              <div className={styles.sheetNote}>Partners rotate all night, and the score allows for how strong your pair was against theirs.</div>
               <button className={styles.sheetClose} onClick={() => setInfoOpen(false)}>
                 Got it
               </button>
