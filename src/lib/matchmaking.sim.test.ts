@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Court, Match, Player, SkillLevel } from "../types";
 import type { QueueItem } from "../types";
-import { carriesSinceHard, isHardMatch, isLower } from "./hardGames";
+import { carriesSinceHard, dCarriesSinceRelief, isHardMatch, isLower } from "./hardGames";
 import { applyAfterMatch, applyMatchStart, courtSuggestions, courtsDueToPause, dropStarted, lockableWaiting, lockedCount, makeBlankPlayer, markReady, planQueue, recomputePlayerStats, tierPointsOf } from "./session";
 
 /** Plays whole evenings through the app's own matchmaking functions — the
@@ -79,6 +79,12 @@ interface Night {
   hardOverlaps: number;
   /** …where the other match holds both an A and a C. */
   acOverlaps: number;
+  /** Matches started as a D-free game for a C who had carried a D twice. */
+  reliefStarts: number;
+  /** Worst D-carries any C had (since their last D-free match) when a match started. */
+  maxDCarries: number;
+  /** Worst `skipped` of a D player at the moment they start a match. */
+  maxWaitD: number;
   /** Per match, how far apart the two teams' tier points are (A=3, B=2, C=1, D=0). */
   tierGaps: number[];
   /** Matches whose favourite, by hidden true skill, had more than a 70% chance (with `skill` only). */
@@ -134,6 +140,9 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
   let maxWaitMin = 0;
   let maxCarries = 0;
   let maxWaitC = 0;
+  let reliefStarts = 0;
+  let maxDCarries = 0;
+  let maxWaitD = 0;
   let straightBack = 0;
   const lastEnd = new Map<string, number>();
   const hostIds = new Set(players.slice(0, 0).map((p) => p.id));
@@ -195,6 +204,10 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
       const carries = [...carriesSinceHard(live, matches).values()];
       if (carries.length) maxCarries = Math.max(maxCarries, ...carries);
       for (const p of live) if (isLower(p.level) && ids.includes(p.id)) maxWaitC = Math.max(maxWaitC, p.skipped);
+      for (const p of live) if (p.level === "D" && ids.includes(p.id)) maxWaitD = Math.max(maxWaitD, p.skipped);
+      const dCarries = [...dCarriesSinceRelief(live, matches).values()];
+      if (dCarries.length) maxDCarries = Math.max(maxDCarries, ...dCarries);
+      if (sug.noD) reliefStarts++;
       if (dropStarted(queue, ids).length < queue.length) fromLocked++;
       queue = dropStarted(queue, ids);
       players = applyMatchStart(players, matches, ids);
@@ -278,6 +291,9 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
     maxWaitC,
     hardOverlaps,
     acOverlaps,
+    reliefStarts,
+    maxDCarries,
+    maxWaitD,
     tierGaps,
     // a 1.0 gap in summed true skill is about a 65% chance for the favourite
     lopsided: scenario.skill
@@ -303,6 +319,9 @@ export function summarize(scenario: Scenario, nights: number, shuffleRoster: boo
     /** The longest wait of a night, at the 90th percentile of nights: a typical bad night, not the single worst. */
     p90WaitMin: waits[Math.floor(0.9 * (waits.length - 1))],
     /** Average tier-point gap between the two teams, over every match of every night. */
+    reliefStarts: avg((n) => n.reliefStarts),
+    maxDCarries: worst((n) => n.maxDCarries),
+    maxWaitD: worst((n) => n.maxWaitD),
     meanGap: tierGaps.reduce((s, g) => s + g, 0) / Math.max(1, tierGaps.length),
     /** Share of matches whose teams are 2 or more tier points apart (e.g. A+C vs C+C). */
     gap2Share: tierGaps.filter((g) => g >= 2).length / Math.max(1, tierGaps.length),
@@ -652,5 +671,43 @@ describe("fourth tier (D)", () => {
     expect(on.minRatio).toBeGreaterThanOrEqual(0.85);
     // an A with a C or D next to a hard game stays rare
     expect(on.acOverlap).toBeLessThan(0.2);
+  });
+});
+
+describe("relief games: a C who has carried a D", () => {
+  // A C who has carried a D partner twice gets a match with no D (see hardGamePick). Worst
+  // D-carries a C reached, hard games off -> on, roster order / shuffled: 15 players 4 -> 3 / 3 -> 3,
+  // 16 players 4 -> 4 / 4 -> 3, 12 players 4 -> 3 / 4 -> 3, 20 players on 3 courts 3 -> 3 / 5 -> 4:
+  // never worse, lower in five of eight. About one relief game per night (0.8-1.6). Waits stay
+  // within the hard-game allowance (a D or C one match longer, the longest wait one match
+  // longer), back-to-back is the same, and the worst new-group ratio of a night dips to 0.93-0.94 on two nights (one repeated
+  // group). The average tier gap rises by 0.03-0.05. Nights with no D are unchanged.
+  const cases: [string, Scenario, boolean][] = [
+    // label, night, whether the worst carry must fall (it does in both roster orders)
+    ["15 players 3A/4B/4C/4D", { players: 15, courts: twoCourts, levels: [3, 4, 4, 4], planAhead: true }, false],
+    ["16 players 2A/3B/5C/6D", { players: 16, courts: twoCourts, levels: [2, 3, 5, 6], planAhead: true }, false],
+    ["12 players 2A/2B/4C/4D", { players: 12, courts: twoCourts, levels: [2, 2, 4, 4], planAhead: true }, true],
+    ["20 players 4A/5B/5C/6D, 3 courts", { players: 20, courts: threeCourts, levels: [4, 5, 5, 6], planAhead: true }, false],
+  ];
+  for (const [label, night, mustFall] of cases) {
+    it(`${label}: Cs carry Ds no more, nobody waits longer`, () => {
+      const off = summarize(night, NIGHTS, false);
+      const on = summarize({ ...night, hardGames: true }, NIGHTS, false);
+      expect(on.reliefStarts).toBeGreaterThanOrEqual(0.5);
+      expect(on.maxDCarries).toBeLessThanOrEqual(off.maxDCarries);
+      if (mustFall) expect(on.maxDCarries).toBeLessThan(off.maxDCarries);
+      // never at a D's expense: a D waits at most one match longer, as a lower tier does for hard games
+      expect(on.maxWaitD).toBeLessThanOrEqual(off.maxWaitD + 1);
+      expect(on.maxWaitC).toBeLessThanOrEqual(off.maxWaitC + 1);
+      expect(on.maxWaitMin).toBeLessThanOrEqual(off.maxWaitMin + ONE_MATCH_MIN);
+      expect(on.inARow).toBeLessThanOrEqual(2);
+      expect(on.gap).toBeLessThanOrEqual(off.gap + 1);
+      expect(on.minRatio).toBeGreaterThanOrEqual(0.85);
+    });
+  }
+
+  it("15 players 3A/5B/7C (no D): the rule never fires", () => {
+    const r = summarize({ players: 15, courts: twoCourts, levels: [3, 5, 7], planAhead: true, hardGames: true }, NIGHTS, false);
+    expect(r.reliefStarts).toBe(0);
   });
 });

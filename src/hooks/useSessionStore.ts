@@ -92,7 +92,7 @@ interface AppState {
   queue: QueueItem[];
   /** "Lock planned matches" in Manage. */
   planAhead: boolean;
-  /** "Hard games" in Manage: an A/B player who has carried a C or D partner twice may get an all-A/B match. */
+  /** "Hard games" in Manage: an A/B player who has carried a C or D partner twice may get an all-A/B match, and a C who has carried a D twice a match with no D. */
   hardGames: boolean;
   /** Which queue position the manual-assign dialog is editing, instead of a court. */
   editQueueIndex: number | null;

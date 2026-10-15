@@ -1489,3 +1489,60 @@ describe("partner variety", () => {
     expect(sug.four.map((p) => p.id)).toEqual(expect.arrayContaining(["p5", "p6"]));
   });
 });
+
+describe("relief games in suggestions and plans", () => {
+  const T = (id: string, level: SkillLevel, over: Partial<Player> = {}): Player => ({ ...makeBlankPlayer(id, id, level, "ready"), ...over });
+  // c1 has carried a D twice (d1, then d2); nobody else is due
+  const roster = () => [T("a1", "A"), T("b1", "B"), T("b2", "B"), T("c1", "C"), T("c2", "C"), T("c3", "C"), T("d1", "D"), T("d2", "D"), T("d3", "D")];
+  const history = [completed("h1", ["c1", "d1"], ["c2", "d2"], 21, 15), completed("h2", ["c1", "d2"], ["c3", "d3"], 21, 15)];
+  const levels = (s: Suggestion | null) => s!.four.map((p) => p.level);
+
+  it("a C due for relief gets a match with no D, flagged and noted for the organizer", () => {
+    const sug = buildSuggestion(roster(), history, [], [], 0, { hardGames: true })!;
+    expect(sug.noD).toBe(true);
+    expect(sug.hard).toBeFalsy();
+    expect(sug.four.map((p) => p.id)).toContain("c1");
+    expect(levels(sug)).not.toContain("D");
+    expect(sug.balanceNote).toMatch(/^No-D game · c1 carried 2 games · Teams balanced by tier/);
+  });
+
+  it("is off with the switch off", () => {
+    const sug = buildSuggestion(roster(), history, [], [], 0, {})!;
+    expect(sug.noD).toBeFalsy();
+  });
+
+  it("a D at must-play blocks it, and plays", () => {
+    const players = roster().map((p) => (p.id === "d3" ? { ...p, skipped: 6 } : p));
+    const sug = buildSuggestion(players, history, [], [], 0, { hardGames: true })!;
+    expect(sug.noD).toBeFalsy();
+    expect(sug.four.map((p) => p.id)).toContain("d3");
+  });
+
+  it("a requested pair wins over a due relief game", () => {
+    const sug = buildSuggestion(roster(), history, [["d1", "d2"]], [], 0, { hardGames: true })!;
+    expect(sug.noD).toBeFalsy();
+    expect(sug.team1.map((p) => p.id)).toEqual(["d1", "d2"]);
+  });
+
+  describe("planned ahead", () => {
+    const courts = [{ id: "1", name: "Court 1" }];
+    const now = new Date(2026, 9, 15, 19, 30);
+    const plan = (over: Partial<Parameters<typeof planQueue>[0]> = {}) =>
+      planQueue({ players: roster(), matches: history, courts, requestedPairs: [], existing: [], now, enabled: true, hardGames: true, ...over });
+
+    it("is kept in the plan, and re-picked once the switch is off", () => {
+      const q = plan();
+      expect(q[0].noD).toBe(true);
+      expect(plan({ existing: q })).toEqual(q);
+      const off = plan({ existing: q, hardGames: false });
+      expect(off[0].noD).toBeFalsy();
+    });
+
+    it("is re-picked when a tier change puts a D in it", () => {
+      const q = plan();
+      const demoted = roster().map((p) => (p.id === q[0].team1[0] ? { ...p, level: "D" as SkillLevel } : p));
+      const next = plan({ players: demoted, existing: q });
+      expect(next[0].noD && [...next[0].team1, ...next[0].team2].some((id) => demoted.find((p) => p.id === id)!.level === "D")).toBeFalsy();
+    });
+  });
+});

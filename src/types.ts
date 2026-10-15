@@ -150,9 +150,12 @@ export interface QueueItem {
   seed: number;
   reasons: string[];
   balanceNote: string | null;
-  /** Planned as a hard game (all A/B, for a player who has carried a C partner
-   * twice). Absent when not. */
+  /** Planned as a hard game (all A/B, for a player who has carried a C or D
+   * partner twice). Absent when not. */
   hard?: boolean;
+  /** Planned as a D-free game (for a C who has carried a D partner twice).
+   * Absent when not. */
+  noD?: boolean;
 }
 
 export interface Suggestion {
@@ -168,6 +171,8 @@ export interface Suggestion {
   queueIndex?: number;
   /** A hard game (see `QueueItem.hard`). Absent when not. */
   hard?: boolean;
+  /** A D-free game (see `QueueItem.noD`). Absent when not. */
+  noD?: boolean;
 }
 
 export interface SessionHistoryEntry {
