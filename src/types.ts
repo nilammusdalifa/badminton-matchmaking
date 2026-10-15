@@ -160,8 +160,8 @@ export interface Suggestion {
   four: Player[];
   reasons: string[];
   /** Tier-split explanation, kept apart from `reasons` so the read-only
-   * Player view (which hides tiers) can leave it out. Null when teams were
-   * fixed by a partner request rather than balanced by tier. */
+   * Player view (which hides tiers) can leave it out. For a partner request
+   * it names how the opponents were matched to the requested pair. */
   balanceNote: string | null;
   /** Set when this came from the locked queue (position in it) rather than a fresh pick. */
   queueIndex?: number;
