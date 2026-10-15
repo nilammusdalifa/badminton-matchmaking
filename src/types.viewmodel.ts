@@ -135,7 +135,7 @@ export interface RankingEntry {
   score: number;
   /** Real win rate as a whole percentage (5–0 is 100%), for reading. */
   winPct: number;
-  /** Per game, the other team's tier points minus their own (A=3, B=2, C=1). */
+  /** Per game, the other team's tier points minus their own (A=3, B=2, C=1, D=0). */
   oppEdge: number;
   /** Smoothed share of points won, as a whole percentage; null when scores aren't recorded. */
   pointsPct: number | null;

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Court, Match, Player, SkillLevel } from "../types";
 import type { QueueItem } from "../types";
-import { carriesSinceHard, isHardMatch } from "./hardGames";
-import { applyAfterMatch, applyMatchStart, courtSuggestions, courtsDueToPause, dropStarted, lockableWaiting, lockedCount, makeBlankPlayer, markReady, planQueue, recomputePlayerStats } from "./session";
+import { carriesSinceHard, isHardMatch, isLower } from "./hardGames";
+import { applyAfterMatch, applyMatchStart, courtSuggestions, courtsDueToPause, dropStarted, lockableWaiting, lockedCount, makeBlankPlayer, markReady, planQueue, recomputePlayerStats, tierPointsOf } from "./session";
 
 /** Plays whole evenings through the app's own matchmaking functions — the
  * same ones the Session tab uses — with random game lengths, and measures how
@@ -30,9 +30,14 @@ interface Scenario {
   /** "Lock planned matches": the plan (one match per open court) is locked once 8+
    * players wait. Off, it is only a live preview. Either way it is planned. */
   planAhead?: boolean;
-  /** Skill tier mix: the first `a` players are A, the next `b` are B, the rest C.
-   * Default is today's thirds. */
-  levels?: [a: number, b: number, c: number];
+  /** Skill tier mix: the first `a` players are A, the next `b` are B, then `c`
+   * C and the rest D (C when only three counts are given). Default is thirds of A/B/C. */
+  levels?: [a: number, b: number, c: number] | [a: number, b: number, c: number, d: number];
+  /** Give every player a hidden true skill and let the "organizer" set tiers
+   * (`tiers` of them, equal-sized) from a view of it that is off by
+   * `misjudge` standard deviations. Overrides `levels`. Each match then
+   * records whether its favourite, by true skill, had more than a 70% chance. */
+  skill?: { tiers: 3 | 4; misjudge: number };
   /** Plan hard (all-A/B) games for upper players who carried twice. Default off. */
   hardGames?: boolean;
 }
@@ -68,14 +73,16 @@ interface Night {
   hardPerUpper: number;
   /** Worst carries any A/B player had reached (since their last hard game) when a match started. */
   maxCarries: number;
-  /** Worst `skipped` of a C player at the moment they start a match. */
+  /** Worst `skipped` of a lower-tier (C or D) player at the moment they start a match. */
   maxWaitC: number;
   /** Pairs of an all-A/B match and another match on court at the same time… */
   hardOverlaps: number;
   /** …where the other match holds both an A and a C. */
   acOverlaps: number;
-  /** Per match, how far apart the two teams' tier points are (A=3, B=2, C=1). */
+  /** Per match, how far apart the two teams' tier points are (A=3, B=2, C=1, D=0). */
   tierGaps: number[];
+  /** Matches whose favourite, by hidden true skill, had more than a 70% chance (with `skill` only). */
+  lopsided: number;
 }
 
 function playNight(scenario: Scenario, random: () => number, shuffleRoster: boolean): Night {
@@ -84,11 +91,32 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
   const lateFrom = scenario.players - (scenario.late?.count ?? 0);
   let players: Player[] = Array.from({ length: scenario.players }, (_, i) => {
     const mix = scenario.levels;
-    const level = mix ? (i < mix[0] ? "A" : i < mix[0] + mix[1] ? "B" : "C") : levels[Math.min(2, Math.floor((i * 3) / scenario.players))];
+    const level: SkillLevel = mix
+      ? i < mix[0]
+        ? "A"
+        : i < mix[0] + mix[1]
+          ? "B"
+          : mix.length === 3 || i < mix[0] + mix[1] + mix[2]
+            ? "C"
+            : "D"
+      : levels[Math.min(2, Math.floor((i * 3) / scenario.players))];
     const p = makeBlankPlayer("p" + i, "P" + String(i + 1).padStart(2, "0"), level, i >= lateFrom || (i < hostCount && scenario.hosts?.mode === "checkin") ? "expected" : "ready");
     if (i < hostCount && scenario.hosts?.mode === "flag") p.isHost = true;
     return p;
   });
+  const trueSkill = new Map<string, number>();
+  if (scenario.skill) {
+    const { tiers, misjudge } = scenario.skill;
+    const gauss = () => Math.sqrt(-2 * Math.log(random() || 1e-9)) * Math.cos(2 * Math.PI * random());
+    const seen = players.map((p) => {
+      const s = gauss();
+      trueSkill.set(p.id, s);
+      return { id: p.id, seen: s + gauss() * misjudge };
+    });
+    const names: SkillLevel[] = ["A", "B", "C", "D"];
+    const rank = new Map([...seen].sort((a, b) => b.seen - a.seen).map((x, i) => [x.id, names[Math.floor((i * tiers) / players.length)]]));
+    players = players.map((p) => ({ ...p, level: rank.get(p.id)! }));
+  }
   if (shuffleRoster) players = players.map((p) => ({ p, k: random() })).sort((a, b) => a.k - b.k).map((x) => x.p);
 
   let courts: Court[] = scenario.courts.map((c, i) => ({ id: String(i + 1), name: "Court " + (i + 1), closesAt: c.closes }));
@@ -166,7 +194,7 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
       }
       const carries = [...carriesSinceHard(live, matches).values()];
       if (carries.length) maxCarries = Math.max(maxCarries, ...carries);
-      for (const p of live) if (p.level === "C" && ids.includes(p.id)) maxWaitC = Math.max(maxWaitC, p.skipped);
+      for (const p of live) if (isLower(p.level) && ids.includes(p.id)) maxWaitC = Math.max(maxWaitC, p.skipped);
       if (dropStarted(queue, ids).length < queue.length) fromLocked++;
       queue = dropStarted(queue, ids);
       players = applyMatchStart(players, matches, ids);
@@ -224,11 +252,11 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
       if (o === h || isHard(o) || !(startAt.get(o.id)! < endsAt.get(h.id)! && startAt.get(h.id)! < endsAt.get(o.id)!)) continue;
       hardOverlaps++;
       const four = [...o.t1, ...o.t2].map((id) => levelOf.get(id));
-      if (four.includes("A") && four.includes("C")) acOverlaps++;
+      if (four.includes("A") && four.some(isLower)) acOverlaps++;
     }
   }
   const games = finished.filter((p) => Number(p.id.slice(1)) < lateFrom).map((p) => p.games);
-  const tierPoints = (team: string[]) => team.reduce((sum, id) => sum + ({ A: 3, B: 2, C: 1 } as Record<SkillLevel, number>)[levelOf.get(id) ?? "B"], 0);
+  const tierPoints = (team: string[]) => team.reduce((sum, id) => sum + tierPointsOf(levelOf.get(id)), 0);
   const tierGaps = matches.map((m) => Math.abs(tierPoints(m.t1) - tierPoints(m.t2)));
   return {
     matches: matches.length,
@@ -251,6 +279,13 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
     hardOverlaps,
     acOverlaps,
     tierGaps,
+    // a 1.0 gap in summed true skill is about a 65% chance for the favourite
+    lopsided: scenario.skill
+      ? matches.filter((m) => {
+          const sum = (team: string[]) => team.reduce((t, id) => t + (trueSkill.get(id) ?? 0), 0);
+          return 1 / (1 + Math.exp(-0.62 * Math.abs(sum(m.t1) - sum(m.t2)))) > 0.7;
+        }).length
+      : 0,
     hostFirstStart: hostFirstStart,
     otherGames: finished.filter((p) => !hostIds.has(p.id)).reduce((sum, p) => sum + p.games, 0) / Math.max(1, finished.filter((p) => !hostIds.has(p.id)).length),
   };
@@ -271,6 +306,8 @@ export function summarize(scenario: Scenario, nights: number, shuffleRoster: boo
     meanGap: tierGaps.reduce((s, g) => s + g, 0) / Math.max(1, tierGaps.length),
     /** Share of matches whose teams are 2 or more tier points apart (e.g. A+C vs C+C). */
     gap2Share: tierGaps.filter((g) => g >= 2).length / Math.max(1, tierGaps.length),
+    /** Share of matches whose favourite by true skill had more than a 70% chance (with `skill` only). */
+    lopsidedShare: results.reduce((s, n) => s + n.lopsided, 0) / Math.max(1, results.reduce((s, n) => s + n.matches, 0)),
     matches: avg((n) => n.matches),
     foursomes: avg((n) => n.distinctFoursomes),
     minFoursomes: best((n) => n.distinctFoursomes),
@@ -545,4 +582,49 @@ describe("match balance: groups that split evenly", () => {
       if (maxShare !== null) expect(r.gap2Share).toBeLessThanOrEqual(maxShare);
     });
   }
+});
+
+describe("fourth tier (D)", () => {
+  // The same nights and hidden skills, with the organizer's tiers in 3 or 4 groups (0.4 sd
+  // misjudged). Lopsided matches (favourite >70% by true skill), 3 -> 4 tiers: 15 players
+  // 27.1% -> 20.6%, 16 players 25.9% -> 21.4%, 8 on 2 courts 27.1% -> 21.5%, 8 on 1 court
+  // 32.8% -> 21.0%, 6 on 1 court 23.4% -> 22.9%. Games gap, back-to-back, skips and new
+  // groups were identical; the 90th-percentile wait the same or shorter.
+  const cases: [string, Scenario][] = [
+    ["15 players, 2 courts", { players: 15, courts: twoCourts, planAhead: true }],
+    ["16 players, 2 courts", { players: 16, courts: twoCourts, planAhead: true }],
+    ["8 players, 2 courts", { players: 8, courts: twoCourts, planAhead: true }],
+    ["8 players, 1 court", { players: 8, courts: oneCourt, planAhead: true }],
+    ["6 players, 1 court", { players: 6, courts: oneCourt, planAhead: true }],
+  ];
+  for (const [label, scenario] of cases) {
+    it(`${label}: fewer lopsided matches, rotation no worse`, () => {
+      const three = summarize({ ...scenario, skill: { tiers: 3, misjudge: 0.4 } }, NIGHTS, false);
+      const four = summarize({ ...scenario, skill: { tiers: 4, misjudge: 0.4 } }, NIGHTS, false);
+      expect(four.lopsidedShare).toBeLessThan(three.lopsidedShare);
+      expect(four.gap).toBeLessThanOrEqual(three.gap);
+      expect(four.inARow).toBeLessThanOrEqual(three.inARow);
+      expect(four.wait).toBeLessThanOrEqual(three.wait);
+      expect(four.minRatio).toBeGreaterThanOrEqual(three.minRatio);
+      expect(four.p90WaitMin).toBeLessThanOrEqual(three.p90WaitMin);
+    });
+  }
+
+  it("15 players 3A/4B/4C/4D: hard games keep their limits with D", () => {
+    // the same limits as the 3A/5B/7C night, with C or D as the lower tier
+    const night = { players: 15, courts: twoCourts, levels: [3, 4, 4, 4] as [number, number, number, number], planAhead: true };
+    const off = summarize(night, NIGHTS, false);
+    const on = summarize({ ...night, hardGames: true }, NIGHTS, false);
+    expect(on.hardPerUpper).toBeGreaterThanOrEqual(1);
+    expect(on.hardPerUpper).toBeGreaterThan(off.hardPerUpper);
+    expect(on.maxCarries).toBeLessThanOrEqual(3);
+    expect(on.maxWaitC).toBeLessThanOrEqual(off.maxWaitC + 1);
+    expect(on.wait).toBeLessThanOrEqual(ceilQuarter(15) + 1);
+    expect(on.maxWaitMin).toBeLessThanOrEqual(off.maxWaitMin + ONE_MATCH_MIN);
+    expect(on.inARow).toBeLessThanOrEqual(2);
+    expect(on.gap).toBeLessThanOrEqual(off.gap + 1);
+    expect(on.minRatio).toBeGreaterThanOrEqual(0.85);
+    // an A with a C or D next to a hard game stays rare
+    expect(on.acOverlap).toBeLessThan(0.2);
+  });
 });

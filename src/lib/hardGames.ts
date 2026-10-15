@@ -1,12 +1,18 @@
 import type { Match, Player, SkillLevel } from "../types";
 
-/** An A/B player who has carried a C partner this many times since their
- * last all-A/B ("hard") game is due a hard game. */
+/** An A/B player who has carried a lower-tier (C or D) partner this many
+ * times since their last all-A/B ("hard") game is due a hard game. */
 export const HARD_GAME_AFTER_CARRIES = 2;
 
 /** Upper tier: A or B. */
 export function isUpper(level: SkillLevel | undefined): boolean {
   return level === "A" || level === "B";
+}
+
+/** Lower tier: C or D. Explicit, so a player we no longer know about
+ * (deleted, no level) is neither upper nor lower. */
+export function isLower(level: SkillLevel | undefined): boolean {
+  return level === "C" || level === "D";
 }
 
 /** A hard match has all four players in the upper tier. A player we no longer
@@ -21,7 +27,7 @@ export function isHardMatch(
 /** Carries since each upper player's last hard game, by current tier. Walks
  * the matches in order: any hard match (even one still on court) resets its
  * four to 0; a completed non-hard match adds 1 for each upper player whose
- * partner is a C. */
+ * partner is lower tier (C or D). */
 export function carriesSinceHard(players: Player[], matches: Match[]): Map<string, number> {
   const level = new Map(players.map((p) => [p.id, p.level] as const));
   const levelOf = (id: string) => level.get(id);
@@ -36,8 +42,8 @@ export function carriesSinceHard(players: Player[], matches: Match[]): Map<strin
     if (m.status !== "completed") continue;
     for (const team of [m.t1, m.t2]) {
       const [x, y] = team;
-      if (carries.has(x) && levelOf(y) === "C") carries.set(x, carries.get(x)! + 1);
-      if (carries.has(y) && levelOf(x) === "C") carries.set(y, carries.get(y)! + 1);
+      if (carries.has(x) && isLower(levelOf(y))) carries.set(x, carries.get(x)! + 1);
+      if (carries.has(y) && isLower(levelOf(x))) carries.set(y, carries.get(y)! + 1);
     }
   }
   return carries;
@@ -46,7 +52,7 @@ export function carriesSinceHard(players: Player[], matches: Match[]): Map<strin
 /** Decides whether a hard game can be planned from this pool, and who it must
  * include. `pool` is priority-ordered with back-to-back-limited players
  * already removed. Null unless the feature is on, no hard game is already on
- * court, no C is a must-play, the pool has 4+ upper players and at least one
+ * court, no lower-tier (C or D) player is a must-play, the pool has 4+ upper players and at least one
  * is due. */
 export function hardGamePick(args: {
   pool: Player[];
@@ -57,7 +63,7 @@ export function hardGamePick(args: {
 }): { forced: Player[]; candidates: Player[]; due: Player[] } | null {
   const { pool, mustPlay, carries, enabled, hardActive } = args;
   if (!enabled || hardActive) return null;
-  if (mustPlay.some((p) => p.level === "C")) return null;
+  if (mustPlay.some((p) => isLower(p.level))) return null;
 
   const candidates = pool.filter((p) => isUpper(p.level));
   if (candidates.length < 4) return null;

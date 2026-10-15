@@ -64,8 +64,17 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
             </div>
             {showRate && (
               <span className={styles.rates}>
-                {r.wins}W–{r.losses}L · {r.winPct}% won
-                {r.pointsPct !== null && ` · ${r.pointsPct}% pts`}
+                {/* each part stays whole, so a narrow row breaks between them, never inside "53% pts" */}
+                <span className={styles.nowrap}>
+                  {r.wins}W–{r.losses}L
+                </span>{" "}
+                · <span className={styles.nowrap}>{r.winPct}% won</span>
+                {r.pointsPct !== null && (
+                  <>
+                    {" "}
+                    · <span className={styles.nowrap}>{r.pointsPct}% pts</span>
+                  </>
+                )}
               </span>
             )}
           </div>
@@ -221,7 +230,7 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
                   ) : (
                     <>
                       <strong>Against what was expected.</strong> Two even teams are expected ½ each. Each tier point your pair has over the other (A=3,
-                      B=2, C=1) adds 0.1 to what&apos;s expected of you, and each point less takes 0.1 off. Beating a stronger pair counts for more, and an
+                      B=2, C=1, D=0) adds 0.1 to what&apos;s expected of you, and each point less takes 0.1 off. Beating a stronger pair counts for more, and an
                       easy draw for less.
                     </>
                   )}
