@@ -1452,3 +1452,40 @@ describe("tier D", () => {
     expect(sug.balanceNote).toMatch(/^Opponents closest in tier \(A\+A vs (C\+B|B\+C)\)$/);
   });
 });
+
+describe("partner variety", () => {
+  const B = (id: string, level: SkillLevel = "B"): Player => ({ ...makeBlankPlayer(id, id, level, "ready") });
+  const ids = (ps: Player[] | null) => ps!.map((p) => p.id).sort();
+  const pk = (a: string, b: string) => [a, b].sort().join("|");
+
+  it("between groups that cost the same, picks the one with fewer repeated partnerships", () => {
+    const pool = ["p1", "p2", "p3", "p4", "p5"].map((id) => B(id));
+    // p1–p4 have partnered every way before, so any split of those four repeats two pairs
+    const partner = new Map([["p1", "p2"], ["p3", "p4"], ["p1", "p3"], ["p2", "p4"], ["p1", "p4"], ["p2", "p3"]].map(([a, b]) => [pk(a, b), 1] as const));
+    expect(ids(pickFour(pool, new Map()))).toEqual(["p1", "p2", "p3", "p4"]); // nothing to go on: first in line
+    expect(ids(pickFour(pool, new Map(), 0, false, 0, { partner }))).toContain("p5");
+  });
+
+  it("never prefers a group no split can even out, however fresh its partners", () => {
+    // AAAC can't be split evenly; every group with b1 has partnered b1 before
+    const pool = [B("a1", "A"), B("a2", "A"), B("a3", "A"), B("c1", "C"), B("b1")];
+    const partner = new Map(["a1", "a2", "a3", "c1"].map((id) => [pk("b1", id), 1] as const));
+    const four = pickFour(pool, new Map(), 0, false, 0, { partner })!;
+    expect(ids(four)).toContain("b1");
+    expect(bestSplitGap(four)).toBeLessThan(2);
+  });
+
+  it("never drops someone who has waited longer, for fresher partners", () => {
+    const pool = [B("p1", "B"), B("p2"), B("p3"), B("p4"), { ...B("p5"), skipped: 1 }];
+    const partner = new Map([["p1", "p2"], ["p3", "p4"], ["p1", "p3"], ["p2", "p4"], ["p1", "p4"], ["p2", "p3"]].map(([a, b]) => [pk(a, b), 1] as const));
+    expect(ids(pickFour(pool, new Map(), 0, false, 0, { partner }))).toContain("p5");
+  });
+
+  it("a suggestion takes the partner history into account", () => {
+    // p1–p4 partnered both ways already; p5 and p6 are waiting too, all with the same priority
+    const players = ["p1", "p2", "p3", "p4", "p5", "p6"].map((id) => B(id));
+    const history = [completed("m1", ["p1", "p2"], ["p3", "p4"], 21, 15), completed("m2", ["p1", "p3"], ["p2", "p4"], 21, 15), completed("m3", ["p1", "p4"], ["p2", "p3"], 21, 15)];
+    const sug = buildSuggestion(players.map((p) => ({ ...p, games: 3 })), history, [], [], 0)!;
+    expect(sug.four.map((p) => p.id)).toEqual(expect.arrayContaining(["p5", "p6"]));
+  });
+});

@@ -480,20 +480,23 @@ function mustPlayers(pool: Player[], extraReady: number): Player[] {
  *     costed as `8 × familiarity − Σ priority + 6 × Σ (games − fewest games)`,
  *     where familiarity is how often each pair of the four has already shared
  *     a match tonight, plus `AVOID_AC_PENALTY` for an A with a C when
- *     `opts.avoidAC`. Lowest cost wins; equal costs go to the group that can
- *     be split most evenly by tier (`bestSplitGap`), except while
- *     `opts.avoidAC` holds, when even groups like A+C vs A+C are just what it
- *     steers away from. `seed` (Shuffle) steps through the next-best few. So
- *     four people who just finished together get split up rather than sent
- *     straight back out as the same group, and balance never costs anyone a
- *     turn: it only chooses between groups that are otherwise equal. */
+ *     `opts.avoidAC`. Lowest cost wins. Equal costs are settled, in order, by:
+ *     (a) not a group no split can even out (`bestSplitGap` of 2 or more;
+ *     skipped while `opts.avoidAC` holds, when even groups like A+C vs A+C are
+ *     just what it steers away from); (b) fewer partnerships repeated when
+ *     the four are split (`opts.partner`, the split `pickBalancedFoursome`
+ *     will make); (c) the more even split. `seed` (Shuffle) steps through the
+ *     next-best few. So four people who just finished together get split up
+ *     rather than sent straight back out as the same group, and neither
+ *     balance nor variety ever costs anyone a turn: they only choose between
+ *     groups that are otherwise equal. */
 export function pickFour(
   pool: Player[],
   meet: Map<string, number>,
   seed = 0,
   singleCourt = false,
   extraReady = 0,
-  opts: { forced?: Player[]; avoidAC?: boolean } = {},
+  opts: { forced?: Player[]; avoidAC?: boolean; partner?: Map<string, number> } = {},
 ): Player[] | null {
   if (pool.length < 4) return null;
   const waitWeight = singleCourt ? SINGLE_COURT_WAIT_WEIGHT : 1;
@@ -518,10 +521,16 @@ export function pickFour(
         waitWeight * four.reduce((sum, p) => sum + priorityScore(p), 0) +
         6 * four.reduce((sum, p) => sum + (p.games - minGames), 0) +
         (mixesAC ? AVOID_AC_PENALTY : 0);
-      const gap = opts.avoidAC ? 0 : bestSplitGap(four);
-      return { four, familiarity, cost, gap };
+      // how the four would be split, for the tie-breaks: unsplittable, repeated partnerships, tier gap
+      const split = pickBalancedFoursome(four, opts.partner);
+      const repeats =
+        (opts.partner?.get(pairKey(split.team1[0].id, split.team1[1].id)) || 0) + (opts.partner?.get(pairKey(split.team2[0].id, split.team2[1].id)) || 0);
+      const points = (team: [Player, Player]) => tierPointsOf(team[0].level) + tierPointsOf(team[1].level);
+      const unsplittable = !opts.avoidAC && bestSplitGap(four) >= 2;
+      const gap = opts.avoidAC ? 0 : Math.abs(points(split.team1) - points(split.team2));
+      return { four, familiarity, cost, unsplittable, repeats, gap };
     })
-    .sort((x, y) => x.cost - y.cost || x.gap - y.gap);
+    .sort((x, y) => x.cost - y.cost || Number(x.unsplittable) - Number(y.unsplittable) || x.repeats - y.repeats || x.gap - y.gap);
   // never empty: `pool` has 4+ players and at most `must.length` of them are in `must`,
   // so `rest` always holds the 4 - must.length still needed
   return ranked[seed % Math.min(ranked.length, SHUFFLE_CHOICES)].four;
@@ -628,15 +637,15 @@ export function buildSuggestion(
       hardActive,
     });
     if (pick) {
-      four = pickFour(pick.candidates, meet, seed, options.singleCourt, extraReady, { forced: pick.forced });
+      four = pickFour(pick.candidates, meet, seed, options.singleCourt, extraReady, { forced: pick.forced, partner });
       if (four) {
         const due = pick.due.filter((p) => four!.some((q) => q.id === p.id));
         hardNote = due.length > 0 ? `Hard game · ${due.map((p) => p.name).join(" & ")} carried ${Math.max(...due.map((p) => carries.get(p.id) ?? 0))} games · ` : "Hard game · ";
       }
     }
-    four ??= pickFour(pool, meet, seed, options.singleCourt, extraReady, { avoidAC: hardActive || !!options.avoidAC });
+    four ??= pickFour(pool, meet, seed, options.singleCourt, extraReady, { avoidAC: hardActive || !!options.avoidAC, partner });
   } else {
-    four = pickFour(pool, meet, seed, options.singleCourt, extraReady);
+    four = pickFour(pool, meet, seed, options.singleCourt, extraReady, { partner });
   }
   if (!four) return null;
   const split = pickBalancedFoursome(four, partner);
