@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player, SkillLevel } from "../types";
 import { makeBlankPlayer } from "./session";
-import { HARD_GAME_AFTER_CARRIES, carriesSinceHard, hardGamePick, isHardMatch, isLower, isUpper } from "./hardGames";
+import { HARD_GAME_AFTER_CARRIES, carriesSinceHard, dCarriesSinceRelief, hardGamePick, isDFreeMatch, isHardMatch, isLower, isUpper } from "./hardGames";
 
 const P = (id: string, level: SkillLevel, over: Partial<Player> = {}): Player => ({ ...makeBlankPlayer(id, id, level, "ready"), ...over });
 const M = (id: string, t1: [string, string], t2: [string, string], status: Match["status"] = "completed"): Match => ({ id, round: 0, num: 1, courtId: "1", status, t1, t2, s1: 21, s2: 15, elapsedAtTick0: 0 });
@@ -87,5 +87,58 @@ describe("hard games with tier D", () => {
     const args = { pool: upper, carries, enabled: true, hardActive: false };
     expect(hardGamePick({ ...args, mustPlay: [] })).not.toBeNull();
     expect(hardGamePick({ ...args, mustPlay: [P("d1", "D")] })).toBeNull();
+  });
+});
+
+describe("relief games: a C who has carried a D", () => {
+  const roster = [P("a1", "A"), P("b1", "B"), P("b2", "B"), P("c1", "C"), P("c2", "C"), P("c3", "C"), P("d1", "D"), P("d2", "D"), P("d3", "D")];
+  const levelOf = (id: string) => roster.find((p) => p.id === id)?.level;
+
+  it("a D-free match has four known players, none in D", () => {
+    expect(isDFreeMatch(M("m", ["a1", "c1"], ["b1", "c2"]), levelOf)).toBe(true);
+    expect(isDFreeMatch(M("m", ["a1", "d1"], ["b1", "c2"]), levelOf)).toBe(false);
+    expect(isDFreeMatch(M("m", ["a1", "gone"], ["b1", "c2"]), levelOf)).toBe(false); // a deleted player is unknown
+  });
+
+  it("counts a C's carries of a D partner, and resets on any D-free match", () => {
+    const withD1 = M("m1", ["c1", "d1"], ["c2", "d2"]);
+    const withD2 = M("m2", ["c1", "d2"], ["c3", "d3"]);
+    const carries = dCarriesSinceRelief(roster, [withD1, withD2]);
+    expect(carries.get("c1")).toBe(HARD_GAME_AFTER_CARRIES);
+    expect(carries.get("c2")).toBe(1);
+    expect(carries.has("a1")).toBe(false); // only C players are tracked
+    expect(carries.has("d1")).toBe(false);
+    expect(dCarriesSinceRelief(roster, [withD1, withD2, M("r", ["c1", "a1"], ["b1", "b2"], "in_progress")]).get("c1")).toBe(0);
+    expect(dCarriesSinceRelief(roster, [withD1, M("live", ["c1", "d3"], ["c2", "d2"], "in_progress")]).get("c1")).toBe(1); // not played yet
+  });
+
+  const args = { pool: roster, mustPlay: [] as Player[], carries: new Map<string, number>(), dCarries: new Map([["c1", 2], ["c2", 1]]), enabled: true, hardActive: false };
+
+  it("a due C gets a D-free match: forced in, candidates in A–C only", () => {
+    const pick = hardGamePick(args)!;
+    expect(pick.kind).toBe("mid");
+    expect(pick.forced.map((p) => p.id)).toEqual(["c1"]);
+    expect(pick.candidates.every((p) => p.level !== "D")).toBe(true);
+    expect(pick.due.map((p) => p.id)).toEqual(["c1"]);
+  });
+
+  it("an all-A/B hard game comes first when an upper player is due", () => {
+    const upper = [P("a1", "A"), P("a2", "A"), P("b1", "B"), P("b2", "B"), P("c1", "C"), P("d1", "D")];
+    const pick = hardGamePick({ ...args, pool: upper, carries: new Map([["a1", 2]]) })!;
+    expect(pick.kind).toBe("upper");
+  });
+
+  it("never while a D must play, a hard game is on or planned, nobody is due, fewer than four are in A–C, or it is off", () => {
+    expect(hardGamePick({ ...args, mustPlay: [P("d2", "D")] })).toBeNull();
+    expect(hardGamePick({ ...args, hardActive: true })).toBeNull();
+    expect(hardGamePick({ ...args, dCarries: new Map([["c1", 1]]) })).toBeNull();
+    expect(hardGamePick({ ...args, pool: roster.filter((p) => p.level === "D" || ["c1", "b1", "b2"].includes(p.id)) })).toBeNull();
+    expect(hardGamePick({ ...args, enabled: false })).toBeNull();
+    expect(hardGamePick({ ...args, dCarries: undefined })).toBeNull();
+  });
+
+  it("a C who must play is forced in alongside the due one", () => {
+    const pick = hardGamePick({ ...args, mustPlay: [P("c3", "C")] })!;
+    expect(pick.forced.map((p) => p.id)).toEqual(["c3", "c1"]);
   });
 });

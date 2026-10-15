@@ -106,7 +106,7 @@ export function ManageTab({
             <span>
               <span className={styles.hostToggleTitle}>Hard games</span>
               <span className={styles.hostToggleHint}>
-                A/B players who have carried a C or D partner twice get an all-A/B match — never while a C or D is overdue.
+                A/B players who have carried a C or D partner twice get an all-A/B match, and C players who have carried a D twice get a match with no D — never while the players they'd leave out are overdue.
               </span>
             </span>
           </label>

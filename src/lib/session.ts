@@ -1,6 +1,6 @@
 import type { GamesPlayedRow, GamesPlayedVM } from "../types.viewmodel";
 import type { CounterSnapshot, Court, Match, Player, PlayerStatus, QueueItem, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
-import { carriesSinceHard, hardGamePick, isHardMatch, isLower } from "./hardGames";
+import { carriesSinceHard, dCarriesSinceRelief, hardGamePick, isDFreeMatch, isHardMatch, isLower } from "./hardGames";
 
 const PHOTO_REMINDER_LEAD_MINUTES = 30;
 
@@ -625,14 +625,17 @@ export function buildSuggestion(
   // even when an all-A/B match happens to be on court.
   let four: Player[] | null = null;
   let hardNote: string | null = null;
+  let reliefKind: "upper" | "mid" | null = null;
   if (options.hardGames) {
     const level = new Map(players.map((p) => [p.id, p.level] as const));
     const hardActive = !!options.hardPlanned || matches.some((m) => m.status === "in_progress" && isHardMatch(m, (id) => level.get(id)));
     const carries = carriesSinceHard(players, matches);
+    const dCarries = dCarriesSinceRelief(players, matches);
     const pick = hardGamePick({
       pool: ordered.filter((p) => p.consecutiveGames < MAX_CONSECUTIVE),
       mustPlay: mustPlayers(pool, extraReady),
       carries,
+      dCarries,
       enabled: true,
       hardActive,
     });
@@ -640,7 +643,10 @@ export function buildSuggestion(
       four = pickFour(pick.candidates, meet, seed, options.singleCourt, extraReady, { forced: pick.forced, partner });
       if (four) {
         const due = pick.due.filter((p) => four!.some((q) => q.id === p.id));
-        hardNote = due.length > 0 ? `Hard game · ${due.map((p) => p.name).join(" & ")} carried ${Math.max(...due.map((p) => carries.get(p.id) ?? 0))} games · ` : "Hard game · ";
+        const carried = pick.kind === "mid" ? dCarries : carries;
+        const label = pick.kind === "mid" ? "No-D game" : "Hard game";
+        reliefKind = pick.kind;
+        hardNote = due.length > 0 ? `${label} · ${due.map((p) => p.name).join(" & ")} carried ${Math.max(...due.map((p) => carried.get(p.id) ?? 0))} games · ` : `${label} · `;
       }
     }
     four ??= pickFour(pool, meet, seed, options.singleCourt, extraReady, { avoidAC: hardActive || !!options.avoidAC, partner });
@@ -666,7 +672,8 @@ export function buildSuggestion(
   if (streak) reasons.push(`${streak.name} is playing back-to-back`);
   const levels = (team: [Player, Player]) => team.map((p) => p.level).join("+");
   const balanceNote = `${hardNote ?? ""}Teams balanced by tier (${levels(split.team1)} vs ${levels(split.team2)})`;
-  return { team1: split.team1, team2: split.team2, four, reasons, balanceNote, ...(hardNote !== null ? { hard: true } : {}) };
+  // `hard` is the all-A/B game, `noD` the D-free one for a C who carried a D; each only when true
+  return { team1: split.team1, team2: split.team2, four, reasons, balanceNote, ...(reliefKind === "upper" ? { hard: true } : {}), ...(reliefKind === "mid" ? { noD: true } : {}) };
 }
 
 /** Hosts wait out the first round: until one match has started on every open court. */
@@ -765,6 +772,7 @@ function suggestionFromItem(item: QueueItem, players: Player[], matches: Match[]
     balanceNote: item.balanceNote,
     queueIndex,
     ...(item.hard ? { hard: true } : {}),
+    ...(item.noD ? { noD: true } : {}),
   };
 }
 
@@ -822,7 +830,10 @@ export function planQueue(args: {
   const options: SuggestionOptions = { singleCourt: open.length === 1 };
   const level = new Map(players.map((p) => [p.id, p.level] as const));
   // a kept hard game goes when the switch is off, or when a tier change means it is no longer all A/B
-  const staleHard = (item: QueueItem) => !!item.hard && (!hardGames || !isHardMatch({ t1: item.team1, t2: item.team2 }, (id) => level.get(id)));
+  const staleHard = (item: QueueItem) =>
+    (!!item.hard && (!hardGames || !isHardMatch({ t1: item.team1, t2: item.team2 }, (id) => level.get(id)))) ||
+    // same for a D-free game: it goes when the switch is off or a tier change put a D in it
+    (!!item.noD && (!hardGames || !isDFreeMatch({ t1: item.team1, t2: item.team2 }, (id) => level.get(id))));
 
   // One planning pass; fresh picks before slot `avoidACBefore` avoid an A with a C.
   const pass = (avoidACBefore: number) => {
@@ -856,6 +867,7 @@ export function planQueue(args: {
           balanceNote: sug.balanceNote,
           // only set when true, never `hard: undefined` (Firebase rejects undefined values)
           ...(sug.hard ? { hard: true } : {}),
+          ...(sug.noD ? { noD: true } : {}),
         };
       }
       out.push(item);
