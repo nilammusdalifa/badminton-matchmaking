@@ -1,6 +1,6 @@
 import type { GamesPlayedRow, GamesPlayedVM } from "../types.viewmodel";
 import type { CounterSnapshot, Court, Match, Player, PlayerStatus, QueueItem, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
-import { carriesSinceHard, hardGamePick, isHardMatch } from "./hardGames";
+import { carriesSinceHard, hardGamePick, isHardMatch, isLower } from "./hardGames";
 
 const PHOTO_REMINDER_LEAD_MINUTES = 30;
 
@@ -345,7 +345,16 @@ export function markReady(p: Player, now: number): Player {
   return { ...p, status: "ready", idleSince: now };
 }
 
-const LEVEL_RANK: Record<SkillLevel, number> = { A: 3, B: 2, C: 1 };
+/** Tier as points, for comparing two teams: A=3, B=2, C=1, D=0. Only the
+ * gaps between teams are ever used, so D extends the scale downward without
+ * changing anything for players in A–C. */
+const LEVEL_RANK: Record<SkillLevel, number> = { A: 3, B: 2, C: 1, D: 0 };
+
+/** A player's tier points (`LEVEL_RANK`). A level this version doesn't know
+ * (data saved by a newer app) counts as B rather than breaking the sums. */
+export function tierPointsOf(level: SkillLevel | undefined): number {
+  return (level ? LEVEL_RANK[level] : undefined) ?? 2;
+}
 
 function pairKey(aId: string, bId: string): string {
   return [aId, bId].sort().join("|");
@@ -385,14 +394,14 @@ export function pickBalancedFoursome(
   four: Player[],
   partnerCount: Map<string, number> = new Map(),
 ): { team1: [Player, Player]; team2: [Player, Player] } {
-  const [a, b, c, d] = [...four].sort((x, y) => LEVEL_RANK[y.level] - LEVEL_RANK[x.level]);
+  const [a, b, c, d] = [...four].sort((x, y) => tierPointsOf(y.level) - tierPointsOf(x.level));
   const candidates: [[Player, Player], [Player, Player]][] = [
     [[a, d], [b, c]],
     [[a, c], [b, d]],
     [[a, b], [c, d]],
   ];
   const skillGap = (t1: [Player, Player], t2: [Player, Player]) =>
-    Math.abs(LEVEL_RANK[t1[0].level] + LEVEL_RANK[t1[1].level] - (LEVEL_RANK[t2[0].level] + LEVEL_RANK[t2[1].level]));
+    Math.abs(tierPointsOf(t1[0].level) + tierPointsOf(t1[1].level) - (tierPointsOf(t2[0].level) + tierPointsOf(t2[1].level)));
   const repeatCount = (t1: [Player, Player], t2: [Player, Player]) =>
     (partnerCount.get(pairKey(t1[0].id, t1[1].id)) || 0) + (partnerCount.get(pairKey(t2[0].id, t2[1].id)) || 0);
   const scored = candidates.map(([team1, team2]) => ({ team1, team2, repeats: repeatCount(team1, team2), gap: skillGap(team1, team2) }));
@@ -405,7 +414,7 @@ export function pickBalancedFoursome(
  * into two pairs can reach: 0 when they can be split evenly (A+C vs B+B),
  * 2 for groups no split can even out (A+A+A+C, A+C+C+C). */
 export function bestSplitGap(four: Player[]): number {
-  const [a, b, c, d] = four.map((p) => LEVEL_RANK[p.level]);
+  const [a, b, c, d] = four.map((p) => tierPointsOf(p.level));
   return Math.min(Math.abs(a + b - c - d), Math.abs(a + c - b - d), Math.abs(a + d - b - c));
 }
 
@@ -444,7 +453,8 @@ const SINGLE_COURT_WAIT_WEIGHT = 2;
 
 /** Added to the cost of a foursome holding both an A and a C while a hard game
  * is planned or on court (same scale as `8 × familiarity`). A preference, not a
- * ban: if every choice has one, the match is still made. */
+ * ban: if every choice has one, the match is still made. "A C" here and in the
+ * other "an A with a C" notes means any lower tier, C or D (`isLower`). */
 const AVOID_AC_PENALTY = 20;
 
 /** The must-play players of a pool: those who have waited a quarter of the
@@ -502,7 +512,7 @@ export function pickFour(
       const four = [...must, ...combo];
       let familiarity = 0;
       for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) familiarity += meet.get(pairKey(four[i].id, four[j].id)) || 0;
-      const mixesAC = opts.avoidAC && four.some((p) => p.level === "A") && four.some((p) => p.level === "C");
+      const mixesAC = opts.avoidAC && four.some((p) => p.level === "A") && four.some((p) => isLower(p.level));
       const cost =
         8 * familiarity -
         waitWeight * four.reduce((sum, p) => sum + priorityScore(p), 0) +
@@ -533,7 +543,7 @@ function pickFillers(pair: [Player, Player], rest: Player[], must: Player[], see
   if (forced.length === 2) return [forced[0], forced[1]];
   const window = line.filter((p) => !forced.includes(p)).slice(0, FILLER_WINDOW - forced.length);
   const options: [Player, Player][] = forced.length === 1 ? window.map((p) => [forced[0], p]) : combinations(window, 2).map(([x, y]) => [x, y]);
-  const points = (team: [Player, Player]) => LEVEL_RANK[team[0].level] + LEVEL_RANK[team[1].level];
+  const points = (team: [Player, Player]) => tierPointsOf(team[0].level) + tierPointsOf(team[1].level);
   const gap = (team: [Player, Player]) => Math.abs(points(pair) - points(team));
   const place = (team: [Player, Player]) => line.indexOf(team[0]) + line.indexOf(team[1]);
   const ranked = [...options].sort((x, y) => gap(x) - gap(y) || place(x) - place(y));
@@ -927,8 +937,6 @@ export function applyMatchStart(players: Player[], matches: Match[], four: reado
 /** Games together / faced before partner and opponent stats are shown. */
 const MIN_PAIR_GAMES = 2;
 
-/** Tier as a number, for comparing two teams: A=3, B=2, C=1. */
-const tierPoints = (level: SkillLevel): number => (level === "A" ? 3 : level === "B" ? 2 : 1);
 
 /** A game's value is this much for the result, the rest for the share of
  * points won. Any win is worth more than 0.75 and any loss less than 0.25. */
@@ -951,7 +959,7 @@ export function gameValue(own: number, opp: number): number {
 }
 
 /** What a pair is expected to be worth in a game, from the tier points
- * (A=3, B=2, C=1) of both pairs: ½ when they're level, 0.1 more per point
+ * (A=3, B=2, C=1, D=0) of both pairs: ½ when they're level, 0.1 more per point
  * stronger, never past 0.2–0.8. Partners share it: tiers can't tell who carried. */
 export function expectedValue(ownTierPoints: number, oppTierPoints: number): number {
   return Math.min(EXPECT_MAX, Math.max(EXPECT_MIN, 0.5 + TIER_STEP * (ownTierPoints - oppTierPoints)));
@@ -987,7 +995,7 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
   const partner = new Map<string, Map<string, PartnerStat>>();
   const opp = new Map<string, Map<string, OppStat>>();
   const bump = (m: Map<string, number>, id: string, by: number) => m.set(id, (m.get(id) || 0) + by);
-  const tierOf = new Map(players.map((p) => [p.id, tierPoints(p.level)]));
+  const tierOf = new Map(players.map((p) => [p.id, tierPointsOf(p.level)]));
   const teamPoints = (ids: readonly [string, string]) => (tierOf.get(ids[0]) ?? 2) + (tierOf.get(ids[1]) ?? 2);
 
   const process = (ids: readonly [string, string], own: number, oppScore: number, won: boolean, tie: boolean, oppIds: readonly [string, string]) => {

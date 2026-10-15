@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player, SkillLevel } from "../types";
 import { makeBlankPlayer } from "./session";
-import { HARD_GAME_AFTER_CARRIES, carriesSinceHard, hardGamePick, isHardMatch, isUpper } from "./hardGames";
+import { HARD_GAME_AFTER_CARRIES, carriesSinceHard, hardGamePick, isHardMatch, isLower, isUpper } from "./hardGames";
 
 const P = (id: string, level: SkillLevel, over: Partial<Player> = {}): Player => ({ ...makeBlankPlayer(id, id, level, "ready"), ...over });
 const M = (id: string, t1: [string, string], t2: [string, string], status: Match["status"] = "completed"): Match => ({ id, round: 0, num: 1, courtId: "1", status, t1, t2, s1: 21, s2: 15, elapsedAtTick0: 0 });
@@ -60,5 +60,32 @@ describe("hard games: when one can be planned", () => {
     expect(hardGamePick({ ...base, mustPlay: [pool[2]] })).toBeNull();
     expect(hardGamePick({ ...base, pool: pool.filter((p) => p.id !== "b3") })).toBeNull();
     expect(hardGamePick({ ...base, carries: new Map([["a1", 1], ["b2", 1]]) })).toBeNull();
+  });
+});
+
+describe("hard games with tier D", () => {
+  const roster = [P("a1", "A"), P("a2", "A"), P("b1", "B"), P("b2", "B"), P("c1", "C"), P("d1", "D"), P("d2", "D")];
+
+  it("lower tier is C or D; a player we no longer know is neither", () => {
+    expect([isLower("C"), isLower("D"), isLower("A"), isLower("B"), isLower(undefined)]).toEqual([true, true, false, false, false]);
+    expect(isUpper("D")).toBe(false);
+  });
+
+  it("carrying a D partner counts, the same as a C; a deleted partner doesn't", () => {
+    const withD = M("m1", ["a1", "d1"], ["b1", "c1"]);
+    const withC = M("m2", ["a1", "c1"], ["b1", "d2"]);
+    const withGone = M("m3", ["a2", "gone"], ["b2", "d1"]);
+    const carries = carriesSinceHard(roster, [withD, withC, withGone]);
+    expect(carries.get("a1")).toBe(HARD_GAME_AFTER_CARRIES);
+    expect(carries.get("b1")).toBe(2); // partnered c1, then d2
+    expect(carries.get("a2")).toBe(0);
+  });
+
+  it("a D who must play blocks a hard game, as a C does", () => {
+    const upper = roster.filter((p) => isUpper(p.level));
+    const carries = new Map([["a1", 2]]);
+    const args = { pool: upper, carries, enabled: true, hardActive: false };
+    expect(hardGamePick({ ...args, mustPlay: [] })).not.toBeNull();
+    expect(hardGamePick({ ...args, mustPlay: [P("d1", "D")] })).toBeNull();
   });
 });

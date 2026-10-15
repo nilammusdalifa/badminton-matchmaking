@@ -251,6 +251,7 @@
 .detailStrong { color: var(--sm-text); }
 .tierRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-top: 3px;
@@ -265,6 +266,7 @@
   font-weight: 700;
   color: var(--sm-text-2);
 }
+.nowrap { white-space: nowrap; }
 .rates {
   font-family: var(--sm-font-mono);
   font-weight: 600;

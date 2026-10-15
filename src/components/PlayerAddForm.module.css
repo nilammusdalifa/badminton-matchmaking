@@ -12,7 +12,8 @@
 }
 
 .tierLabel { font-size: 12px; font-weight: 700; color: var(--sm-text-3); }
-.tierGroup { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+/* wraps the buttons under the label when four tiers don't fit beside it (320px) */
+.tierGroup { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; white-space: nowrap; }
 
 .nameInput {
   flex: 1 1 100%;

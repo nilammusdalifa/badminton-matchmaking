@@ -30,7 +30,7 @@ function rng(seed: number) {
 }
 
 const gauss = (r: () => number) => Math.sqrt(-2 * Math.log(r() || 1e-9)) * Math.cos(2 * Math.PI * r());
-const BASE: Record<SkillLevel, number> = { A: 1, B: 0, C: -1 };
+const BASE: Record<SkillLevel, number> = { A: 1, B: 0, C: -1, D: -2 };
 
 /** One game to 21 (win by 2, capped at 30), rally by rally. */
 function playGame(team1: number, team2: number, r: () => number): [number, number] {
@@ -52,14 +52,27 @@ function rho(a: string[], b: string[]): number {
   return 1 - (6 * d2) / (n * (n * n - 1));
 }
 
-function night(n: number, courts: number, rounds: number, r: () => number): { withinTier: number; drawLuck: number } {
+/** With `tiers`, skill is drawn fresh for everyone and the "organizer" sorts
+ * them into that many equal tiers from a view of it that is off by 0.4
+ * standard deviations, so 3 and 4 tiers can be compared on the same skills. */
+function night(n: number, courts: number, rounds: number, r: () => number, tiers?: 3 | 4): { withinTier: number; drawLuck: number; overall: number } {
   const skill = new Map<string, number>();
-  const players: Player[] = Array.from({ length: n }, (_, i) => {
+  let players: Player[] = Array.from({ length: n }, (_, i) => {
     const level: SkillLevel = i < n / 3 ? "A" : i < (2 * n) / 3 ? "B" : "C";
     const p = makeBlankPlayer("p" + i, "P" + String(i).padStart(2, "0"), level, "ready");
     skill.set(p.id, BASE[level] + gauss(r) * 0.5);
     return p;
   });
+  if (tiers) {
+    const seen = players.map((p) => {
+      const s = gauss(r);
+      skill.set(p.id, s);
+      return { id: p.id, seen: s + gauss(r) * 0.4 };
+    });
+    const names: SkillLevel[] = ["A", "B", "C", "D"];
+    const tierOf = new Map([...seen].sort((a, b) => b.seen - a.seen).map((x, i) => [x.id, names[Math.floor((i * tiers) / n)]]));
+    players = players.map((p) => ({ ...p, level: tierOf.get(p.id)! }));
+  }
   const games = new Map(players.map((p) => [p.id, 0]));
   const matches: Match[] = [];
   for (let round = 0; round < rounds; round++) {
@@ -99,18 +112,21 @@ function night(n: number, courts: number, rounds: number, r: () => number): { wi
       }
   // oppEdge is the other pair's tiers minus their own, so the easiest draws have the lowest
   const byEasyDraws = [...stats].sort((a, b) => a.oppEdge - b.oppEdge || a.id.localeCompare(b.id)).map((p) => p.id);
-  return { withinTier: right / pairs, drawLuck: rho(order, byEasyDraws) };
+  const bySkill = [...players].sort((a, b) => skill.get(b.id)! - skill.get(a.id)!).map((p) => p.id);
+  return { withinTier: right / pairs, drawLuck: rho(order, byEasyDraws), overall: rho(order, bySkill) };
 }
 
-function average(n: number, courts: number, rounds: number, nights: number) {
+function average(n: number, courts: number, rounds: number, nights: number, tiers?: 3 | 4) {
   let withinTier = 0;
   let drawLuck = 0;
+  let overall = 0;
   for (let t = 0; t < nights; t++) {
-    const res = night(n, courts, rounds, rng(5000 + t));
+    const res = night(n, courts, rounds, rng(5000 + t), tiers);
     withinTier += res.withinTier;
     drawLuck += res.drawLuck;
+    overall += res.overall;
   }
-  return { withinTier: withinTier / nights, drawLuck: drawLuck / nights };
+  return { withinTier: withinTier / nights, drawLuck: drawLuck / nights, overall: overall / nights };
 }
 
 describe("ranking quality on simulated nights", () => {
@@ -126,6 +142,28 @@ describe("ranking quality on simulated nights", () => {
       const res = average(n, courts, rounds, NIGHTS);
       expect(res.withinTier).toBeGreaterThanOrEqual(floor);
       expect(res.drawLuck).toBeLessThanOrEqual(ceiling);
+    });
+  }
+});
+
+describe("ranking quality with a fourth tier", () => {
+  // Same skills, tiers set in 3 or 4 groups. Draw luck (3 -> 4 tiers): 0.169 -> 0.084,
+  // 0.142 -> 0.049, 0.090 -> 0.039. How closely the whole order follows true skill drops
+  // (0.380 -> 0.290, 0.360 -> 0.296, 0.369 -> 0.287), and does so under the old win-rate
+  // rule too (0.382 -> 0.313 ...): closer matches say less about who is strongest, so the
+  // order leans more on who played above their tier. Asserted: draw luck falls, and the
+  // order still follows skill.
+  const cases: [string, number, number, number][] = [
+    ["16 players, 5 games each", 16, 4, 5],
+    ["8 players, 2 courts, 6 games each", 8, 2, 6],
+    ["8 players, 1 court, ~6 games each", 8, 1, 12],
+  ];
+  for (const [label, n, courts, rounds] of cases) {
+    it(`${label}: easy draws count for even less with 4 tiers`, () => {
+      const three = average(n, courts, rounds, 300, 3);
+      const four = average(n, courts, rounds, 300, 4);
+      expect(four.drawLuck).toBeLessThan(three.drawLuck);
+      expect(four.overall).toBeGreaterThan(0.25);
     });
   }
 });

@@ -1,4 +1,5 @@
-export type SkillLevel = "A" | "B" | "C";
+/** Organizer-set tier, A strongest. D was added below C later: A–C mean what they always did. */
+export type SkillLevel = "A" | "B" | "C" | "D";
 export type PlayerStatus = "expected" | "ready" | "paused" | "left";
 export type PauseReason = "rest" | "host" | "break" | "injury" | "other";
 export type MatchStatus = "in_progress" | "completed";
@@ -46,7 +47,7 @@ export interface Player {
   toughOppLoss: number;
   toughOppGames: number;
   /** How hard their counted games were, per game: the other team's tier points
-   * minus their own team's (A=3, B=2, C=1). Above 0 = they usually faced the
+   * minus their own team's (A=3, B=2, C=1, D=0). Above 0 = they usually faced the
    * stronger team. A tie-break between equal records. */
   oppEdge: number;
   avgWait: number;
