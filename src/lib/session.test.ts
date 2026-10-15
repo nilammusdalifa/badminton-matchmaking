@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Match, Player, SkillLevel, Suggestion } from "../types";
-import { bestSplitGap, buildCounterSnapshot, cancelMatchPlayers, buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, openCourts, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import type { Match, Player, ResultMode, SkillLevel, Suggestion } from "../types";
+import { bestSplitGap, buildCounterSnapshot, cancelMatchPlayers, buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, openCourts, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, buildSessionSummary, expectedValue, gameValue, performanceScore, pointsShare, scoreLabel, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -106,6 +106,7 @@ describe("standings", () => {
     pointsAgainst: pa,
     ...extra,
   });
+  const tiered = (name: string, level: Player["level"]): Player => ({ ...player(name), level });
   const names = (rows: ReturnType<typeof rankPlayers>) => rows.map((r) => r.player.name);
   const section = (rows: ReturnType<typeof rankPlayers>, name: string) => rows.find((r) => r.player.name === name)!;
 
@@ -143,33 +144,37 @@ describe("standings", () => {
       expect(names(rankPlayers([stat("Two1", 3, 1), stat("Two0", 3, 0)]))).toEqual(["Two0", "Two1"]);
     });
 
-    it("equal records: the bigger share of points won ranks higher", () => {
-      const rows = rankPlayers([stat("Close", 2, 1, 60, 58), stat("Big", 2, 1, 63, 40)]);
-      expect(names(rows)).toEqual(["Big", "Close"]);
-    });
-
-    it("equal records: the player who faced tougher teams ranks higher, ahead of points", () => {
-      const rows = rankPlayers([
-        stat("Easy", 2, 1, 80, 40, "ready", { oppEdge: -1 }),
-        stat("Hard", 2, 1, 60, 58, "ready", { oppEdge: 1 }),
-        stat("Even", 2, 1, 70, 50, "ready", { oppEdge: 0 }),
+    it("same record: bigger margins rank higher", () => {
+      // both pairs win one and lose one; Ana + Bo won big and lost close
+      const s = recomputePlayerStats(["Ana", "Bo", "Cy", "Di"].map(player), [
+        completed("m1", ["ana", "bo"], ["cy", "di"], 21, 5),
+        completed("m2", ["ana", "bo"], ["cy", "di"], 19, 21),
       ]);
-      expect(names(rows)).toEqual(["Hard", "Even", "Easy"]);
+      expect(names(rankPlayers(s))).toEqual(["Ana", "Bo", "Cy", "Di"]);
     });
 
-    it("tougher matches never beat a better win rate", () => {
-      expect(names(rankPlayers([stat("Won", 3, 0, 63, 30, "ready", { oppEdge: -2 }), stat("Lost", 2, 1, 60, 58, "ready", { oppEdge: 2 })]))).toEqual(["Won", "Lost"]);
+    it("same scoreline: the pair that was weaker on paper ranks higher", () => {
+      const roster = [tiered("Ana", "A"), tiered("Cy", "B"), tiered("Di", "C"), tiered("Ed", "B"), tiered("Fi", "B"), tiered("Gu", "B"), tiered("Hu", "B"), tiered("Io", "B")];
+      const s = recomputePlayerStats(roster, [
+        completed("m1", ["di", "ed"], ["fi", "gu"], 21, 15), // C+B (3) beats B+B (4)
+        completed("m2", ["ana", "cy"], ["hu", "io"], 21, 15), // A+B (5) beats B+B (4)
+      ]);
+      expect(names(rankPlayers(s)).slice(0, 4)).toEqual(["Di", "Ed", "Ana", "Cy"]);
+    });
+
+    it("an equal score falls to the better win rate", () => {
+      expect(names(rankPlayers([stat("Two1", 2, 1, 0, 0, "ready", { perf: 0.3 }), stat("Three0", 3, 0, 0, 0, "ready", { perf: 0.3 })]))).toEqual(["Three0", "Two1"]);
     });
 
     it("an equal win rate is a tie, not a lead: falls to games, then name", () => {
       expect(names(rankPlayers([stat("Zed", 2, 2, 80, 80), stat("Amy", 2, 2, 80, 80)]))).toEqual(["Amy", "Zed"]);
     });
 
-    it("winner-only sessions ignore points", () => {
-      const a = stat("A", 2, 2, 1, 2);
-      const b = stat("B", 2, 2, 500, 0);
-      expect(names(rankPlayers([b, a], "winner"))).toEqual(["A", "B"]); // same record: games tie, then name
-      expect(names(rankPlayers([b, a], "score"))).toEqual(["B", "A"]);
+    it("winner-only sessions: the nominal 1–0 makes a game worth just its result", () => {
+      const s = recomputePlayerStats(["Ana", "Bo", "Cy", "Di"].map(player), [completed("m1", ["ana", "bo"], ["cy", "di"], 1, 0)]);
+      // even teams expect ½: the winners are ½ above it, the losers ½ below
+      expect(s.map((p) => p.perf)).toEqual([0.5, 0.5, -0.5, -0.5]);
+      expect(names(rankPlayers(s, "winner"))).toEqual(["Ana", "Bo", "Cy", "Di"]);
     });
 
     it("a session without results has no ranking at all", () => {
@@ -247,6 +252,82 @@ describe("standings", () => {
       expect(s.rows.map((r) => r.medal)).toEqual([1, 2, 3, null, null]);
       expect(section(s.rows, "Nilam").section).toBe("tooFew");
     });
+  });
+});
+
+describe("ranking score", () => {
+  const tiered = (name: string, level: Player["level"]): Player => ({ ...player(name), level });
+  const perfOf = (s: Player[], name: string) => s.find((p) => p.name === name)!.perf;
+
+  it("a game is worth half its result, half the share of points; any win beats any loss", () => {
+    expect(gameValue(21, 19)).toBeCloseTo(0.7625);
+    expect(gameValue(19, 21)).toBeCloseTo(0.2375);
+    expect(gameValue(21, 0)).toBe(1);
+    expect(gameValue(15, 15)).toBe(0.5);
+    expect(gameValue(0, 0)).toBe(0.5);
+    // the closest possible win is still worth more than 0.75, the closest loss less than 0.25
+    expect(gameValue(30, 29)).toBeGreaterThan(0.75);
+    expect(gameValue(29, 30)).toBeLessThan(0.25);
+  });
+
+  it("expects ½ of even teams, 0.1 more per tier point stronger, within 0.2–0.8", () => {
+    expect(expectedValue(4, 4)).toBe(0.5);
+    expect(expectedValue(5, 4)).toBeCloseTo(0.6);
+    expect(expectedValue(3, 4)).toBeCloseTo(0.4);
+    expect(expectedValue(6, 2)).toBe(0.8); // A+A vs C+C
+    expect(expectedValue(2, 6)).toBe(0.2);
+  });
+
+  it("adds up each game's value minus what the pairs' tiers expected", () => {
+    const roster = [tiered("Ana", "A"), tiered("Bo", "B"), tiered("Cy", "B"), tiered("Di", "B")];
+    // A+B (5) beats B+B (4) 21–15: worth 0.5 + 0.5·21/36, expected 0.6
+    const s = recomputePlayerStats(roster, [completed("m1", ["ana", "bo"], ["cy", "di"], 21, 15)]);
+    expect(perfOf(s, "Ana")).toBeCloseTo(0.5 + (0.5 * 21) / 36 - 0.6);
+    expect(perfOf(s, "Bo")).toBeCloseTo(perfOf(s, "Ana"));
+    expect(perfOf(s, "Cy")).toBeCloseTo(-perfOf(s, "Ana"));
+  });
+
+  it("uses the tiers as they are now, so changing a tier rescores the night", () => {
+    const even = ["Ana", "Bo", "Cy", "Di"].map(player);
+    const m = [completed("m1", ["ana", "bo"], ["cy", "di"], 21, 15)];
+    const before = recomputePlayerStats(even, m);
+    const after = recomputePlayerStats([tiered("Ana", "A"), ...even.slice(1)], m);
+    expect(perfOf(after, "Ana")).toBeCloseTo(perfOf(before, "Ana") - 0.1);
+    expect(perfOf(after, "Cy")).toBeCloseTo(perfOf(before, "Cy") + 0.1);
+  });
+
+  it("a player no longer on the roster counts as tier B, and doesn't break anything", () => {
+    const s = recomputePlayerStats(["Ana", "Bo", "Cy"].map(player), [completed("m1", ["ana", "gone"], ["bo", "cy"], 21, 15)]);
+    expect(perfOf(s, "Ana")).toBeCloseTo(0.5 + (0.5 * 21) / 36 - 0.5);
+  });
+
+  it("a match that ended early adds nothing", () => {
+    const early = { ...completed("m1", ["ana", "bo"], ["cy", "di"], 9, 2), counted: false };
+    expect(recomputePlayerStats(["Ana", "Bo", "Cy", "Di"].map(player), [early]).every((p) => p.perf === 0)).toBe(true);
+  });
+
+  it("starts everyone with 2 games as expected: one big win doesn't beat five good ones", () => {
+    const one = { perf: 0.5, rankGames: 1 }; // a 21–0 win between even teams
+    const five = { perf: 5 * (0.5 + (0.5 * 21) / 36 - 0.5), rankGames: 5 }; // five 21–15 wins
+    expect(performanceScore(one)).toBeCloseTo(0.5 + 0.5 / 3);
+    expect(performanceScore(five)).toBeGreaterThan(performanceScore(one));
+    expect(performanceScore({ perf: 0, rankGames: 0 })).toBe(0.5);
+  });
+
+  it("shows as a whole number from 0 to 100, 50 being as expected", () => {
+    expect(scoreLabel({ perf: 0, rankGames: 4 })).toBe(50);
+    expect(scoreLabel({ perf: 1.2, rankGames: 4 })).toBe(70);
+    expect(scoreLabel({ perf: 9, rankGames: 1 })).toBe(100);
+    expect(scoreLabel({ perf: -9, rankGames: 1 })).toBe(0);
+  });
+
+  it("the session summary ranks by the session's own result mode", () => {
+    const ppl = ["Ana", "Bo", "Cy", "Di"].map(player);
+    const m = [1, 2, 3].map((i) => completed("m" + i, ["ana", "bo"], ["cy", "di"], 21, 15));
+    const stats = recomputePlayerStats(ppl, m);
+    const summary = (resultMode: ResultMode) => buildSessionSummary({ id: "s", name: "N", schedule: "", completedCount: 3, courtsCount: 1, players: stats, resultMode });
+    expect(summary("score").topRankings.map((r) => r.name)).toEqual(["Ana", "Bo", "Cy", "Di"]);
+    expect(summary("none").topRankings).toEqual([]);
   });
 });
 

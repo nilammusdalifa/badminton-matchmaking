@@ -1,0 +1,131 @@
+import { describe, expect, it } from "vitest";
+import type { Match, Player, SkillLevel } from "../types";
+import { buildStandings, makeBlankPlayer, pickBalancedFoursome, recomputePlayerStats } from "./session";
+
+/** Plays whole evenings with a hidden "true" skill per player and checks how
+ * well the Rankings tab recovers it, through the app's own team split, stats
+ * and standings. Deterministic (seeded), so a change that makes the order
+ * luckier shows up as a failing number, not a flaky one.
+ *
+ * Two numbers per scenario, averaged over many nights:
+ * - within-tier: of every two players in the same tier, how often the better
+ *   one is ranked higher (50% = coin flip). Tiers are already known, so this
+ *   is what the results themselves add.
+ * - draw luck: rank correlation between the order and how easy each player's
+ *   draws were (their pair's tiers against the other pair's). 0 = the order
+ *   doesn't reward easy draws.
+ *
+ * Before the score (smoothed win rate → tougher matches → points share) these
+ * read 69.9% / 0.234, 68.9% / 0.246 and 74.1% / 0.306; with it, 71.5% / 0.198,
+ * 70.3% / 0.219 and 75.7% / 0.202. The floors and ceilings below sit just
+ * past the new numbers, so the old rule fails every one of them. */
+
+function rng(seed: number) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const gauss = (r: () => number) => Math.sqrt(-2 * Math.log(r() || 1e-9)) * Math.cos(2 * Math.PI * r());
+const BASE: Record<SkillLevel, number> = { A: 1, B: 0, C: -1 };
+
+/** One game to 21 (win by 2, capped at 30), rally by rally. */
+function playGame(team1: number, team2: number, r: () => number): [number, number] {
+  const p = 1 / (1 + Math.exp(-(team1 - team2) * 0.35));
+  let a = 0;
+  let b = 0;
+  while (!((a >= 21 || b >= 21) && Math.abs(a - b) >= 2) && a < 30 && b < 30) {
+    if (r() < p) a++;
+    else b++;
+  }
+  return [a, b];
+}
+
+/** Spearman rank correlation between two orders of the same ids. */
+function rho(a: string[], b: string[]): number {
+  const pos = new Map(b.map((id, i) => [id, i]));
+  const n = a.length;
+  const d2 = a.reduce((s, id, i) => s + (i - pos.get(id)!) ** 2, 0);
+  return 1 - (6 * d2) / (n * (n * n - 1));
+}
+
+function night(n: number, courts: number, rounds: number, r: () => number): { withinTier: number; drawLuck: number } {
+  const skill = new Map<string, number>();
+  const players: Player[] = Array.from({ length: n }, (_, i) => {
+    const level: SkillLevel = i < n / 3 ? "A" : i < (2 * n) / 3 ? "B" : "C";
+    const p = makeBlankPlayer("p" + i, "P" + String(i).padStart(2, "0"), level, "ready");
+    skill.set(p.id, BASE[level] + gauss(r) * 0.5);
+    return p;
+  });
+  const games = new Map(players.map((p) => [p.id, 0]));
+  const matches: Match[] = [];
+  for (let round = 0; round < rounds; round++) {
+    const pool = [...players].sort((x, y) => games.get(x.id)! - games.get(y.id)! || r() - 0.5).slice(0, courts * 4);
+    pool.sort(() => r() - 0.5);
+    for (let c = 0; c < courts; c++) {
+      const four = pool.slice(c * 4, c * 4 + 4);
+      const { team1, team2 } = pickBalancedFoursome(four);
+      const strength = (t: Player[]) => skill.get(t[0].id)! + skill.get(t[1].id)!;
+      const [s1, s2] = playGame(strength(team1), strength(team2), r);
+      matches.push({
+        id: `m${round}-${c}`,
+        round,
+        num: matches.length + 1,
+        courtId: "c" + c,
+        status: "completed",
+        t1: [team1[0].id, team1[1].id],
+        t2: [team2[0].id, team2[1].id],
+        s1,
+        s2,
+        elapsedAtTick0: 0,
+      });
+      for (const p of four) games.set(p.id, games.get(p.id)! + 1);
+    }
+  }
+
+  const stats = recomputePlayerStats(players, matches);
+  const order = buildStandings(stats).rows.map((row) => row.player.id);
+  const pos = new Map(order.map((id, i) => [id, i]));
+  let right = 0;
+  let pairs = 0;
+  for (const a of players)
+    for (const b of players)
+      if (a.id < b.id && a.level === b.level) {
+        pairs++;
+        if (pos.get(a.id)! < pos.get(b.id)! === skill.get(a.id)! > skill.get(b.id)!) right++;
+      }
+  // oppEdge is the other pair's tiers minus their own, so the easiest draws have the lowest
+  const byEasyDraws = [...stats].sort((a, b) => a.oppEdge - b.oppEdge || a.id.localeCompare(b.id)).map((p) => p.id);
+  return { withinTier: right / pairs, drawLuck: rho(order, byEasyDraws) };
+}
+
+function average(n: number, courts: number, rounds: number, nights: number) {
+  let withinTier = 0;
+  let drawLuck = 0;
+  for (let t = 0; t < nights; t++) {
+    const res = night(n, courts, rounds, rng(5000 + t));
+    withinTier += res.withinTier;
+    drawLuck += res.drawLuck;
+  }
+  return { withinTier: withinTier / nights, drawLuck: drawLuck / nights };
+}
+
+describe("ranking quality on simulated nights", () => {
+  const NIGHTS = 300;
+  const cases: [string, number, number, number, number, number][] = [
+    // label, players, courts, rounds, within-tier floor, draw-luck ceiling
+    ["12 players, 6 games each", 12, 3, 6, 0.71, 0.21],
+    ["16 players, 5 games each", 16, 4, 5, 0.7, 0.23],
+    ["16 players, 10 games each", 16, 4, 10, 0.75, 0.22],
+  ];
+  for (const [label, n, courts, rounds, floor, ceiling] of cases) {
+    it(`${label}: ranks same-tier players well and doesn't reward easy draws`, () => {
+      const res = average(n, courts, rounds, NIGHTS);
+      expect(res.withinTier).toBeGreaterThanOrEqual(floor);
+      expect(res.drawLuck).toBeLessThanOrEqual(ceiling);
+    });
+  }
+});

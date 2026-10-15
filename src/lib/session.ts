@@ -924,21 +924,47 @@ export function applyMatchStart(players: Player[], matches: Match[], four: reado
   });
 }
 
-/** Every stat on Rankings (games/wins/losses/point diff/trend/favorite
- * partner/toughest opponent) is derived fresh from completed matches every
- * time, rather than incrementally mutated as matches are scored. That's
- * deliberate: correcting or deleting a match (see the Matches tab's "Fix
- * score"/"Delete") only has to change the match record itself — there's no
- * separate running total that could drift out of sync with it. `rating` is
- * an informational-only "form" number for the leaderboard sort; it is never
- * read by matchmaking (team splits use skill tier — see
- * pickBalancedFoursome), so it can't become a hidden algorithmic factor. */
 /** Games together / faced before partner and opponent stats are shown. */
 const MIN_PAIR_GAMES = 2;
 
 /** Tier as a number, for comparing two teams: A=3, B=2, C=1. */
 const tierPoints = (level: SkillLevel): number => (level === "A" ? 3 : level === "B" ? 2 : 1);
 
+/** A game's value is this much for the result, the rest for the share of
+ * points won. Any win is worth more than 0.75 and any loss less than 0.25. */
+const RESULT_WEIGHT = 0.5;
+/** Each tier point a pair has over the other moves what's expected of it by this. */
+const TIER_STEP = 0.1;
+const EXPECT_MIN = 0.2;
+const EXPECT_MAX = 0.8;
+/** Everyone starts with this many "as expected" games, so a lucky first game
+ * can't put anyone on top (as the win rate's 1 win, 1 loss start does). */
+const PRIOR_GAMES = 2;
+
+/** What one game was worth to a team, 0–1: half the result (win 1, tie ½,
+ * loss 0), half the share of the points. A winner-only match's nominal 1–0
+ * makes the points half the same as the result. */
+export function gameValue(own: number, opp: number): number {
+  const result = own > opp ? 1 : own < opp ? 0 : 0.5;
+  const share = own + opp > 0 ? own / (own + opp) : 0.5;
+  return RESULT_WEIGHT * result + (1 - RESULT_WEIGHT) * share;
+}
+
+/** What a pair is expected to be worth in a game, from the tier points
+ * (A=3, B=2, C=1) of both pairs: ½ when they're level, 0.1 more per point
+ * stronger, never past 0.2–0.8. Partners share it: tiers can't tell who carried. */
+export function expectedValue(ownTierPoints: number, oppTierPoints: number): number {
+  return Math.min(EXPECT_MAX, Math.max(EXPECT_MIN, 0.5 + TIER_STEP * (ownTierPoints - oppTierPoints)));
+}
+
+/** Every stat on Rankings (games/wins/losses/point diff/trend/favorite
+ * partner/toughest opponent/score) is derived fresh from completed matches
+ * every time, rather than incrementally mutated as matches are scored. That's
+ * deliberate: correcting or deleting a match (see the Matches tab's "Fix
+ * score"/"Delete") only has to change the match record itself — there's no
+ * separate running total that could drift out of sync with it. Nothing here is
+ * read by matchmaking (team splits use skill tier — see pickBalancedFoursome),
+ * so results can't become a hidden algorithmic factor. */
 export function recomputePlayerStats(players: Player[], matches: Match[]): Player[] {
   interface PartnerStat {
     games: number;
@@ -957,6 +983,7 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
   const pointsAgainst = new Map<string, number>();
   const recent = new Map<string, number[]>();
   const edge = new Map<string, number>();
+  const perf = new Map<string, number>();
   const partner = new Map<string, Map<string, PartnerStat>>();
   const opp = new Map<string, Map<string, OppStat>>();
   const bump = (m: Map<string, number>, id: string, by: number) => m.set(id, (m.get(id) || 0) + by);
@@ -965,7 +992,9 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
 
   const process = (ids: readonly [string, string], own: number, oppScore: number, won: boolean, tie: boolean, oppIds: readonly [string, string]) => {
     const lost = !tie && !won;
+    const aboveExpected = gameValue(own, oppScore) - expectedValue(teamPoints(ids), teamPoints(oppIds));
     for (const id of ids) {
+      bump(perf, id, aboveExpected);
       bump(games, id, 1);
       bump(rankGames, id, 1);
       bump(diff, id, own - oppScore);
@@ -1072,7 +1101,7 @@ export function recomputePlayerStats(players: Player[], matches: Match[]): Playe
       pointsFor: pointsFor.get(p.id) || 0,
       pointsAgainst: pointsAgainst.get(p.id) || 0,
       partnersCount: partner.get(p.id)?.size ?? 0,
-      rating: 1100 + d * 3 + w * 15 - l * 10,
+      perf: perf.get(p.id) || 0,
       trend,
       recentForm,
       favPartner,
@@ -1093,9 +1122,21 @@ export function winRate(p: Pick<Player, "wins" | "rankGames">): number {
   return (p.wins + 1) / (p.rankGames + 2);
 }
 
+/** The Rankings score, 0–1 (shown as 0–100): ½ plus how far above what was
+ * expected their games were worth, on average (see gameValue and
+ * expectedValue), with PRIOR_GAMES "as expected" games added so a couple of
+ * lucky games can't produce an extreme figure. ½ = exactly as expected. */
+export function performanceScore(p: Pick<Player, "perf" | "rankGames">): number {
+  return 0.5 + (p.perf || 0) / (p.rankGames + PRIOR_GAMES);
+}
+
+/** The score as shown: a whole number, 0–100. */
+export function scoreLabel(p: Pick<Player, "perf" | "rankGames">): number {
+  return Math.min(100, Math.max(0, Math.round(performanceScore(p) * 100)));
+}
+
 /** Share of all points won, pulled towards 50% by 40 points each way so a
- * couple of games can't produce an extreme figure. The tie-breaker between
- * equal records: it counts every rally, not just the win or the loss. */
+ * couple of games can't produce an extreme figure. Shown beside the record. */
 export function pointsShare(p: Pick<Player, "pointsFor" | "pointsAgainst">): number {
   return (p.pointsFor + 40) / (p.pointsFor + p.pointsAgainst + 80);
 }
@@ -1131,18 +1172,17 @@ export interface Standings {
 }
 
 const key4 = (x: number) => Math.round(x * 10000);
-const key2 = (x: number) => Math.round((x || 0) * 100);
 
 /** Leaderboard, in words anyone can check. Of the players who count in the
  * rankings, only those with at least 3 games and at least half as many as the
- * player with the most get a rank number: best smoothed win rate first, then
- * the tougher matches (the other team's tiers against their own, on average),
- * then — where scores are recorded — the bigger share of points won, then more
- * games, then name. Everyone else with games goes in "not enough games yet" (record
+ * player with the most get a rank number: best score first (each game's result
+ * and share of points, against what their pair's tiers said to expect — see
+ * performanceScore), then the better smoothed win rate, then more games, then
+ * name. Everyone else with games goes in "not enough games yet" (record
  * shown, no rank), and players switched out of the rankings (hosts, guests)
  * sit under "not ranked"; neither affects anyone's rank, the most-games bar or
- * the early check. Win rates compare to 4 decimals, so equal records tie
- * exactly and fall to the tie-breaker.
+ * the early check. Scores and win rates compare to 4 decimals, so equal
+ * records tie exactly and fall to the next tie-breaker.
  *
  * Medals go to the first three ranked players, and only once the night has
  * settled: not while the leader has fewer than 3 games, and not until 75% of
@@ -1163,9 +1203,8 @@ export function buildStandings(players: Player[], resultMode: ResultMode = "scor
     .filter((p) => p.rankGames > 0)
     .sort(
       (a, b) =>
+        key4(performanceScore(b)) - key4(performanceScore(a)) ||
         key4(winRate(b)) - key4(winRate(a)) ||
-        key2(b.oppEdge) - key2(a.oppEdge) ||
-        (resultMode === "score" ? key4(pointsShare(b)) - key4(pointsShare(a)) : 0) ||
         b.rankGames - a.rankGames ||
         a.name.localeCompare(b.name),
     );
@@ -1260,7 +1299,7 @@ export function makeBlankPlayer(id: string, name: string, level: SkillLevel, sta
     pointsFor: 0,
     pointsAgainst: 0,
     partnersCount: 0,
-    rating: 1100,
+    perf: 0,
     trend: 0,
     recentForm: [],
     status,
@@ -1296,7 +1335,7 @@ export function resetPlayersForNewSession(players: Player[]): Player[] {
       pointsFor: 0,
       pointsAgainst: 0,
       partnersCount: 0,
-      rating: 1100,
+      perf: 0,
       trend: 0,
       recentForm: [],
       skipped: 0,
@@ -1343,8 +1382,9 @@ export function buildSessionSummary(params: {
   completedCount: number;
   courtsCount: number;
   players: Player[];
+  resultMode: ResultMode;
 }): SessionHistoryEntry {
-  const topRankings = rankPlayers(params.players)
+  const topRankings = rankPlayers(params.players, params.resultMode)
     .filter((r) => r.rank !== null)
     .slice(0, 5)
     .map((r) => ({ rank: r.rank as number, name: r.player.name, wins: r.player.wins, losses: r.player.losses }));
