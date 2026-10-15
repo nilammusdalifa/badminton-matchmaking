@@ -348,7 +348,9 @@ const oneCourt = [both("19:00", "22:00")];
 /** Today's numbers (planAhead: true, default tier thirds), recorded before the
  * arrival-order / one-plan-per-court change. Later tasks assert against these. */
 const BASELINE: Record<string, { minRatio: number; maxWaitMin: number; gap: number; inARow: number }> = {
-  "12x2": { minRatio: 0.8666666666666667, maxWaitMin: 56, gap: 2, inARow: 2 },
+  // 57, not 56, since equal-cost groups are settled by fewer repeated partners: the 90th percentile
+  // is 1 min longer on three seeds (51 -> 52, 52 -> 53, 50 -> 51); means within 0.3 min
+  "12x2": { minRatio: 0.8666666666666667, maxWaitMin: 57, gap: 2, inARow: 2 },
   "15x2": { minRatio: 1, maxWaitMin: 61, gap: 2, inARow: 2 },
   "16x2": { minRatio: 1, maxWaitMin: 62, gap: 2, inARow: 1 },
   "8x1": { minRatio: 0.75, maxWaitMin: 45, gap: 1, inARow: 2 },
@@ -558,28 +560,52 @@ describe("hard games on a 3A/5B/7C night", () => {
 });
 
 describe("match balance: groups that split evenly", () => {
-  // Equal-cost groups go to the one that splits most evenly by tier (pickFour). Measured before
-  // that (average gap / share 2+ apart): 15 players 3A/5B/7C 0.686 / 7.8%, the same with hard
-  // games 0.597 / 4.7%, 16 players 0.498 / 6.3%, 12 players 0.576 / 2.7%, 20 players on 3 courts
-  // 0.504 / 3.5%. After: 0.340 / 3.2%, 0.532 / 6.2%, 0.310 / 2.0%, 0.520 / 2.7%, 0.342 / 2.7%.
-  // The ceilings sit just above "after", so the old order fails every average.
+  // Equal-cost groups go to one that can be split evenly (pickFour), then (see "partner variety")
+  // to fewer repeated partners. Measured before any of that (average gap / share 2+ apart): 15
+  // players 3A/5B/7C 0.686 / 7.8%, the same with hard games 0.597 / 4.7%, 16 players 0.498 / 6.3%,
+  // 12 players 0.576 / 2.7%, 20 players on 3 courts 0.504 / 3.5%. Even splits alone: 0.340 / 3.2%,
+  // 0.532 / 6.2%, 0.310 / 2.0%, 0.520 / 2.7%, 0.342 / 2.7%. With variety second: 0.36 / 3.9%,
+  // 0.54 / 6.2%, 0.31 / 2.0%, 0.56 / 2.6%, 0.35 / 2.2%. The ceilings sit just above those, so the
+  // old order fails every average.
   //
   // Two shares carry no ceiling. 12 players didn't move. With hard games on 3A/5B/7C, A+C+C+C
-  // matches rose in this roster order: evening out early matches (A+C vs B+B) spends the scarce
-  // Bs. With the roster shuffled the same night improves (0.637 / 6.0% -> 0.423 / 3.3%).
+  // matches rose in this roster order: evening out early matches spends the scarce Bs. With the
+  // roster shuffled the same night improves (0.637 / 6.0% -> 0.423 / 3.3%).
   // label, scenario, ceiling on the average gap, ceiling on the share 2+ apart (null: none)
   const cases: [string, Scenario, number, number | null][] = [
-    ["15 players 3A/5B/7C, hard games off", { players: 15, courts: twoCourts, levels: [3, 5, 7], planAhead: true }, 0.36, 0.035],
-    ["15 players 3A/5B/7C, hard games on", { players: 15, courts: twoCourts, levels: [3, 5, 7], planAhead: true, hardGames: true }, 0.55, null],
+    ["15 players 3A/5B/7C, hard games off", { players: 15, courts: twoCourts, levels: [3, 5, 7], planAhead: true }, 0.39, 0.045],
+    ["15 players 3A/5B/7C, hard games on", { players: 15, courts: twoCourts, levels: [3, 5, 7], planAhead: true, hardGames: true }, 0.56, null],
     ["16 players, 2 courts", { players: 16, courts: twoCourts, planAhead: true }, 0.33, 0.025],
-    ["12 players, 2 courts", { players: 12, courts: twoCourts, planAhead: true }, 0.54, null],
-    ["20 players, 3 courts", { players: 20, courts: threeCourts, planAhead: true }, 0.36, 0.03],
+    ["12 players, 2 courts", { players: 12, courts: twoCourts, planAhead: true }, 0.58, null],
+    ["20 players, 3 courts", { players: 20, courts: threeCourts, planAhead: true }, 0.38, 0.03],
   ];
   for (const [label, scenario, maxMean, maxShare] of cases) {
     it(`${label}: teams closer in tier`, () => {
       const r = summarize(scenario, NIGHTS, false);
       expect(r.meanGap).toBeLessThanOrEqual(maxMean);
       if (maxShare !== null) expect(r.gap2Share).toBeLessThanOrEqual(maxShare);
+    });
+  }
+});
+
+describe("partner variety", () => {
+  // Between groups that cost the same, fewer repeated partnerships win (after avoiding groups no
+  // split can even out). Different partners per player / pairs who partnered twice or more, per
+  // night, before -> after: 12 players 4.64 / 2.8 -> 4.85 / 1.9, 15 players 3A/5B/7C 3.90 / 1.8
+  // -> 4.10 / 0.4, 20 players on 3 courts 5.35 / 2.5 -> 5.51 / 1.0, 8 players on 1 court
+  // 3.66 / 4.0 -> 4.65 / 0.0. 16 players barely moved (3.86 / 0.3 -> 3.88 / 0.1).
+  // label, scenario, floor on different partners, ceiling on repeated pairs
+  const cases: [string, Scenario, number, number][] = [
+    ["12 players, 2 courts", { players: 12, courts: twoCourts, planAhead: true }, 4.75, 2.3],
+    ["15 players 3A/5B/7C", { players: 15, courts: twoCourts, levels: [3, 5, 7], planAhead: true }, 4.0, 0.8],
+    ["20 players, 3 courts", { players: 20, courts: threeCourts, planAhead: true }, 5.45, 1.4],
+    ["8 players, 1 court", { players: 8, courts: oneCourt, planAhead: true }, 4.5, 0.5],
+  ];
+  for (const [label, scenario, minPartners, maxTwice] of cases) {
+    it(`${label}: more different partners, fewer repeats`, () => {
+      const r = summarize(scenario, NIGHTS, false);
+      expect(r.partners).toBeGreaterThanOrEqual(minPartners);
+      expect(r.partnerTwice).toBeLessThanOrEqual(maxTwice);
     });
   }
 });
