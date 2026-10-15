@@ -122,15 +122,15 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
                 Player
               </div>
               <div className={styles.colRate} data-xfix>
-                Win Rate
+                Score
               </div>
             </div>
 
             <div className={styles.list} style={{ gap: rowGap }}>
               {top.map((r) => {
                 const first = r.rank === 1;
-                // the filled part of the win-rate cell can't start left of its slanted edge
-                const fillTo = Math.max(7, Math.min(100, r.winPct));
+                // the filled part of the score cell can't start left of its slanted edge
+                const fillTo = Math.max(7, Math.min(100, r.score));
                 return (
                   <div className={styles.row} key={r.rank}>
                     <div className={styles.rankCol}>
@@ -158,9 +158,9 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
                       </div>
                       <div className={styles.winCell}>
                         <Shape points="7,0 100,0 100,100 0,100" fill="#FFFFFF" opacity={0.12} />
-                        {r.winPct > 0 && <Shape points={`7,0 ${fillTo},0 ${fillTo},100 0,100`} fill="#FF4A1A" />}
+                        {r.score > 0 && <Shape points={`7,0 ${fillTo},0 ${fillTo},100 0,100`} fill="#FF4A1A" />}
                         <div className={styles.pct} data-xfix>
-                          {r.winPct}%
+                          {r.score}
                         </div>
                         <div className={styles.record} data-xfix>
                           {r.wins}W–{r.losses}L

@@ -130,8 +130,10 @@ export interface RankingEntry {
   mostGames: number;
   wins: number;
   losses: number;
-  /** Real win rate as a whole percentage (5–0 is 100%). The order itself uses
-   * a smoothed rate, so this is for reading, not for sorting by. */
+  /** The Rankings score, 0–100 (50 = as expected): what the order is built on
+   * (see performanceScore). */
+  score: number;
+  /** Real win rate as a whole percentage (5–0 is 100%), for reading. */
   winPct: number;
   /** Per game, the other team's tier points minus their own (A=3, B=2, C=1). */
   oppEdge: number;
@@ -187,8 +189,8 @@ export interface ShareRankingEntry {
   level: SkillLevel;
   wins: number;
   losses: number;
-  /** Real win rate, as a whole percentage. */
-  winPct: number;
+  /** The Rankings score, 0–100 (50 = as expected). */
+  score: number;
 }
 
 export interface EditablePlayerOption {
