@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player, SkillLevel, Suggestion } from "../types";
-import { buildCounterSnapshot, cancelMatchPlayers, buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, openCourts, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import { bestSplitGap, buildCounterSnapshot, cancelMatchPlayers, buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, openCourts, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, pointsShare, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -1185,7 +1185,9 @@ describe("hard games", () => {
     const off = buildSuggestion(players, [], [], [], 0, {})!;
     expect(on.hard).toBeFalsy();
     expect(four(on)).toEqual(four(off));
-    expect(four(on)).toEqual(["a9", "c5", "c6", "c7"]);
+    expect(on.four.map((p) => p.level)).toEqual(expect.arrayContaining(["A", "C"]));
+    // equal costs go to the group that splits more evenly: A+C vs B+C, not A+C vs C+C
+    expect(four(on)).toEqual(["a9", "b5", "c5", "c6"]);
   });
 
   describe("the match planned before a hard game", () => {
@@ -1252,5 +1254,76 @@ describe("hard games", () => {
     expect(sug.hard).toBe(true);
     expect(new Set(four(sug)).size).toBe(4);
     expect(four(sug)).toEqual(expect.arrayContaining(["a1", "b2"]));
+  });
+});
+
+describe("groups that split evenly", () => {
+  const T = (id: string, level: SkillLevel, over: Partial<Player> = {}): Player => ({ ...makeBlankPlayer(id, id, level, "ready"), ...over });
+  const ids = (ps: Player[] | null) => ps!.map((p) => p.id).sort();
+
+  it("bestSplitGap is the smallest tier gap any split of the four can reach", () => {
+    expect(bestSplitGap([T("a", "A"), T("b", "B"), T("b2", "B"), T("c", "C")])).toBe(0); // A+C vs B+B
+    expect(bestSplitGap([T("a", "A"), T("a2", "A"), T("b", "B"), T("c", "C")])).toBe(1); // A+C vs A+B
+    expect(bestSplitGap([T("a", "A"), T("a2", "A"), T("a3", "A"), T("c", "C")])).toBe(2);
+    expect(bestSplitGap([T("a", "A"), T("c", "C"), T("c2", "C"), T("c3", "C")])).toBe(2);
+  });
+
+  // six fresh players, all equal in line: every group of four costs the same
+  const six = () => [T("a1", "A"), T("a2", "A"), T("a3", "A"), T("c1", "C"), T("b1", "B"), T("b2", "B")];
+
+  it("between groups that cost the same, picks one that splits evenly", () => {
+    const four = pickFour(six(), new Map())!;
+    expect(ids(four)).toEqual(["a1", "a2", "b1", "b2"]);
+    expect(bestSplitGap(four)).toBe(0);
+  });
+
+  it("never drops someone who has waited longer, even for a group that can't split evenly", () => {
+    const pool = [T("c1", "C", { skipped: 1 }), T("a1", "A"), T("a2", "A"), T("a3", "A"), T("a4", "A")];
+    const four = pickFour(pool, new Map())!;
+    expect(ids(four)).toContain("c1");
+    expect(bestSplitGap(four)).toBe(2);
+  });
+
+  it("while an A with a C is being avoided, the pick is the same as without balance", () => {
+    // the first group in line without an A and a C, however unevenly it splits
+    expect(ids(pickFour(six(), new Map(), 0, false, 0, { avoidAC: true }))).toEqual(["a1", "a2", "a3", "b1"]);
+  });
+});
+
+describe("opponents for a requested pair", () => {
+  const T = (id: string, level: SkillLevel, over: Partial<Player> = {}): Player => ({ ...makeBlankPlayer(id, id, level, "ready"), ...over });
+  // a1 + a2 asked to partner; the rest of the line, in order: c1, c2, b1, b2, a3
+  const line = (over: Record<string, Partial<Player>> = {}) =>
+    [T("a1", "A"), T("a2", "A"), T("c1", "C"), T("c2", "C"), T("b1", "B"), T("b2", "B"), T("a3", "A")].map((p) => ({ ...p, ...over[p.id] }));
+  const request: [string, string][] = [["a1", "a2"]];
+  const opponents = (s: Suggestion | null) => s!.team2.map((p) => p.id).sort();
+
+  it("takes the closest in tier from the first four in line, and says so for the organizer", () => {
+    const sug = buildSuggestion(line(), [], request, [], 0)!;
+    expect(sug.team1.map((p) => p.id)).toEqual(["a1", "a2"]);
+    expect(opponents(sug)).toEqual(["b1", "b2"]);
+    expect(sug.balanceNote).toBe("Opponents closest in tier (A+A vs B+B)");
+    // what shows in the Player view names no tiers
+    expect(sug.reasons.join(" ")).not.toMatch(/tier/i);
+  });
+
+  it("always takes a must-play player", () => {
+    // 7 ready: waiting 2 matches makes a must-play
+    const sug = buildSuggestion(line({ c1: { skipped: 2 } }), [], request, [], 0)!;
+    expect(opponents(sug)).toContain("c1");
+    expect(opponents(sug)).toEqual(["b1", "c1"]); // then the closest partner for c1, earlier in line first
+  });
+
+  it("skips someone at the back-to-back limit while others can play", () => {
+    const sug = buildSuggestion(line({ b1: { consecutiveGames: 2 } }), [], request, [], 0)!;
+    expect(opponents(sug)).not.toContain("b1");
+    expect(opponents(sug)).toEqual(["a3", "b2"]); // A+B, one tier point off: the closest left
+  });
+
+  it("Shuffle steps to another pair of opponents", () => {
+    const first = opponents(buildSuggestion(line(), [], request, [], 0));
+    const next = opponents(buildSuggestion(line(), [], request, [], 1));
+    expect(next).not.toEqual(first);
+    expect(next).toHaveLength(2);
   });
 });

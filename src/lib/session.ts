@@ -401,6 +401,14 @@ export function pickBalancedFoursome(
   return { team1: best.team1, team2: best.team2 };
 }
 
+/** The smallest gap in tier points (`LEVEL_RANK`) any split of these four
+ * into two pairs can reach: 0 when they can be split evenly (A+C vs B+B),
+ * 2 for groups no split can even out (A+A+A+C, A+C+C+C). */
+export function bestSplitGap(four: Player[]): number {
+  const [a, b, c, d] = four.map((p) => LEVEL_RANK[p.level]);
+  return Math.min(Math.abs(a + b - c - d), Math.abs(a + c - b - d), Math.abs(a + d - b - c));
+}
+
 export function readyPool(players: Player[], matches: Match[]): Player[] {
   return players.filter((p) => p.status === "ready" && !p.skipNextRound && !isPlaying(p.id, matches));
 }
@@ -462,9 +470,13 @@ function mustPlayers(pool: Player[], extraReady: number): Player[] {
  *     costed as `8 × familiarity − Σ priority + 6 × Σ (games − fewest games)`,
  *     where familiarity is how often each pair of the four has already shared
  *     a match tonight, plus `AVOID_AC_PENALTY` for an A with a C when
- *     `opts.avoidAC`. Lowest cost wins; `seed` (Shuffle) steps through the
- *     next-best few. So four people who just finished together get split up
- *     rather than sent straight back out as the same group. */
+ *     `opts.avoidAC`. Lowest cost wins; equal costs go to the group that can
+ *     be split most evenly by tier (`bestSplitGap`), except while
+ *     `opts.avoidAC` holds, when even groups like A+C vs A+C are just what it
+ *     steers away from. `seed` (Shuffle) steps through the next-best few. So
+ *     four people who just finished together get split up rather than sent
+ *     straight back out as the same group, and balance never costs anyone a
+ *     turn: it only chooses between groups that are otherwise equal. */
 export function pickFour(
   pool: Player[],
   meet: Map<string, number>,
@@ -496,12 +508,36 @@ export function pickFour(
         waitWeight * four.reduce((sum, p) => sum + priorityScore(p), 0) +
         6 * four.reduce((sum, p) => sum + (p.games - minGames), 0) +
         (mixesAC ? AVOID_AC_PENALTY : 0);
-      return { four, familiarity, cost };
+      const gap = opts.avoidAC ? 0 : bestSplitGap(four);
+      return { four, familiarity, cost, gap };
     })
-    .sort((x, y) => x.cost - y.cost);
+    .sort((x, y) => x.cost - y.cost || x.gap - y.gap);
   // never empty: `pool` has 4+ players and at most `must.length` of them are in `must`,
   // so `rest` always holds the 4 - must.length still needed
   return ranked[seed % Math.min(ranked.length, SHUFFLE_CHOICES)].four;
+}
+
+/** How many players at the front of the line are weighed as opponents for a requested pair. */
+const FILLER_WINDOW = 4;
+
+/** The two opponents for a requested pair, from the rest of the line
+ * (priority order). Players at the back-to-back limit sit out while two others
+ * can play. Must-play players are always taken (the first two, if more); the
+ * other places go to the pair from the next few in line whose tier points
+ * (`LEVEL_RANK`) come closest to the requested pair's, earlier in line first.
+ * `seed` (Shuffle) steps through that order. */
+function pickFillers(pair: [Player, Player], rest: Player[], must: Player[], seed: number): [Player, Player] {
+  const rested = rest.filter((p) => p.consecutiveGames < MAX_CONSECUTIVE);
+  const line = rested.length >= 2 ? rested : rest;
+  const forced = line.filter((p) => must.some((m) => m.id === p.id)).slice(0, 2);
+  if (forced.length === 2) return [forced[0], forced[1]];
+  const window = line.filter((p) => !forced.includes(p)).slice(0, FILLER_WINDOW - forced.length);
+  const options: [Player, Player][] = forced.length === 1 ? window.map((p) => [forced[0], p]) : combinations(window, 2).map(([x, y]) => [x, y]);
+  const points = (team: [Player, Player]) => LEVEL_RANK[team[0].level] + LEVEL_RANK[team[1].level];
+  const gap = (team: [Player, Player]) => Math.abs(points(pair) - points(team));
+  const place = (team: [Player, Player]) => line.indexOf(team[0]) + line.indexOf(team[1]);
+  const ranked = [...options].sort((x, y) => gap(x) - gap(y) || place(x) - place(y));
+  return ranked[seed % ranked.length];
 }
 
 export interface SuggestionOptions {
@@ -548,11 +584,10 @@ export function buildSuggestion(
     const b = ordered.find((p) => p.id === reqPair[1])!;
     const rest = ordered.filter((p) => p.id !== a.id && p.id !== b.id);
     if (rest.length >= 2) {
-      // Requested partners stay fixed; Shuffle rotates which two players
-      // fill the other side, via a sliding window of `rest` keyed by seed —
-      // otherwise Shuffle would silently do nothing while a request is pending.
-      const start = rest.length > 2 ? seed % rest.length : 0;
-      const fillers = [rest[start], rest[(start + 1) % rest.length]] as [Player, Player];
+      // Requested partners stay fixed; Shuffle steps through who fills the
+      // other side — otherwise Shuffle would silently do nothing while a request is pending.
+      const fillers = pickFillers([a, b], rest, mustPlayers(pool, options.extraReady ?? 0), seed);
+      const tiers = (team: [Player, Player]) => team.map((p) => p.level).join("+");
       return {
         team1: [a, b],
         team2: fillers,
@@ -561,7 +596,7 @@ export function buildSuggestion(
           `${a.name} & ${b.name} requested as partners`,
           "Others chosen by waiting time",
         ],
-        balanceNote: null,
+        balanceNote: `Opponents closest in tier (${tiers([a, b])} vs ${tiers(fillers)})`,
       };
     }
   }
