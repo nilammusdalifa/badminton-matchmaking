@@ -192,7 +192,10 @@
   text-align: center;
   background: #0b1420;
   border-radius: 6px;
-  padding: 4px 0;
+  padding: 6px 0;
+}
+.colRateText {
+  display: block;
   line-height: 18px;
   color: #ffffff;
 }

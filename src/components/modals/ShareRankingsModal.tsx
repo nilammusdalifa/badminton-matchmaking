@@ -121,8 +121,10 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
               <div className={styles.colPlayer} data-xfix>
                 Player
               </div>
-              <div className={styles.colRate} data-xfix>
-                Score
+              <div className={styles.colRate}>
+                <span className={styles.colRateText} data-xfix>
+                  Score
+                </span>
               </div>
             </div>
 
