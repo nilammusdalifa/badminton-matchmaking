@@ -46,7 +46,6 @@ import {
   pointsShare,
   readyPool as readyPoolFn,
   recomputePlayerStats,
-  resetCourtsForNewSession,
   resetPlayersForNewSession,
   resumeCourt,
   reverseCounterSnapshot,
@@ -71,6 +70,24 @@ import type {
   ShareRankingEntry,
   WaitingEntry,
 } from "../types.viewmodel";
+
+/** The live session as it was when New Session emptied everything, kept so
+ * closing the wizard can put it back. Never persisted or synced. */
+interface SetupBackup {
+  players: Player[];
+  matches: Match[];
+  courts: Court[];
+  completedCount: number;
+  sessionName: string;
+  sessionSchedule: string;
+  sessionEnded: boolean;
+  sessionResultMode: ResultMode;
+  requestedPairs: [string, string][];
+  queue: QueueItem[];
+  photoReminderShown: boolean;
+  /** The history entry written when it was emptied; removed again on restore. */
+  archivedId: string;
+}
 
 interface AppState {
   activeTab: Tab;
@@ -110,6 +127,7 @@ interface AppState {
   setupName: string;
   setupSchedule: string;
   setupResultMode: ResultMode;
+  setupBackup: SetupBackup | null;
   newPlayerName: string;
   newPlayerLevel: SkillLevel;
   toastMsg: string | null;
@@ -168,6 +186,7 @@ function initialState(): AppState {
     setupName: "",
     setupSchedule: "",
     setupResultMode: "score",
+    setupBackup: null,
     newPlayerName: "",
     newPlayerLevel: "B",
     toastMsg: null,
@@ -1523,19 +1542,73 @@ export function useSessionStore() {
 
   const openSetup = useCallback(() => {
     if (!isOwner) return;
-    setState((s) => ({
-      ...s,
-      setupOpen: true,
-      setupStep: 0,
-      // Reconfiguring an existing session (courts already set up) starts
-      // from its current name/schedule so a recurring organizer can just
-      // tweak the date — a brand-new setup starts blank instead.
-      setupName: s.courts.length > 0 ? s.sessionName : "",
-      setupSchedule: s.courts.length > 0 ? s.sessionSchedule : "",
-      setupResultMode: s.sessionResultMode,
-    }));
+    setState((s) => {
+      if (s.setupOpen) return s;
+      const open = { ...s, setupOpen: true, setupStep: 0 as const, setupName: "", setupSchedule: "", setupResultMode: "score" as ResultMode };
+      // Nothing set up yet: there is nothing to put away.
+      if (isFirstRun(s.players.length, s.courts.length)) return { ...open, setupBackup: null };
+      // New Session starts from nothing — roster, courts, name and schedule
+      // too; only the share link and PIN carry over. The outgoing session is
+      // archived right away (so it survives a reload mid-wizard) and also kept
+      // in setupBackup, so closing the wizard puts it back.
+      const archivedId = "s" + Date.now();
+      const summary = buildSessionSummary({
+        id: archivedId,
+        name: s.sessionName,
+        schedule: s.sessionSchedule,
+        completedCount: s.completedCount,
+        courtsCount: s.courts.length,
+        players: recomputePlayerStats(s.players, s.matches),
+        resultMode: s.sessionResultMode,
+      });
+      return {
+        ...open,
+        setupBackup: {
+          players: s.players,
+          matches: s.matches,
+          courts: s.courts,
+          completedCount: s.completedCount,
+          sessionName: s.sessionName,
+          sessionSchedule: s.sessionSchedule,
+          sessionEnded: s.sessionEnded,
+          sessionResultMode: s.sessionResultMode,
+          requestedPairs: s.requestedPairs,
+          queue: s.queue,
+          photoReminderShown: s.photoReminderShown,
+          archivedId,
+        },
+        players: [],
+        matches: [],
+        courts: [],
+        completedCount: 0,
+        sessionName: "New Session",
+        sessionSchedule: "",
+        sessionEnded: false,
+        sessionResultMode: "score",
+        requestedPairs: [],
+        queue: [],
+        suggestSeed: {},
+        photoReminderShown: false,
+        scorekeeperMatchId: null,
+        editCourtId: null,
+        editQueueIndex: null,
+        requestA: "",
+        requestB: "",
+        history: [...s.history, summary],
+      };
+    });
   }, [isOwner]);
-  const closeSetup = useCallback(() => setState((s) => ({ ...s, setupOpen: false })), []);
+  const closeSetup = useCallback(
+    () =>
+      setState((s) => {
+        const b = s.setupBackup;
+        const closed = { ...s, setupOpen: false, setupStep: 0 as const, setupName: "", setupSchedule: "", setupBackup: null };
+        if (!b) return closed;
+        const { archivedId, ...saved } = b;
+        return { ...closed, ...saved, history: s.history.filter((h) => h.id !== archivedId) };
+      }),
+    [],
+  );
   const setupNext = useCallback(
     () =>
       setState((s) => {
@@ -1552,42 +1625,18 @@ export function useSessionStore() {
   const onSetupScheduleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setState((s) => ({ ...s, setupSchedule: e.target.value })), []);
   const setSetupResultMode = useCallback((mode: ResultMode) => setState((s) => ({ ...s, setupResultMode: mode })), []);
   const finishSetup = useCallback(() => {
-    setState((s) => {
-      const summary = buildSessionSummary({
-        id: "s" + Date.now(),
-        name: s.sessionName,
-        schedule: s.sessionSchedule,
-        completedCount: s.completedCount,
-        courtsCount: s.courts.length,
-        players: recomputePlayerStats(s.players, s.matches),
-        resultMode: s.sessionResultMode,
-      });
-      return {
-        ...s,
-        setupOpen: false,
-        setupStep: 0,
-        setupName: "",
-        setupSchedule: "",
-        sessionEnded: false,
-        sessionName: s.setupName.trim() ? s.setupName.trim() : s.sessionName,
-        sessionSchedule: s.setupSchedule.trim() ? s.setupSchedule.trim() : s.sessionSchedule,
-        sessionResultMode: s.setupResultMode,
-        // Roster identity (name/level) and courts carry over for next time;
-        // everything scoped to "this event" resets, and the outgoing
-        // session's results are archived rather than silently discarded.
-        players: resetPlayersForNewSession(s.players),
-        matches: [],
-        completedCount: 0,
-        requestedPairs: [],
-        suggestSeed: {},
-        photoReminderShown: false,
-        queue: [],
-        // a court paused (by hand or at closing time) or kept open past its
-        // closing time last session starts this one as normal
-        courts: resetCourtsForNewSession(s.courts),
-        history: [...s.history, summary],
-      };
-    });
+    setState((s) => ({
+      ...s,
+      setupOpen: false,
+      setupStep: 0,
+      setupName: "",
+      setupSchedule: "",
+      setupBackup: null,
+      sessionEnded: false,
+      sessionName: s.setupName.trim() ? s.setupName.trim() : s.sessionName,
+      sessionSchedule: s.setupSchedule.trim() ? s.setupSchedule.trim() : s.sessionSchedule,
+      sessionResultMode: s.setupResultMode,
+    }));
     showToast("New session started");
   }, [showToast]);
   const onStartNewFromReview = useCallback(() => {
@@ -2275,9 +2324,8 @@ export function useSessionStore() {
       reviewName: state.setupName.trim() || state.sessionName,
       reviewSchedule: state.setupSchedule.trim() || state.sessionSchedule,
       rosterNames: state.players.map((p) => ({ name: p.name, level: p.level })),
-      reviewHasHistory: state.completedCount > 0 || state.players.some((p) => p.status !== "expected"),
-      reviewConsequence:
-        `Starts fresh: ${state.completedCount} ${state.completedCount === 1 ? "match" : "matches"} archived, all players set to not checked in.`,
+      reviewHasHistory: !!state.setupBackup && (state.setupBackup.completedCount > 0 || state.setupBackup.players.some((p) => p.status !== "expected")),
+      reviewConsequence: `Starts fresh: ${state.setupBackup?.completedCount ?? 0} ${state.setupBackup?.completedCount === 1 ? "match" : "matches"} from the last session archived. Players and courts were cleared.`,
       canBack: state.setupStep > 0,
       isLast: state.setupStep === 3,
       close: closeSetup,
