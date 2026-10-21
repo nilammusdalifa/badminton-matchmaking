@@ -170,6 +170,7 @@
   position: relative;
   margin-top: 44px;
   padding-left: 64px;
+  padding-right: 64px;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -200,6 +201,8 @@
   position: relative;
   margin-top: 28px;
   padding-left: 64px;
+  /* the score cells stop short of the picture's edge instead of being cropped by it */
+  padding-right: 64px;
   display: flex;
   flex-direction: column;
 }
@@ -278,14 +281,19 @@
 }
 .mvp {
   position: relative;
+  flex-shrink: 0;
   background: #10263b;
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+.mvpText {
+  display: block;
   color: #ffffff;
   font-size: 12px;
   font-weight: 800;
   line-height: 16px;
   letter-spacing: 1px;
-  padding: 4px 11px;
-  border-radius: 999px;
+  white-space: nowrap;
 }
 .winCell {
   position: relative;

@@ -151,8 +151,12 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
                           {shortName(r.name, 18)}
                         </span>
                         {first && (
-                          <span className={styles.mvp} data-xfix>
-                            MVP
+                          // the pill is a plain box and only the text inside is lifted:
+                          // lifting the box itself clipped its bottom in the export
+                          <span className={styles.mvp}>
+                            <span className={styles.mvpText} data-xfix>
+                              MVP
+                            </span>
                           </span>
                         )}
                       </div>
