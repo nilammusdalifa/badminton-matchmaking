@@ -48,6 +48,11 @@ export interface GamesPlayedRow {
   warn: boolean;
 }
 
+export interface PlayerOption {
+  id: string;
+  name: string;
+}
+
 export interface GamesPlayedVM {
   rows: GamesPlayedRow[];
   average: number;
@@ -117,6 +122,15 @@ export interface RankingEntry {
   medal: 1 | 2 | 3 | null;
   /** Which part of the list: ranked, "not enough games yet" or "not ranked". */
   section: "ranked" | "tooFew" | "notRanked";
+  /** Why this row is where it is, when that isn't obvious: how many games it
+   * still needs for a rank, or what separates it from a neighbour on the same score. */
+  note: string | null;
+  /** Matches needed for a rank right now (see `rankMinGames`). */
+  minMatches: number;
+  /** Every completed match played, counted or not (what the Session tab's "Fewest matches" shows). */
+  matchesPlayed: number;
+  /** Two or more matches fewer than the busiest player: the same rule as the Session tab's "behind" count. */
+  behind: boolean;
   /** Counts in the rankings (false for a host or guest switched out). */
   inRankings: boolean;
   /** Set for the organizer only: switch this player in or out of the rankings. */
@@ -227,6 +241,8 @@ export interface MatchLogEntry {
   resultMode: ResultMode;
   /** Stopped early and not counted towards anyone's record. */
   notCounted: boolean;
+  /** When it started: "20 min ago", or the clock time once the session is over; null when unknown. */
+  startedLabel: string | null;
   onEditScore: () => void;
   onDelete: () => void;
 }
@@ -252,6 +268,9 @@ export interface SessionHealth {
   longestWaitName: string | null;
   longestWaitMatches: number;
   gameSpread: number;
+  /** Fewest and most matches played by anyone in the rotation, for "Matches played: 2–7". */
+  minPlayed: number;
+  maxPlayed: number;
   hasWarning: boolean;
 }
 
@@ -284,6 +303,8 @@ export interface ConfirmViewModel {
   title: string;
   body: string;
   actionLabel: string;
+  /** The way out: "Cancel" beside "Delete", "Go back" elsewhere. */
+  cancelLabel: string;
 }
 
 export type { PauseReason };

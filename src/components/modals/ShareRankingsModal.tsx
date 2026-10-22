@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { copy } from "../../lib/copy";
 import { shortName } from "../../lib/session";
 import { CROWN_IMAGE } from "../../lib/crownImage";
 import { SHARE_CARD_H, SHARE_CARD_W } from "../../lib/shareCard";
@@ -56,11 +57,11 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
     return (
       <div className={styles.backdrop}>
         <div className={styles.wrap}>
-          <img className={styles.fallbackImg} src={fallbackImageUrl} alt={`Top ${top.length} rankings`} />
-          <div className={styles.fallbackHint}>Press and hold the picture, then choose Save Image.</div>
+          <img className={styles.fallbackImg} src={fallbackImageUrl} alt={copy.share.topAlt(top.length)} />
+          <div className={styles.fallbackHint}>{copy.share.saveHint}</div>
           <div className={styles.actions}>
             <button className={styles.closeBtn} onClick={onCloseImage}>
-              Back
+              {copy.share.back}
             </button>
           </div>
         </div>
@@ -203,24 +204,24 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
             }}
           />
           <button className={styles.photoBtn} onClick={() => fileInput.current?.click()}>
-            {photo ? "Change 1st place photo" : "Add 1st place photo"}
+            {photo ? copy.share.changePhoto : copy.share.addPhoto}
           </button>
           {photo && (
             <button className={styles.photoBtn} onClick={onClearPhoto}>
-              Remove
+              {copy.share.removePhoto}
             </button>
           )}
         </div>
         <div className={styles.actions}>
           <button className={styles.closeBtn} onClick={close}>
-            Close
+            {copy.share.close}
           </button>
           <button className={styles.downloadBtn} onClick={download}>
-            Save Image
+            {copy.share.saveImage}
           </button>
         </div>
         <button className={styles.linkBtn} onClick={onOpenImage}>
-          Not saving? Open the picture
+          {copy.share.notSaving}
         </button>
       </div>
     </div>

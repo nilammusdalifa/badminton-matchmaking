@@ -22,14 +22,13 @@
   gap: 10px;
 }
 .panelTitle {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
   color: var(--sm-text-2);
 }
 .panelHint {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-text-3);
   margin-top: -4px;
 }
@@ -47,16 +46,15 @@
   background: var(--sm-accent);
   color: var(--sm-accent-on);
   font-weight: 700;
-  font-size: 12.5px;
+  font-size: 14px;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
 
 .rosterTitle {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
   color: var(--sm-text-2);
 }
 .rosterList {
@@ -100,9 +98,9 @@
 .editActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .editActions .removeBtn { margin-left: auto; overflow-wrap: anywhere; }
 .addBtn:disabled { opacity: 0.5; cursor: not-allowed; }
-.rosterName { font-weight: 700; font-size: 13px; overflow-wrap: anywhere; }
-.rosterLevel { font-weight: 500; font-size: 12px; color: var(--sm-text-3); }
-.rosterStatus { font-size: 12px; }
+.rosterName { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
+.rosterLevel { font-weight: 500; font-size: 14px; color: var(--sm-text-3); }
+.rosterStatus { font-size: 14px; }
 .rosterStatus.default { color: var(--sm-text-2); }
 .rosterStatus.warning { color: var(--sm-accent-hover); }
 .rosterStatus.accent { color: var(--sm-accent); }
@@ -113,7 +111,7 @@
   border: 1px solid var(--sm-border);
   background: transparent;
   color: var(--sm-text-2);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
@@ -144,7 +142,7 @@
   padding: 8px 12px;
   background: var(--sm-scrim);
   border-radius: var(--radius-md);
-  font-size: 12.5px;
+  font-size: 14px;
 }
 .removeBtn {
   flex-shrink: 0;
@@ -153,7 +151,7 @@
   border: 1px solid var(--sm-border);
   background: transparent;
   color: var(--sm-danger-text);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
@@ -167,13 +165,13 @@
 }
 .pinHint {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-text-3);
 }
 .shareUrl {
   margin-top: 10px;
   font-family: var(--sm-font-mono);
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-text-2);
   word-break: break-all;
   user-select: all;
@@ -183,7 +181,7 @@
   border-radius: 999px;
   border: 1px dashed var(--sm-border);
   color: var(--sm-text-2);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 700;
   font-family: var(--sm-font-mono);
   letter-spacing: 0.04em;
@@ -209,11 +207,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 .timeInput {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 10px;
   border-radius: var(--radius-md);
   border: 1px solid var(--sm-border);
@@ -223,7 +221,7 @@
   font-family: var(--font-body), sans-serif;
 }
 .courtsSub {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   margin-top: 2px;
 }
@@ -252,7 +250,7 @@
   background: var(--sm-surface);
   color: var(--sm-text);
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
   text-align: left;
   font-family: var(--font-body), sans-serif;
@@ -282,5 +280,5 @@
   accent-color: var(--sm-accent);
 }
 .hostToggle input:disabled { cursor: not-allowed; }
-.hostToggleTitle { display: block; font-size: 13px; font-weight: 700; }
-.hostToggleHint { display: block; font-size: 12px; color: var(--sm-text-3); }
+.hostToggleTitle { display: block; font-size: 14px; font-weight: 700; }
+.hostToggleHint { display: block; font-size: 14px; color: var(--sm-text-3); }

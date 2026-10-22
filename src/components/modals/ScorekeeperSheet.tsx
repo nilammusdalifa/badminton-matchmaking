@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { CloseIcon } from "../icons";
+import { copy } from "../../lib/copy";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./ScorekeeperSheet.module.css";
 
@@ -56,69 +57,69 @@ export function ScorekeeperSheet({
           <div>
             <div className={styles.headTitle}>{courtLabel}</div>
             <div className={styles.headHint}>
-              {isEditingCompleted ? "Fix the score, then save." : "Tap +1 or type a score."}
+              {isEditingCompleted ? copy.scorekeeper.fixHint : copy.scorekeeper.tapHint}
             </div>
           </div>
-          <button className={styles.closeBtn} onClick={close} aria-label="Close scorekeeper">
+          <button className={styles.closeBtn} onClick={close} aria-label={copy.scorekeeper.close}>
             <CloseIcon />
           </button>
         </div>
         <div className={styles.grid}>
           <div className={styles.teamCol}>
-            <div className={`${styles.teamLabel} ${styles.a}`}>Team A</div>
+            <div className={`${styles.teamLabel} ${styles.a}`}>{copy.court.teamA}</div>
             <div className={styles.teamNames}>
               {t1p1} &amp; {t1p2}
             </div>
             <input type="number" min={0} max={99} className={styles.scoreInput} value={t1} onChange={setT1} onFocus={focusSelect} />
             <button className={`${styles.plusBtn} ${styles.a}`} onClick={addT1} disabled={isGameOver}>
-              +1
+              {copy.scorekeeper.plusOne}
             </button>
           </div>
           <div className={styles.teamCol}>
-            <div className={`${styles.teamLabel} ${styles.b}`}>Team B</div>
+            <div className={`${styles.teamLabel} ${styles.b}`}>{copy.court.teamB}</div>
             <div className={styles.teamNames}>
               {t2p1} &amp; {t2p2}
             </div>
             <input type="number" min={0} max={99} className={styles.scoreInput} value={t2} onChange={setT2} onFocus={focusSelect} />
             <button className={`${styles.plusBtn} ${styles.b}`} onClick={addT2} disabled={isGameOver}>
-              +1
+              {copy.scorekeeper.plusOne}
             </button>
           </div>
         </div>
         {askEndedEarly ? (
           <div className={styles.endedEarly}>
-            <div className={styles.endedEarlyTitle}>Match ended early?</div>
+            <div className={styles.endedEarlyTitle}>{copy.scorekeeper.endedEarlyTitle}</div>
             <div className={styles.gameOverNote}>
-              {isTie ? "A game can't end tied. " : "Looks unfinished. "}
-              Not counting it keeps everyone&apos;s wins, losses and points as they were. It still counts as a game played.
+              {isTie ? copy.scorekeeper.cantTie : copy.scorekeeper.unfinished}
+              {copy.scorekeeper.notCountingBody}
             </div>
             <button className={styles.saveBtn} onClick={() => saveFinal("early")}>
-              Don&apos;t count result
+              {copy.scorekeeper.dontCount}
             </button>
             {!isTie && (
               <button className={styles.undoBtn} onClick={() => saveFinal("final")}>
-                Count as final
+                {copy.scorekeeper.countFinal}
               </button>
             )}
             <button className={styles.cancelMatchBtn} onClick={() => setAskEndedEarly(false)}>
-              Keep scoring
+              {copy.scorekeeper.keepScoring}
             </button>
           </div>
         ) : (
           <>
-            {isGameOver && <div className={styles.gameOverNote}>Game over — save the result</div>}
+            {isGameOver && <div className={styles.gameOverNote}>{copy.scorekeeper.matchOver}</div>}
             <div className={styles.footer}>
               <button className={styles.undoBtn} onClick={undo}>
-                Undo Point
+                {copy.scorekeeper.undo}
               </button>
               <button className={styles.saveBtn} onClick={handleSave}>
-                {isEditingCompleted ? "Update Result" : "Save Final Result"}
+                {isEditingCompleted ? copy.scorekeeper.update : copy.scorekeeper.saveFinal}
               </button>
             </div>
           </>
         )}
         <button className={styles.cancelMatchBtn} onClick={onCancelMatch}>
-          {isEditingCompleted ? "Delete this match instead" : "Wrong match? Cancel it instead"}
+          {isEditingCompleted ? copy.scorekeeper.deleteInstead : copy.scorekeeper.cancelInstead}
         </button>
       </div>
     </div>

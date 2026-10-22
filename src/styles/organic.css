@@ -74,7 +74,7 @@ img { display: block; max-width: 100%; }
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   cursor: pointer; text-decoration: none;
   font-family: var(--font-body); font-weight: 700;
-  font-size: 13px; line-height: 1.2; color: var(--color-text);
+  font-size: 14px; line-height: 1.2; color: var(--color-text);
   background: transparent; border: 1px solid transparent;
   padding: var(--space-2) calc(var(--space-3) * 1.2);
   border-radius: 999px;
@@ -85,7 +85,7 @@ img { display: block; max-width: 100%; }
 /* — forms — */
 .input {
   width: 100%; min-height: 36px; padding: 9px 14px; font: inherit;
-  font-size: 13px; color: var(--color-text); caret-color: var(--color-accent);
+  font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
   background: var(--color-surface);
   border: 1px solid var(--color-divider); border-radius: 999px;
 }

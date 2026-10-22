@@ -1,5 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&display=swap');
 
+/* Text tokens (--sm-text-2/3/4, --sm-accent, --sm-accent-2, --sm-danger-text) all keep at least 4.5:1
+   (WCAG AA) on the app background, the card surface and the tinted fills used for chips. */
 /* SmashMatch dark theme — built on top of the Organic design tokens
    (radii, fonts, spacing) with this app's own dark palette layered in. */
 :root {
@@ -11,16 +13,16 @@
 
   --sm-text: var(--color-neutral-100);
   --sm-text-2: var(--color-neutral-300);
-  --sm-text-3: var(--color-neutral-400);
-  --sm-text-4: var(--color-neutral-600);
+  --sm-text-3: #cbc1b0;
+  --sm-text-4: #a89e8c;
 
-  --sm-accent: var(--color-accent-400);
+  --sm-accent: #5ecbbc;
   --sm-accent-hover: var(--color-accent-300);
   --sm-accent-soft: rgba(63, 182, 168, 0.16);
   --sm-accent-border: rgba(63, 182, 168, 0.4);
   --sm-accent-on: var(--color-accent-900);
 
-  --sm-accent-2: var(--color-accent-2-400);
+  --sm-accent-2: #bccba0;
   --sm-accent-2-soft: rgba(174, 191, 146, 0.18);
   --sm-accent-2-border: rgba(174, 191, 146, 0.4);
   --sm-accent-2-on: var(--color-accent-2-900);
@@ -34,7 +36,7 @@
   --sm-danger: #c2543f;
   --sm-danger-soft: rgba(194, 84, 63, 0.16);
   --sm-danger-border: rgba(194, 84, 63, 0.3);
-  --sm-danger-text: #e8a494;
+  --sm-danger-text: #efb3a5;
 
   --sm-font-mono: "JetBrains Mono", monospace;
 }

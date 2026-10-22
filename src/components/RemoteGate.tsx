@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { copy } from "../lib/copy";
 import type { SessionStore } from "../hooks/useSessionStore";
 import styles from "./RemoteGate.module.css";
 
@@ -15,8 +16,8 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
     return (
       <div className={styles.wrap}>
         <div className={styles.card}>
-          <div className={styles.title}>Live sharing isn't set up</div>
-          <div className={styles.body}>The organizer needs to set up live sharing, then resend the link.</div>
+          <div className={styles.title}>{copy.gate.notSetUpTitle}</div>
+          <div className={styles.body}>{copy.gate.notSetUpBody}</div>
         </div>
       </div>
     );
@@ -26,15 +27,17 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
     return (
       <div className={styles.wrap}>
         <div className={styles.card}>
-          <div className={styles.title}>Join live session</div>
-          <div className={styles.body}>Choose how you're joining.</div>
+          <div className={styles.title}>{copy.gate.joinTitle}</div>
+          <div className={styles.body}>{copy.gate.joinBody}</div>
           {roleStep === "choose" ? (
             <div className={styles.buttons}>
               <button className={styles.primaryBtn} onClick={() => chooseRole("player")}>
-                Player (just watching)
+                <span className={styles.btnTitle}>{copy.gate.watch}</span>
+                <span className={styles.btnSub}>{copy.gate.watchSub}</span>
               </button>
               <button className={styles.secondaryBtn} onClick={() => chooseRole("umpire")}>
-                Umpire (I'm scoring)
+                <span className={styles.btnTitle}>{copy.gate.umpire}</span>
+                <span className={styles.btnSub}>{copy.gate.umpireSub}</span>
               </button>
             </div>
           ) : (
@@ -44,16 +47,16 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
                 type="text"
                 inputMode="numeric"
                 maxLength={4}
-                placeholder="4-digit PIN"
+                placeholder={copy.gate.pinPlaceholder}
                 value={pin}
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
               />
               {pinError && <div className={styles.error}>{pinError}</div>}
               <button className={styles.primaryBtn} disabled={pin.length !== 4 || checking} onClick={() => submitPin(pin)}>
-                {checking ? "Checking…" : "Continue as Umpire"}
+                {checking ? copy.gate.checking : copy.gate.continueAsUmpire}
               </button>
               <button className={styles.backBtn} onClick={back}>
-                Back
+                {copy.gate.back}
               </button>
             </div>
           )}
@@ -66,7 +69,7 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
     return (
       <div className={styles.wrap}>
         <div className={styles.card}>
-          <div className={styles.body}>Connecting to live session…</div>
+          <div className={styles.body}>{copy.gate.connecting}</div>
         </div>
       </div>
     );
@@ -76,8 +79,8 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
     return (
       <div className={styles.wrap}>
         <div className={styles.card}>
-          <div className={styles.title}>Session not found</div>
-          <div className={styles.body}>This link is no longer valid. Ask for a new one.</div>
+          <div className={styles.title}>{copy.gate.notFoundTitle}</div>
+          <div className={styles.body}>{copy.gate.notFoundBody}</div>
         </div>
       </div>
     );

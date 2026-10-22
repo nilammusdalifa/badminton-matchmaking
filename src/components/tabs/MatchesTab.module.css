@@ -12,7 +12,7 @@
   text-shadow: 0 2px 12px rgba(63, 182, 168, 0.25);
 }
 .subtitle {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-text-2);
 }
 
@@ -30,7 +30,7 @@
   background: var(--sm-surface);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   border-radius: var(--radius-md);
-  font-size: 12.5px;
+  font-size: 14px;
 }
 .rowHead {
   display: flex;
@@ -40,28 +40,30 @@
 }
 .rowMeta {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px;
+  gap: 2px 8px;
   min-width: 0;
 }
 .court {
   font-weight: 700;
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 14px;
 }
 .matchNum {
   font-family: var(--sm-font-mono);
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-text-3);
   flex-shrink: 0;
 }
+.startedAt {
+  font-size: 14px;
+  color: var(--sm-text-3);
+  white-space: nowrap;
+}
 .badge {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  text-transform: none;
   padding: 3px 8px;
   border-radius: 999px;
   flex-shrink: 0;
@@ -83,9 +85,7 @@
 .teamName {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .teamName:last-child {
   text-align: right;
@@ -108,16 +108,15 @@
 .tieTag {
   display: block;
   font-family: var(--font-body), sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
   color: var(--sm-text-3);
 }
 
 .empty {
   text-align: center;
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--sm-text-3);
   padding: 24px 0;
 }
@@ -134,7 +133,7 @@
   border: 1px solid var(--sm-border);
   background: transparent;
   color: var(--sm-text-2);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
@@ -145,7 +144,7 @@
 }
 
 .notCounted {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--sm-text-3);
 }

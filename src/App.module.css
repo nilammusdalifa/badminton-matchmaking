@@ -67,18 +67,6 @@
   box-sizing: border-box;
 }
 
-/* Buttons are already inert here (pointer-events:none on .main is what
-   actually blocks them) — this just makes that visually honest instead of
-   leaving Rest/Skip Next/Enter Score looking fully clickable on a page
-   that can't act on them. */
-.readOnlyMain {
-  pointer-events: none;
-}
-.readOnlyMain button {
-  opacity: 0.45;
-  cursor: default;
-}
-
 .photoBanner {
   position: relative;
   z-index: 1;
@@ -88,7 +76,7 @@
   background: var(--sm-accent-2-soft);
   border: 1px solid var(--sm-accent-2-border);
   color: var(--color-accent-2-300);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -103,7 +91,7 @@
   background: transparent;
   color: var(--color-accent-2-300);
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
@@ -121,7 +109,7 @@
   background: var(--sm-accent-soft);
   border: 1px solid var(--sm-accent-border);
   color: var(--color-accent-200);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   text-align: center;
 }

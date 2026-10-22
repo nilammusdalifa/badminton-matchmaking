@@ -35,6 +35,13 @@ import {
   nameTaken,
   photoReminderMinutes,
   scheduleEndTime,
+  scheduleEnded,
+  lastActivityMs,
+  matchStartedAt,
+  rankMinGames,
+  mostMatchesPlayed,
+  isBehind,
+  tieBreakReason,
   courtCloseReminders,
   parseClockTime,
   playerPriority,
@@ -53,6 +60,8 @@ import {
   teamNames,
   withListDefaults,
 } from "../lib/session";
+import { formatAgo } from "../lib/locale";
+import { copy } from "../lib/copy";
 import { SHARE_CARD_H, SHARE_CARD_W, SHARE_TOP_COUNT } from "../lib/shareCard";
 import { prepareSharePhoto } from "../lib/sharePhoto";
 import type { Court, Match, PauseReason, Player, QueueItem, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion, Tab } from "../types";
@@ -63,6 +72,7 @@ import type {
   ManagePlayerEntry,
   MatchLogEntry,
   NotInRotationEntry,
+  PlayerOption,
   RankingEntry,
   RecentResultEntry,
   RequestedPairEntry,
@@ -162,7 +172,7 @@ function initialState(): AppState {
     tick: 0,
     completedCount: 0,
     totalEstimate: 0,
-    sessionName: "New Session",
+    sessionName: copy.defaultSessionName,
     sessionSchedule: "",
     sessionEnded: false,
     sessionResultMode: "score",
@@ -301,8 +311,8 @@ export function useSessionStore() {
       const result = await claimUmpireAccess(viewSessionId, pin.trim());
       setRemoteChecking(false);
       if (result === "ok") setRemoteRole("umpire");
-      else if (result === "unavailable") setRemotePinError("Live sync isn't available. Try again shortly.");
-      else setRemotePinError("Wrong PIN. Ask the organizer.");
+      else if (result === "unavailable") setRemotePinError(copy.gate.syncUnavailable);
+      else setRemotePinError(copy.gate.wrongPin);
     },
     [viewSessionId],
   );
@@ -494,7 +504,7 @@ export function useSessionStore() {
     if (due.length === 0) return;
     const ids = due.map((c) => c.id);
     setState((s) => ({ ...s, courts: s.courts.map((c) => (ids.includes(c.id) ? { ...c, paused: true } : c)) }));
-    showToast(due.map((c) => c.name).join(" and ") + (due.length === 1 ? " closed and is paused" : " closed and are paused"));
+    showToast(copy.toast.courtsClosed(due.map((c) => c.name)));
   }, [state.tick, state.courts, state.matches, state.sessionEnded, runsSession, showToast]);
 
   // Shuffle on a preview (a planned match that isn't locked) bumps the seed for
@@ -652,7 +662,7 @@ export function useSessionStore() {
       // just in the sheet's button, since this is what actually writes the
       // match. If it can't be finished, "ended early" or Cancel Match is the way out.
       if (mode === "final" && state.scorekeeperT1 === state.scorekeeperT2) {
-        showToast("Scores can't tie");
+        showToast(copy.toast.scoresCantTie);
         return;
       }
       // Reopening an already-completed match (to fix a mis-entered score) must
@@ -683,7 +693,7 @@ export function useSessionStore() {
           scorekeeperMatchId: null,
         };
       });
-      showToast(mode === "early" ? "Saved. Not counted in the rankings" : wasCompleted ? "Result updated" : "Result saved — court is available");
+      showToast(mode === "early" ? copy.toast.savedNotCounted : wasCompleted ? copy.toast.resultUpdated : copy.toast.resultSaved);
     },
     [state.scorekeeperMatchId, state.matches, state.scorekeeperT1, state.scorekeeperT2, showToast],
   );
@@ -707,7 +717,7 @@ export function useSessionStore() {
           completedCount: s.completedCount + 1,
         };
       });
-      showToast("Result saved — court is available");
+      showToast(copy.toast.resultSaved);
     },
     [showToast],
   );
@@ -723,7 +733,7 @@ export function useSessionStore() {
           completedCount: s.completedCount + 1,
         };
       });
-      showToast("Match finished — court is available");
+      showToast(copy.toast.matchFinished);
     },
     [showToast],
   );
@@ -739,17 +749,17 @@ export function useSessionStore() {
     (courtId: string, ids1: [string, string], ids2: [string, string]) => {
       const allFour = [...ids1, ...ids2];
       if (new Set(allFour).size < 4) {
-        showToast("Pick 4 different players");
+        showToast(copy.toast.pickFour);
         return;
       }
       if (state.matches.some((m) => m.status === "in_progress" && m.courtId === courtId)) {
-        showToast("That court already has a match in progress");
+        showToast(copy.toast.courtBusy);
         return;
       }
       const alreadyPlaying = allFour.find((id) => isPlayingFn(id, state.matches));
       if (alreadyPlaying) {
-        const name = getPlayer(alreadyPlaying)?.name || "That player";
-        showToast(name + " is already on another court");
+        const name = getPlayer(alreadyPlaying)?.name || copy.toast.thatPlayer;
+        showToast(copy.toast.alreadyOnCourt(name));
         return;
       }
       setState((s) => {
@@ -780,7 +790,7 @@ export function useSessionStore() {
         const suggestSeed = Object.fromEntries(Object.entries(s.suggestSeed).filter(([key]) => !key.startsWith("plan")));
         return { ...s, matches: [...s.matches, newMatch], players, requestedPairs, queue: dropStarted(s.queue, four), suggestSeed };
       });
-      showToast("Match started on Court " + courtId);
+      showToast(copy.toast.matchStarted(courtId));
     },
     [state.matches, getPlayer, showToast],
   );
@@ -799,7 +809,7 @@ export function useSessionStore() {
   const rerollSuggestion = useCallback(
     (courtId: string) => {
       setState((s) => ({ ...s, suggestSeed: { ...s.suggestSeed, [courtId]: (s.suggestSeed[courtId] || 0) + 1 } }));
-      showToast("New match suggested");
+      showToast(copy.toast.newSuggested);
     },
     [showToast],
   );
@@ -812,7 +822,7 @@ export function useSessionStore() {
     (index: number) => {
       if (index >= state.queue.length) {
         setState((s) => ({ ...s, suggestSeed: { ...s.suggestSeed, ["plan" + index]: (s.suggestSeed["plan" + index] || 0) + 1 } }));
-        showToast("New match suggested");
+        showToast(copy.toast.newSuggested);
         return;
       }
       const seed = (state.queue[index]?.seed ?? 0) + 1;
@@ -830,7 +840,7 @@ export function useSessionStore() {
           hardGames: s.hardGames,
         }),
       }));
-      showToast("New match suggested");
+      showToast(copy.toast.newSuggested);
     },
     [state.queue, livePlayers, showToast],
   );
@@ -906,7 +916,7 @@ export function useSessionStore() {
         hardGames: state.hardGames,
       })[qIndex];
       if (!pick) {
-        showToast("Not enough waiting players to auto-fill");
+        showToast(copy.toast.notEnoughToFill);
         return;
       }
       setState((s) => ({
@@ -923,7 +933,7 @@ export function useSessionStore() {
     if (!courtId) return;
     const sug = suggestions[courtId];
     if (!sug) {
-      showToast("Not enough waiting players to auto-fill");
+      showToast(copy.toast.notEnoughToFill);
       return;
     }
     // A free court showing a planned match ignores its own court seed, so cycle
@@ -947,7 +957,7 @@ export function useSessionStore() {
         hardGames: state.hardGames,
       })[qi];
       if (!pick) {
-        showToast("Not enough waiting players to auto-fill");
+        showToast(copy.toast.notEnoughToFill);
         return;
       }
       setState((s) => ({
@@ -975,14 +985,14 @@ export function useSessionStore() {
     const ids = [editT1A, editT1B, editT2A, editT2B];
     if (editQueueIndex !== null) {
       if (ids.some((x) => !x) || new Set(ids).size < 4) {
-        showToast("Pick 4 different players");
+        showToast(copy.toast.pickFour);
         return;
       }
       const item: QueueItem = {
         team1: [editT1A, editT1B],
         team2: [editT2A, editT2B],
         seed: state.queue[editQueueIndex]?.seed ?? 0,
-        reasons: ["Set by the organizer"],
+        reasons: [copy.reason.setByUmpire],
         balanceNote: null,
       };
       const next = planQueue({
@@ -998,14 +1008,14 @@ export function useSessionStore() {
       // The plan keeps it only if all four will be available when it starts.
       const kept = next[editQueueIndex];
       if (!kept || [...kept.team1, ...kept.team2].sort().join() !== ids.slice().sort().join()) {
-        showToast("Those players won't all be free for that match");
+        showToast(copy.toast.notAllFree);
         return;
       }
       setState((s) => ({ ...s, queue: next, editQueueIndex: null }));
       return;
     }
     if (!editCourtId || ids.some((x) => !x) || new Set(ids).size < 4) {
-      showToast("Pick 4 different players");
+      showToast(copy.toast.pickFour);
       return;
     }
     startMatchWithPlayers(editCourtId, [editT1A, editT1B], [editT2A, editT2B]);
@@ -1018,20 +1028,20 @@ export function useSessionStore() {
       const p = getPlayer(id);
       const now = Date.now();
       setState((s) => ({ ...s, players: s.players.map((pl) => (pl.id === id ? markReady(pl, now) : pl)) }));
-      showToast((p ? p.name : "Player") + " checked in");
+      showToast(copy.toast.checkedIn(p ? p.name : "Player"));
     },
     [getPlayer, showToast],
   );
   const checkInAll = useCallback(() => {
     const now = Date.now();
     setState((s) => ({ ...s, players: s.players.map((p) => (p.status === "expected" ? markReady(p, now) : p)) }));
-    showToast("Everyone checked in");
+    showToast(copy.toast.everyoneIn);
   }, [showToast]);
   const pausePlayer = useCallback(
     (id: string, reason: PauseReason = "rest") => {
       const p = getPlayer(id);
       setState((s) => ({ ...s, players: s.players.map((pl) => (pl.id === id ? { ...pl, status: "paused" as const, pauseReason: reason } : pl)) }));
-      showToast((p ? p.name : "Player") + " is resting");
+      showToast(copy.toast.resting(p ? p.name : "Player"));
     },
     [getPlayer, showToast],
   );
@@ -1042,14 +1052,14 @@ export function useSessionStore() {
         ...s,
         players: s.players.map((p) => (p.id === id ? { ...markReady(p, now), pauseReason: null, consecutiveGames: 0 } : p)),
       }));
-      showToast("Back in the rotation");
+      showToast(copy.toast.backInRotation);
     },
     [showToast],
   );
   const skipNext = useCallback(
     (id: string) => {
       setState((s) => ({ ...s, players: s.players.map((p) => (p.id === id ? { ...p, skipNextRound: true } : p)) }));
-      showToast("Sits out the next match");
+      showToast(copy.toast.skipsNext);
     },
     [showToast],
   );
@@ -1060,7 +1070,7 @@ export function useSessionStore() {
     (id: string) => {
       const p = getPlayer(id);
       setState((s) => ({ ...s, players: s.players.map((pl) => (pl.id === id ? { ...pl, status: "left" as const } : pl)) }));
-      showToast((p ? p.name : "Player") + " left — stats kept");
+      showToast(copy.toast.left(p ? p.name : "Player"));
     },
     [getPlayer, showToast],
   );
@@ -1079,7 +1089,7 @@ export function useSessionStore() {
           return next;
         }),
       }));
-      showToast(choice === "rest" ? "Rests after this match" : choice === "left" ? "Leaves after this match" : "Cancelled");
+      showToast(choice === "rest" ? copy.toast.restsAfter : choice === "left" ? copy.toast.leavesAfter : copy.toast.cancelled);
     },
     [showToast],
   );
@@ -1090,7 +1100,7 @@ export function useSessionStore() {
     (id: string) => {
       const p = getPlayer(id);
       setState((s) => ({ ...s, players: s.players.map((pl) => (pl.id === id ? { ...pl, status: "expected" as const, pauseReason: null, skipNextRound: false } : pl)) }));
-      showToast((p ? p.name : "Player") + " is not here yet");
+      showToast(copy.toast.notHere(p ? p.name : "Player"));
     },
     [getPlayer, showToast],
   );
@@ -1099,7 +1109,7 @@ export function useSessionStore() {
     (id: string) => {
       const now = Date.now();
       setState((s) => ({ ...s, players: s.players.map((p) => (p.id === id ? markReady(p, now) : p)) }));
-      showToast("Welcome back");
+      showToast(copy.toast.welcomeBack);
     },
     [showToast],
   );
@@ -1117,14 +1127,14 @@ export function useSessionStore() {
       // apart in a dropdown — better to ask for a quick disambiguator now
       // than untangle two players' worth of games afterward.
       if (nameTaken(state.players, name)) {
-        showToast(`${name} is already on the roster. Add a last initial.`);
+        showToast(copy.toast.onRoster(name));
         return;
       }
       const now = Date.now();
       const blank = makeBlankPlayer("p" + now, name, state.newPlayerLevel, status);
       const player = status === "ready" ? markReady(blank, now) : blank;
       setState((s) => ({ ...s, players: [...s.players, player], newPlayerName: "" }));
-      showToast(name + (status === "expected" ? " added — check them in when they arrive" : " added to the roster"));
+      showToast(status === "expected" ? copy.toast.addedExpected(name) : copy.toast.addedRoster(name));
     },
     [state.newPlayerName, state.newPlayerLevel, state.players, showToast],
   );
@@ -1153,7 +1163,7 @@ export function useSessionStore() {
         });
         return { ...s, players: [...s.players, ...newPlayers], newPlayerName: "" };
       });
-      showToast(skipped > 0 ? `${toAdd.length} added, ${skipped} already on roster` : `${toAdd.length} ${toAdd.length === 1 ? "player" : "players"} added`);
+      showToast(copy.toast.addedMany(toAdd.length, skipped));
     },
     [state.players, showToast],
   );
@@ -1162,7 +1172,7 @@ export function useSessionStore() {
     (id: string, level: SkillLevel) => {
       if (!isOwner) return;
       setState((s) => ({ ...s, players: s.players.map((p) => (p.id === id ? { ...p, level } : p)) }));
-      showToast("Tier updated");
+      showToast(copy.toast.tierUpdated);
     },
     [isOwner, showToast],
   );
@@ -1183,7 +1193,7 @@ export function useSessionStore() {
           return next;
         }),
       }));
-      showToast(counted ? "Counts in the rankings" : "Not in the rankings");
+      showToast(counted ? copy.toast.countsInRankings : copy.toast.notInRankings);
     },
     [isOwner, showToast],
   );
@@ -1194,7 +1204,7 @@ export function useSessionStore() {
       const trimmed = name.trim();
       if (!trimmed) return false;
       if (nameTaken(state.players, trimmed, id)) {
-        showToast(`${trimmed} is already on the roster. Add a last initial.`);
+        showToast(copy.toast.onRoster(trimmed));
         return false;
       }
       setState((s) => ({
@@ -1210,7 +1220,7 @@ export function useSessionStore() {
           return next;
         }),
       }));
-      showToast("Player updated");
+      showToast(copy.toast.playerUpdated);
       return true;
     },
     [isOwner, state.players, showToast],
@@ -1226,7 +1236,7 @@ export function useSessionStore() {
         requestA: s.requestA === id ? "" : s.requestA,
         requestB: s.requestB === id ? "" : s.requestB,
       }));
-      showToast(`${p.name} removed`);
+      showToast(copy.toast.removed(p.name));
     },
     [isOwner, livePlayers, state.matches, showToast],
   );
@@ -1243,8 +1253,8 @@ export function useSessionStore() {
   const copyShareLink = useCallback(() => {
     navigator.clipboard
       .writeText(shareUrl)
-      .then(() => showToast("Live link copied"))
-      .catch(() => showToast("Couldn't copy. Select the link below."));
+      .then(() => showToast(copy.toast.linkCopied))
+      .catch(() => showToast(copy.toast.copyFailed));
   }, [shareUrl, showToast]);
   // The 1st-place photo for the card: picked at share time, kept only while the
   // card is open (it is a picture of a person, so it isn't saved with the session).
@@ -1254,7 +1264,7 @@ export function useSessionStore() {
       try {
         setSharePhoto({ url: await prepareSharePhoto(file), id: Date.now() });
       } catch {
-        showToast("Couldn't use that photo");
+        showToast(copy.toast.badPhoto);
       }
     },
     [showToast],
@@ -1320,7 +1330,7 @@ export function useSessionStore() {
   const openRankingsImage = useCallback(async () => {
     const blob = shareBlobRef.current ?? (await renderRankingsImage().catch(() => null));
     if (!blob) {
-      showToast("Couldn't create the image — try again");
+      showToast(copy.toast.imageFailed);
       return;
     }
     setShareFallbackUrl(URL.createObjectURL(blob));
@@ -1335,7 +1345,7 @@ export function useSessionStore() {
   const downloadRankingsImage = useCallback(async () => {
     const blob = shareBlobRef.current ?? (await renderRankingsImage().catch(() => null));
     if (!blob) {
-      showToast("Couldn't create the image — try again");
+      showToast(copy.toast.imageFailed);
       return;
     }
     const slug = state.sessionName.replace(/^\s*smash\s*match\b[\s·\-–—:|]*/i, "").trim().replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
@@ -1345,7 +1355,7 @@ export function useSessionStore() {
     const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
     if (nav.canShare?.({ files: [file] })) {
       try {
-        await nav.share({ files: [file], title: "Rankings" });
+        await nav.share({ files: [file], title: copy.toast.sharedTitle });
         return;
       } catch (err) {
         if ((err as Error).name === "AbortError") return; // closed the sheet: nothing went wrong
@@ -1366,7 +1376,7 @@ export function useSessionStore() {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
-    showToast("Image saved");
+    showToast(copy.toast.imageSaved);
   }, [renderRankingsImage, state.sessionName, showToast]);
 
   // ---- partner requests --------------------------------------------
@@ -1376,16 +1386,16 @@ export function useSessionStore() {
     const requestA = state.requestA;
     const requestB = state.requestB;
     if (!requestA || !requestB || requestA === requestB) {
-      showToast("Pick two different players");
+      showToast(copy.toast.pickTwo);
       return;
     }
     setState((s) => ({ ...s, requestedPairs: [...s.requestedPairs, [requestA, requestB]], requestA: "", requestB: "" }));
-    showToast("Partner request saved");
+    showToast(copy.toast.pairSaved);
   }, [state.requestA, state.requestB, showToast]);
   const removeRequestedPair = useCallback(
     (idx: number) => {
       setState((s) => ({ ...s, requestedPairs: s.requestedPairs.filter((_, i) => i !== idx) }));
-      showToast("Partner request removed");
+      showToast(copy.toast.pairRemoved);
     },
     [showToast],
   );
@@ -1398,20 +1408,20 @@ export function useSessionStore() {
       const n = s.courts.length + 1;
       // A new court closes when the session's schedule ends, unless told otherwise.
       const closesAt = scheduleEndTime((s.setupOpen ? s.setupSchedule.trim() : "") || s.sessionSchedule);
-      return { ...s, courts: [...s.courts, closesAt ? { id: String(n), name: "Court " + n, closesAt } : { id: String(n), name: "Court " + n }] };
+      return { ...s, courts: [...s.courts, closesAt ? { id: String(n), name: copy.courtName(String(n)), closesAt } : { id: String(n), name: copy.courtName(String(n)) }] };
     });
-    showToast("Court added");
+    showToast(copy.toast.courtAdded);
   }, [isOwner, showToast]);
   const onRemoveCourt = useCallback(() => {
     if (!isOwner || state.courts.length <= 1) return;
     const last = state.courts[state.courts.length - 1];
     const busy = state.matches.some((m) => m.status === "in_progress" && m.courtId === last.id);
     if (busy) {
-      showToast("Finish the match on " + last.name + " first");
+      showToast(copy.toast.finishFirst(last.name));
       return;
     }
     setState((s) => ({ ...s, courts: s.courts.slice(0, -1) }));
-    showToast(last.name + " removed");
+    showToast(copy.toast.courtRemoved(last.name));
   }, [isOwner, state.courts, state.matches, showToast]);
 
   // Temporarily takes a court out of rotation (wet floor, net down) without
@@ -1426,20 +1436,20 @@ export function useSessionStore() {
       if (!court.paused) {
         const busy = state.matches.some((m) => m.status === "in_progress" && m.courtId === courtId);
         if (busy) {
-          showToast("Finish or cancel the match on " + court.name + " first");
+          showToast(copy.toast.finishOrCancel(court.name));
           return;
         }
       } else if (isCourtPastClosing(court, new Date())) {
         // Resuming a court past its closing time would only pause it again on
         // the next tick; running it later takes an explicit Keep open.
-        showToast(court.name + " closed at " + court.closesAt + ". Use Keep open for one more match.");
+        showToast(copy.toast.courtClosedKeep(court.name, court.closesAt ?? ""));
         return;
       }
       setState((s) => ({
         ...s,
         courts: s.courts.map((c) => (c.id !== courtId ? c : c.paused ? resumeCourt(c) : { ...c, paused: true })),
       }));
-      showToast(court.paused ? court.name + " resumed" : court.name + " paused");
+      showToast(court.paused ? copy.toast.courtResumed(court.name) : copy.toast.courtPaused(court.name));
     },
     [state.courts, state.matches, showToast],
   );
@@ -1536,8 +1546,8 @@ export function useSessionStore() {
       }
       return s;
     });
-    if (state.confirmAction === "reset") showToast("Session reset");
-    if (state.confirmAction === "deleteMatch") showToast("Match deleted");
+    if (state.confirmAction === "reset") showToast(copy.toast.sessionReset);
+    if (state.confirmAction === "deleteMatch") showToast(copy.toast.matchDeleted);
   }, [state.confirmAction, showToast]);
 
   const openSetup = useCallback(() => {
@@ -1581,7 +1591,7 @@ export function useSessionStore() {
         matches: [],
         courts: [],
         completedCount: 0,
-        sessionName: "New Session",
+        sessionName: copy.defaultSessionName,
         sessionSchedule: "",
         sessionEnded: false,
         sessionResultMode: "score",
@@ -1637,7 +1647,7 @@ export function useSessionStore() {
       sessionSchedule: s.setupSchedule.trim() ? s.setupSchedule.trim() : s.sessionSchedule,
       sessionResultMode: s.setupResultMode,
     }));
-    showToast("New session started");
+    showToast(copy.toast.newSessionStarted);
   }, [showToast]);
   const onStartNewFromReview = useCallback(() => {
     setState((s) => ({ ...s, sessionEnded: false }));
@@ -1651,11 +1661,41 @@ export function useSessionStore() {
   const standings = useMemo(() => buildStandings(livePlayers, state.sessionResultMode), [livePlayers, state.sessionResultMode]);
 
   const rankingsVM = useMemo<RankingEntry[]>(() => {
-    return standings.rows.map(({ player: p, rank, medal, section }) => ({
+    const rows = standings.rows;
+    const needsGames = rankMinGames(standings.maxGames);
+    const mostPlayed = mostMatchesPlayed(livePlayers);
+    // Same score as a neighbour: say who is ahead, and on what.
+    const tieNote = (i: number): string | null => {
+      const cur = rows[i];
+      const prev = rows[i - 1];
+      const next = rows[i + 1];
+      if (prev?.section === "ranked") {
+        const key = tieBreakReason(prev.player, cur.player);
+        if (key) return copy.rankings.sameScoreBelow(prev.player.name, key);
+      }
+      if (next?.section === "ranked") {
+        const key = tieBreakReason(cur.player, next.player);
+        if (key) return copy.rankings.sameScoreAbove(next.player.name, key);
+      }
+      return null;
+    };
+    const noteFor = (i: number): string | null => {
+      const { player: p, section } = rows[i];
+      if (section === "ranked") return tieNote(i);
+      if (state.sessionResultMode === "none") return null;
+      if (section === "notRanked") return copy.rankings.guestShort;
+      return copy.rankings.needsMatches(needsGames - p.rankGames);
+    };
+    return rows.map(({ player: p, rank, medal, section }, i) => ({
       id: p.id,
       rank,
       medal,
       section,
+      note: noteFor(i),
+      minMatches: needsGames,
+      matchesPlayed: p.games,
+      // a player who hasn't checked in and hasn't played isn't behind, they're not here yet
+      behind: (p.status !== "expected" || p.games > 0) && isBehind(p, mostPlayed),
       inRankings: p.inRankings !== false,
       onToggleCounted: isOwner ? () => setPlayerCounted(p.id, p.inRankings === false) : null,
       name: p.name,
@@ -1685,7 +1725,7 @@ export function useSessionStore() {
       toughOppGames: p.toughOppGames,
       onSetLevel: (level) => setPlayerTier(p.id, level),
     }));
-  }, [standings, state.sessionResultMode, isOwner, setPlayerCounted, setPlayerTier]);
+  }, [standings, livePlayers, state.sessionResultMode, isOwner, setPlayerCounted, setPlayerTier]);
 
   // The tier-balance note names tiers, which the read-only Player view hides
   // everywhere else — so it's dropped from the reason line there.
@@ -1831,8 +1871,8 @@ export function useSessionStore() {
       return [
         {
           index,
-          label: index === 0 ? "Up next · first court to free" : "Then · next court to free",
-          detail: fromCourt ? `includes ${fromCourt.name} players (${index === 1 ? "playing longest, " : "playing "}${playedMin} min)` : null,
+          label: index === 0 ? copy.session.upNextFirstCourt : copy.session.thenNextCourt,
+          detail: fromCourt ? copy.session.includesCourt(fromCourt.name, index === 1, playedMin) : null,
           team1Label: names(item.team1),
           team2Label: names(item.team2),
           reason: [...item.reasons, ...(item.balanceNote && !hideTiers ? [item.balanceNote] : [])].join(" · "),
@@ -1863,48 +1903,48 @@ export function useSessionStore() {
         // player who tapped Leave mid-match is still occupying a court
         // right now, and Manage shouldn't claim otherwise until they're done.
         if (playing) {
-          statusLabel = p.status === "left" ? "On court · leaving after this game" : "On court";
+          statusLabel = p.status === "left" ? copy.status.onCourtLeavingMatch : copy.status.onCourt;
           statusTone = "accent";
           // Can't be rested or removed mid-match, so the choice waits for the
           // match to be saved or cancelled; choosing it again takes it back.
           if (p.status !== "left") {
             if (p.afterMatch === "rest") {
-              statusLabel = "On court · resting after this match";
-              actions = [{ label: "Cancel", onClick: () => setAfterMatch(p.id, null) }];
+              statusLabel = copy.status.onCourtRestingMatch;
+              actions = [{ label: copy.status.cancel, onClick: () => setAfterMatch(p.id, null) }];
             } else if (p.afterMatch === "left") {
-              statusLabel = "On court · leaving after this match";
-              actions = [{ label: "Cancel", onClick: () => setAfterMatch(p.id, null) }];
+              statusLabel = copy.status.onCourtLeavingMatch;
+              actions = [{ label: copy.status.cancel, onClick: () => setAfterMatch(p.id, null) }];
             } else {
               actions = [
-                { label: "Rest after this match", onClick: () => setAfterMatch(p.id, "rest") },
-                { label: "Leave after this match", onClick: () => setAfterMatch(p.id, "left") },
+                { label: copy.status.restAfter, onClick: () => setAfterMatch(p.id, "rest") },
+                { label: copy.status.leaveAfter, onClick: () => setAfterMatch(p.id, "left") },
               ];
             }
           }
         } else if (p.status === "left") {
-          statusLabel = "Left session";
-          actions = [{ label: "Rejoin", onClick: () => rejoinPlayer(p.id) }];
+          statusLabel = copy.status.left;
+          actions = [{ label: copy.status.rejoin, onClick: () => rejoinPlayer(p.id) }];
         } else if (p.status === "expected") {
-          statusLabel = "Not checked in";
+          statusLabel = copy.status.notCheckedIn;
           statusTone = "warning";
-          actions = [{ label: "Check In", onClick: () => checkIn(p.id) }];
+          actions = [{ label: copy.status.checkIn, onClick: () => checkIn(p.id) }];
         } else if (p.status === "paused") {
           // "Resting" reads as its own state (matches how the audit's
           // Waiting/Playing/Resting/Left model names it); other pause
           // reasons are less common exceptions, so they keep the explicit label.
-          statusLabel = p.pauseReason === "rest" || !p.pauseReason ? "Resting" : "Resting · " + (PAUSE_LABELS[p.pauseReason] || "Rest");
-          actions = [{ label: "Back to Waiting", onClick: () => resumePlayer(p.id) }];
-          if (liveGames(p.id) === 0) actions.push({ label: "Not here yet", onClick: () => uncheckIn(p.id) });
+          statusLabel = p.pauseReason === "rest" || !p.pauseReason ? copy.status.resting : copy.status.restingBecause(PAUSE_LABELS[p.pauseReason] || copy.pauseLabels.rest);
+          actions = [{ label: copy.session.backToQueue, onClick: () => resumePlayer(p.id) }];
+          if (liveGames(p.id) === 0) actions.push({ label: copy.status.notHereYet, onClick: () => uncheckIn(p.id) });
         } else if (p.skipNextRound) {
-          statusLabel = "Sitting out next";
+          statusLabel = copy.status.skippingNext;
           statusTone = "warning";
-          actions = [{ label: "Cancel Sit Out", onClick: () => cancelSkip(p.id) }];
+          actions = [{ label: copy.status.cancelSkip, onClick: () => cancelSkip(p.id) }];
         } else {
-          statusLabel = p.isHost && holdingHosts ? "Host · plays after round 1" : "Waited " + p.skipped + (p.skipped === 1 ? " match" : " matches");
+          statusLabel = p.isHost && holdingHosts ? copy.session.hostLater : copy.status.inQueue(p.skipped);
           statusTone = "warning";
-          actions = [{ label: "Leave", onClick: () => leavePlayer(p.id) }];
+          actions = [{ label: copy.status.leave, onClick: () => leavePlayer(p.id) }];
           // checked in by mistake and not played yet
-          if (liveGames(p.id) === 0) actions.push({ label: "Not here yet", onClick: () => uncheckIn(p.id) });
+          if (liveGames(p.id) === 0) actions.push({ label: copy.status.notHereYet, onClick: () => uncheckIn(p.id) });
         }
         const live = livePlayers.find((x) => x.id === p.id) ?? p;
         return {
@@ -1916,7 +1956,7 @@ export function useSessionStore() {
           actions,
           isHost: Boolean(p.isHost),
           inRankings: p.inRankings !== false,
-          gamesLabel: live.games + (live.games === 1 ? " game" : " games"),
+          gamesLabel: copy.status.gamesLabel(live.games),
           hostLocked,
           onSave: (name: string, level: SkillLevel, isHost: boolean, inRankings: boolean) => updatePlayer(p.id, name, level, isHost, inRankings),
           onRemove: canRemovePlayer(live, state.matches) ? () => removePlayer(p.id) : null,
@@ -1931,7 +1971,7 @@ export function useSessionStore() {
     const now = Date.now();
     const queueTagFor = (id: string) => {
       const index = plan.findIndex((item) => [...item.team1, ...item.team2].includes(id));
-      return index === -1 ? undefined : index === 0 ? "Up next" : "Then";
+      return index === -1 ? undefined : index === 0 ? copy.session.upNext : copy.session.then;
     };
     return orderedReady.map((p) => ({
         id: p.id,
@@ -1943,7 +1983,7 @@ export function useSessionStore() {
         hasStreak: p.consecutiveGames >= 2,
         consec: p.consecutiveGames,
         waitMin: p.idleSince ? Math.max(0, Math.floor((now - p.idleSince) / 60000)) : null,
-        note: p.isHost && holdingHosts ? "Host · plays after round 1" : undefined,
+        note: p.isHost && holdingHosts ? copy.session.hostLater : undefined,
         queueTag: queueTagFor(p.id),
         onSkip: () => skipNext(p.id),
         onPause: () => pausePlayer(p.id, "rest"),
@@ -1959,11 +1999,11 @@ export function useSessionStore() {
         ? {
             id: p.id,
             name: p.name,
-            tag: p.pauseReason === "rest" || !p.pauseReason ? "Resting" : "Resting · " + (PAUSE_LABELS[p.pauseReason] || "Rest"),
-            actionLabel: "Back to Waiting",
+            tag: p.pauseReason === "rest" || !p.pauseReason ? copy.status.resting : copy.status.restingBecause(PAUSE_LABELS[p.pauseReason] || copy.pauseLabels.rest),
+            actionLabel: copy.session.backToQueue,
             onAction: () => resumePlayer(p.id),
           }
-        : { id: p.id, name: p.name, tag: "Sitting out next match", actionLabel: "Cancel", onAction: () => cancelSkip(p.id) },
+        : { id: p.id, name: p.name, tag: copy.session.skippingNext, actionLabel: copy.session.cancelSkip, onAction: () => cancelSkip(p.id) },
     );
   }, [state.players, isPlaying, resumePlayer, cancelSkip]);
 
@@ -1986,19 +2026,25 @@ export function useSessionStore() {
     });
   }, [state.matches, state.players]);
 
+  // The scheduled end has passed (read in Jakarta time, placed by the latest
+  // match or player activity, since the schedule text has no date).
+  const scheduleOver = scheduleEnded(state.sessionSchedule, lastActivityMs(state.matches, state.players), Date.now());
+
   // A chronological log of every match this session (in-progress and
   // completed) — replaces the Matches tab's old "suggested next match"
   // cards, which just duplicated what's already on the Session tab's courts.
   const matchLogVM = useMemo<MatchLogEntry[]>(() => {
+    const now = Date.now();
     return [...state.matches].reverse().map((m) => {
       const court = state.courts.find((c) => c.id === m.courtId);
+      const startedAt = matchStartedAt(m);
       const t1 = teamNames(m.t1, state.players);
       const t2 = teamNames(m.t2, state.players);
       const resultMode = m.resultMode ?? "score";
       const winner: "t1" | "t2" | null = m.status === "completed" && m.counted !== false && m.s1 !== m.s2 ? (m.s1 > m.s2 ? "t1" : "t2") : null;
       return {
         id: m.id,
-        courtName: court ? court.name : "Court " + m.courtId,
+        courtName: court ? court.name : copy.courtName(m.courtId),
         matchNumber: m.num,
         status: m.status,
         t1Names: t1.join(" & "),
@@ -2011,11 +2057,14 @@ export function useSessionStore() {
         isTie: m.status === "completed" && m.counted !== false && m.s1 === m.s2 && resultMode === "score",
         resultMode,
         notCounted: m.counted === false,
+        startedLabel: startedAt === null ? null : formatAgo(startedAt, now, scheduleOver || state.sessionEnded),
         onEditScore: () => openScorekeeper(m.id),
         onDelete: () => openDeleteMatchConfirm(m.id),
       };
     });
-  }, [state.matches, state.courts, state.players, openScorekeeper, openDeleteMatchConfirm]);
+    // state.tick keeps "20 min ago" current
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.matches, state.courts, state.players, state.tick, scheduleOver, state.sessionEnded, openScorekeeper, openDeleteMatchConfirm]);
 
   const requestedPairsVM = useMemo<RequestedPairEntry[]>(
     () =>
@@ -2072,6 +2121,8 @@ export function useSessionStore() {
       longestWaitName: longestWaiter ? longestWaiter.name : null,
       longestWaitMatches,
       gameSpread,
+      minPlayed: gameCounts.length > 0 ? Math.min(...gameCounts) : 0,
+      maxPlayed: gameCounts.length > 0 ? Math.max(...gameCounts) : 0,
       hasWarning: longestWaitMatches >= 2 || gameSpread >= 2,
     };
   }, [livePlayers, readyPlayers]);
@@ -2182,6 +2233,9 @@ export function useSessionStore() {
       sessionHealth,
       gamesPlayedVM,
       fewPlayersHint: playersHint,
+      scheduleOver,
+      scheduleEndLabel: scheduleEndTime(state.sessionSchedule),
+      playerOptions: state.players.map<PlayerOption>((p) => ({ id: p.id, name: p.name })).sort((a, b) => a.name.localeCompare(b.name)),
     },
 
     matches: {
@@ -2230,7 +2284,7 @@ export function useSessionStore() {
 
     scorekeeper: {
       open: !!sk,
-      courtLabel: sk ? "Court " + sk.courtId : "",
+      courtLabel: sk ? copy.courtName(sk.courtId) : "",
       t1p1: skT1Names[0],
       t1p2: skT1Names[1],
       t2p1: skT2Names[0],
@@ -2258,9 +2312,9 @@ export function useSessionStore() {
       open: !!state.editCourtId || state.editQueueIndex !== null,
       title:
         state.editQueueIndex !== null
-          ? "Edit Match — " + (state.editQueueIndex === 0 ? "Up next" : "Then")
-          : "Edit Match — Court " + (state.editCourtId || ""),
-      confirmLabel: state.editQueueIndex !== null ? "Save Match" : "Start This Match",
+          ? copy.editMatch.titleQueue(state.editQueueIndex === 0)
+          : copy.editMatch.titleCourt(state.editCourtId || ""),
+      confirmLabel: state.editQueueIndex !== null ? copy.editMatch.saveMatch : copy.editMatch.startThis,
       courtLabel: state.editCourtId || "",
       editablePlayers,
       t1A: state.editT1A,
@@ -2281,33 +2335,35 @@ export function useSessionStore() {
       title:
         state.confirmAction === "end"
           ? activeMatchesCount > 0
-            ? `${activeMatchesCount} match${activeMatchesCount > 1 ? "es" : ""} still in progress`
-            : "End this session?"
+            ? copy.confirm.endInProgressTitle(activeMatchesCount)
+            : copy.confirm.endTitle
           : state.confirmAction === "reset"
-            ? "Reset this session?"
+            ? copy.confirm.resetTitle
             : pendingDeleteMatch?.status === "in_progress"
-              ? "Cancel this match?"
-              : "Delete this result?",
+              ? copy.confirm.cancelMatchTitle
+              : copy.confirm.deleteTitle(pendingDeleteMatch?.num ?? null),
       body:
         state.confirmAction === "end"
           ? activeMatchesCount > 0
-            ? `Ending now cancels ${activeMatchesCount > 1 ? "them" : "it"} with no score. Finish ${activeMatchesCount > 1 ? "them" : "it"} first, or end anyway.`
-            : "Closes the session and shows final standings."
+            ? copy.confirm.endInProgressBody(activeMatchesCount)
+            : copy.confirm.endBody
           : state.confirmAction === "reset"
-            ? "Erases all matches and stats. Players stay, set to not checked in. Can't be undone."
+            ? copy.confirm.resetBody
             : pendingDeleteMatch?.status === "in_progress"
-              ? `Frees ${pendingDeleteCourtName}. The score so far isn't saved.`
-              : "Removes this result for good.",
+              ? copy.confirm.cancelMatchBody(pendingDeleteCourtName)
+              : copy.confirm.deleteBody,
       actionLabel:
         state.confirmAction === "end"
           ? activeMatchesCount > 0
-            ? `Cancel ${activeMatchesCount > 1 ? "Them" : "It"} & End Session`
-            : "End Session"
+            ? copy.confirm.endInProgressAction(activeMatchesCount)
+            : copy.confirm.endAction
           : state.confirmAction === "reset"
-            ? "Reset Session"
+            ? copy.confirm.resetAction
             : pendingDeleteMatch?.status === "in_progress"
-              ? "Cancel Match"
-              : "Delete Match",
+              ? copy.confirm.cancelMatchAction
+              : copy.confirm.deleteAction,
+      // "Cancel" next to "Delete"; a button that says "Cancel match" needs a different way out.
+      cancelLabel: state.confirmAction === "deleteMatch" && pendingDeleteMatch?.status !== "in_progress" ? copy.common.cancel : copy.common.goBack,
       onConfirm: confirmActionRun,
       close: closeConfirm,
     },
@@ -2325,7 +2381,7 @@ export function useSessionStore() {
       reviewSchedule: state.setupSchedule.trim() || state.sessionSchedule,
       rosterNames: state.players.map((p) => ({ name: p.name, level: p.level })),
       reviewHasHistory: !!state.setupBackup && (state.setupBackup.completedCount > 0 || state.setupBackup.players.some((p) => p.status !== "expected")),
-      reviewConsequence: `Starts fresh: ${state.setupBackup?.completedCount ?? 0} ${state.setupBackup?.completedCount === 1 ? "match" : "matches"} from the last session archived. Players and courts were cleared.`,
+      reviewConsequence: copy.setup.consequence(state.setupBackup?.completedCount ?? 0),
       canBack: state.setupStep > 0,
       isLast: state.setupStep === 3,
       close: closeSetup,
@@ -2381,8 +2437,8 @@ export function useSessionStore() {
       courtId: r.courtId,
       message:
         r.minutesLeft > 0
-          ? `${r.name} closes at ${r.closesAt} (${r.minutesLeft} min). It pauses once idle.`
-          : `${r.name} closed at ${r.closesAt}. It pauses after this match.`,
+          ? copy.banner.courtClosesSoon(r.name, r.closesAt, r.minutesLeft)
+          : copy.banner.courtClosed(r.name, r.closesAt),
       // Can't pause under a running match; it pauses by itself when that ends.
       onPause: r.busy ? null : () => togglePauseCourt(r.courtId),
       onKeepOpen: () => keepOpenPastClosing(r.courtId),

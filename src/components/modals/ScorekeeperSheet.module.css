@@ -24,7 +24,7 @@
   margin-bottom: 14px;
 }
 .headTitle { font-weight: 800; font-size: 15px; }
-.headHint { font-size: 12px; color: var(--sm-text-3); margin-top: 1px; }
+.headHint { font-size: 14px; color: var(--sm-text-3); margin-top: 1px; }
 .closeBtn {
   width: 32px;
   height: 32px;
@@ -50,15 +50,14 @@
   padding: 14px 10px;
 }
 .teamLabel {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
 }
 .teamLabel.a { color: var(--sm-accent); }
 .teamLabel.b { color: var(--sm-accent-2); }
 .teamNames {
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
   margin: 4px 0 10px;
   color: var(--sm-text-2);
@@ -96,7 +95,7 @@
 .gameOverNote {
   margin-top: 12px;
   text-align: center;
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--sm-accent-hover);
   background: var(--sm-accent-soft);
@@ -118,7 +117,7 @@
   background: transparent;
   color: var(--sm-text-2);
   font-weight: 700;
-  font-size: 12.5px;
+  font-size: 14px;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
@@ -130,7 +129,7 @@
   background: var(--sm-accent);
   color: var(--sm-accent-on);
   font-weight: 800;
-  font-size: 13.5px;
+  font-size: 14px;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
@@ -148,7 +147,7 @@
   border: none;
   background: transparent;
   color: var(--sm-danger-text);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   text-align: center;

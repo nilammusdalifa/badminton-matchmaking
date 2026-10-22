@@ -42,11 +42,8 @@
   text-overflow: ellipsis;
 }
 .schedule {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-text-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .setupBtn {
@@ -57,28 +54,12 @@
   border: none;
   background: var(--sm-accent);
   color: var(--sm-accent-on);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
 
-.meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--sm-text-2);
-  white-space: nowrap;
-  margin-top: 8px;
-  padding-left: 48px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.meta::-webkit-scrollbar {
-  display: none;
-}
 .progressTrack {
   margin-top: 9px;
   height: 6px;

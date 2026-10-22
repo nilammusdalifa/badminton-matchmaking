@@ -45,7 +45,7 @@
   margin-top: -6px;
 }
 .hint {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-text-3);
   flex: 1;
 }
@@ -56,7 +56,7 @@
   border: 1px solid var(--sm-accent-border);
   background: var(--sm-accent-soft);
   color: var(--sm-accent-hover);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
@@ -76,10 +76,9 @@
   border-radius: var(--radius-md);
 }
 .teamLabel {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
 }
 .teamLabel.a { color: var(--sm-accent); }
 .teamLabel.b { color: var(--sm-accent-2); }
@@ -103,7 +102,7 @@
   background: transparent;
   color: var(--sm-text-2);
   font-weight: 700;
-  font-size: 12.5px;
+  font-size: 14px;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
@@ -115,7 +114,7 @@
   background: var(--sm-accent);
   color: var(--sm-accent-on);
   font-weight: 800;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }

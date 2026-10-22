@@ -1,5 +1,7 @@
 import type { GamesPlayedRow, GamesPlayedVM } from "../types.viewmodel";
 import type { CounterSnapshot, Court, Match, Player, PlayerStatus, QueueItem, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
+import { copy } from "./copy";
+import { APP_TIME_ZONE, zonedDate, zonedToEpoch } from "./locale";
 import { carriesSinceHard, dCarriesSinceRelief, hardGamePick, isDFreeMatch, isHardMatch, isLower } from "./hardGames";
 
 const PHOTO_REMINDER_LEAD_MINUTES = 30;
@@ -51,6 +53,48 @@ export function photoReminderMinutes(schedule: string, now: Date): number | null
     if (left > 0 && left <= PHOTO_REMINDER_LEAD_MINUTES) return Math.ceil(left);
   }
   return null;
+}
+
+/** How long after the scheduled end a late match can still be played before
+ * the session counts as over (and a later start is read as the next day's). */
+const SCHEDULE_END_SLACK_MS = 60 * 60000;
+
+/** Whether the session named by a free-text schedule ("Rabu, 19:00–22:00") has
+ * passed its end, read in `timeZone`. The text has no date, so `anchorMs` says
+ * which day it was held: any moment known to belong to it (a match start, a
+ * player coming off court). The end is the first one at most an hour before
+ * that anchor or later, so a match that runs a little over doesn't end the
+ * session early, and the clock times of the next week don't either. False when
+ * the text has no start and end, or when there's no anchor to place it by. */
+export function scheduleEnded(schedule: string, anchorMs: number | null, nowMs: number, timeZone: string = APP_TIME_ZONE): boolean {
+  const times = scheduleTimes(schedule);
+  if (times.length < 2 || anchorMs === null) return false;
+  const start = times[0];
+  let end = times[times.length - 1];
+  if (end <= start) end += 1440; // runs past midnight
+  const day = zonedDate(anchorMs, timeZone);
+  for (const offset of [-1, 0, 1]) {
+    const endMs = zonedToEpoch({ ...day, day: day.day + offset }, end, timeZone);
+    if (endMs >= anchorMs - SCHEDULE_END_SLACK_MS) return nowMs > endMs;
+  }
+  return false;
+}
+
+/** When a match started, read from its id ("m" + the epoch ms it was created
+ * at); null for an id that isn't one of those. */
+export function matchStartedAt(match: Pick<Match, "id">): number | null {
+  const m = match.id.match(/^m(\d{12,})$/);
+  return m ? Number(m[1]) : null;
+}
+
+/** The latest moment known to belong to the session: a match start, or a
+ * player becoming free. Null on a session with neither. */
+export function lastActivityMs(matches: Match[], players: Pick<Player, "idleSince">[]): number | null {
+  let latest: number | null = null;
+  for (const t of [...matches.map(matchStartedAt), ...players.map((p) => p.idleSince ?? null)]) {
+    if (t !== null && (latest === null || t > latest)) latest = t;
+  }
+  return latest;
 }
 
 const COURT_CLOSE_LEAD_MINUTES = 10;
@@ -611,11 +655,8 @@ export function buildSuggestion(
         team1: [a, b],
         team2: fillers,
         four: [a, b, ...fillers],
-        reasons: [
-          `${a.name} & ${b.name} requested as partners`,
-          "Others chosen by waiting time",
-        ],
-        balanceNote: `Opponents closest in tier (${tiers([a, b])} vs ${tiers(fillers)})`,
+        reasons: [copy.reason.requestedPartners(a.name, b.name), copy.reason.othersByWait],
+        balanceNote: copy.reason.opponentsClosest(tiers([a, b]), tiers(fillers)),
       };
     }
   }
@@ -644,9 +685,12 @@ export function buildSuggestion(
       if (four) {
         const due = pick.due.filter((p) => four!.some((q) => q.id === p.id));
         const carried = pick.kind === "mid" ? dCarries : carries;
-        const label = pick.kind === "mid" ? "No-D game" : "Hard game";
+        const label = pick.kind === "mid" ? copy.reason.noDMatch : copy.reason.hardMatch;
         reliefKind = pick.kind;
-        hardNote = due.length > 0 ? `${label} · ${due.map((p) => p.name).join(" & ")} carried ${Math.max(...due.map((p) => carried.get(p.id) ?? 0))} games · ` : `${label} · `;
+        hardNote =
+          due.length > 0
+            ? copy.reason.carried(label, due.map((p) => p.name).join(" & "), Math.max(...due.map((p) => carried.get(p.id) ?? 0)))
+            : copy.reason.plain(label);
       }
     }
     four ??= pickFour(pool, meet, seed, options.singleCourt, extraReady, { avoidAC: hardActive || !!options.avoidAC, partner });
@@ -660,18 +704,18 @@ export function buildSuggestion(
   const lead = playerPriority(four)[0];
   const reasons = [
     lead.skipped === 0
-      ? `${lead.name} is first in line`
-      : `${lead.name} has waited ${lead.skipped} ${lead.skipped === 1 ? "match" : "matches"}`,
+      ? copy.reason.firstInLine(lead.name)
+      : copy.reason.hasWaited(lead.name, lead.skipped),
   ];
   let familiarity = 0;
   for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) familiarity += meet.get(pairKey(four[i].id, four[j].id)) || 0;
   // "New group" only means something once everyone has been on court
   const everyonePlayed = players.filter((p) => p.status === "ready").every((p) => matches.some((m) => m.t1.includes(p.id) || m.t2.includes(p.id)));
-  if (everyonePlayed && familiarity === 0) reasons.push("New group");
+  if (everyonePlayed && familiarity === 0) reasons.push(copy.reason.newGroup);
   const streak = four.find((p) => p.consecutiveGames >= 2);
-  if (streak) reasons.push(`${streak.name} is playing back-to-back`);
+  if (streak) reasons.push(copy.reason.backToBack(streak.name));
   const levels = (team: [Player, Player]) => team.map((p) => p.level).join("+");
-  const balanceNote = `${hardNote ?? ""}Teams balanced by tier (${levels(split.team1)} vs ${levels(split.team2)})`;
+  const balanceNote = copy.reason.balanced(hardNote ?? "", levels(split.team1), levels(split.team2));
   // `hard` is the all-A/B game, `noD` the D-free one for a C who carried a D; each only when true
   return { team1: split.team1, team2: split.team2, four, reasons, balanceNote, ...(reliefKind === "upper" ? { hard: true } : {}), ...(reliefKind === "mid" ? { noD: true } : {}) };
 }
@@ -693,18 +737,38 @@ export function hostSwitchLocked(courts: Court[], matches: Match[]): boolean {
  * (waiting, resting, left…) and a warning; the rest are grouped by count.
  * Players not checked in (and with no games) come last. Counts every game
  * played, including matches that ended early. */
+/** The most matches anyone who has been here has played: the bar "behind" is measured from.
+ * Players not yet checked in (and with no matches) aren't counted. */
+export function mostMatchesPlayed(players: Pick<Player, "status" | "games">[]): number {
+  return Math.max(0, ...players.filter((p) => p.status !== "expected" || p.games > 0).map((p) => p.games));
+}
+
+/** Two or more matches fewer than the busiest player. Someone who has left can't
+ * catch up, so they're never flagged. Used for the Session tab's "behind" count
+ * and for the "Behind" tag on Rankings, so the two always agree. */
+export function isBehind(p: Pick<Player, "status" | "games">, most: number): boolean {
+  return most - p.games >= 2 && p.status !== "left";
+}
+
 export function buildGamesPlayed(players: Player[], playingIds: Set<string>): GamesPlayedVM {
   const where = (p: Player) =>
-    playingIds.has(p.id) ? "on court" : p.status === "ready" ? "waiting" : p.status === "paused" ? "resting" : p.status === "left" ? "left" : "not checked in";
+    playingIds.has(p.id)
+      ? copy.status.where.onCourt
+      : p.status === "ready"
+        ? copy.status.where.queue
+        : p.status === "paused"
+          ? copy.status.where.resting
+          : p.status === "left"
+            ? copy.status.where.left
+            : copy.status.where.absent;
   const here = players.filter((p) => p.status !== "expected" || p.games > 0);
   const absent = players.filter((p) => p.status === "expected" && p.games === 0);
-  const most = Math.max(0, ...here.map((p) => p.games));
+  const most = mostMatchesPlayed(players);
   const byCount = new Map<number, Player[]>();
   for (const p of [...here].sort((a, b) => a.games - b.games || a.name.localeCompare(b.name))) {
     byCount.set(p.games, [...(byCount.get(p.games) ?? []), p]);
   }
-  // someone who has left can't catch up, so they're never flagged
-  const behind = (p: Player) => most - p.games >= 2 && p.status !== "left";
+  const behind = (p: Player) => isBehind(p, most);
   const rows: GamesPlayedRow[] = [];
   for (const [games, members] of byCount) {
     if (members.length === 1 || members.some(behind)) {
@@ -718,7 +782,7 @@ export function buildGamesPlayed(players: Player[], playingIds: Set<string>): Ga
       });
     }
   }
-  if (absent.length > 0) rows.push({ games: "–", text: absent.map((p) => p.name).join(" · "), status: absent.length === 1 ? "not checked in" : null, warn: false });
+  if (absent.length > 0) rows.push({ games: "–", text: absent.map((p) => p.name).join(" · "), status: absent.length === 1 ? copy.status.where.absent : null, warn: false });
   return {
     rows,
     average: here.length > 0 ? Math.round((here.reduce((sum, p) => sum + p.games, 0) / here.length) * 10) / 10 : 0,
@@ -732,7 +796,7 @@ export function buildGamesPlayed(players: Player[], playingIds: Set<string>): Ga
 export function fewPlayersHint(readyCount: number, openCourts: number): string | null {
   if (openCourts < 2 || readyCount < 4 || readyCount >= 4 * openCourts + 2) return null;
   const courts = Math.max(1, Math.floor((readyCount - 2) / 4));
-  return `Only ${readyCount} players ready. Consider ${courts} ${courts === 1 ? "court" : "courts"} for now.`;
+  return copy.reason.fewPlayers(readyCount, courts);
 }
 
 /** How many players are waiting once every idle open court has taken its four,
@@ -1171,9 +1235,15 @@ export function pointsShare(p: Pick<Player, "pointsFor" | "pointsAgainst">): num
 }
 
 /** To get a rank a player needs at least this many games… */
-const RANK_MIN_GAMES = 3;
+export const RANK_MIN_GAMES = 3;
 /** …and this share of the most games anyone ranked has played. */
 const RANK_MIN_SHARE = 0.5;
+/** Games a player needs to get a rank: at least 3, and at least half as many
+ * as the player with the most (the same bar `buildStandings` applies). */
+export function rankMinGames(maxGames: number): number {
+  return Math.max(RANK_MIN_GAMES, Math.ceil(RANK_MIN_SHARE * maxGames));
+}
+
 /** Medals wait until this many of the players in the rotation have played 2. */
 const SETTLED_SHARE = 0.75;
 const SETTLED_GAMES = 2;
@@ -1251,6 +1321,17 @@ export function buildStandings(players: Player[], resultMode: ResultMode = "scor
   return { rows: [...ranked, ...tooFew, ...notRanked], early, maxGames };
 }
 
+/** What puts `above` ahead of `below` when both show the same score, in the
+ * order `buildStandings` applies: the exact score before rounding, win rate, games
+ * played, then name. Null when the scores shown differ. */
+export function tieBreakReason(above: Player, below: Player): "exact score" | "win rate" | "matches played" | "name" | null {
+  if (scoreLabel(above) !== scoreLabel(below)) return null;
+  if (key4(performanceScore(above)) !== key4(performanceScore(below))) return "exact score";
+  if (key4(winRate(above)) !== key4(winRate(below))) return "win rate";
+  if (above.rankGames !== below.rankGames) return "matches played";
+  return "name";
+}
+
 /** A name that fits a fixed-width spot on the share card. The exporter cuts
  * overflowing text off without an ellipsis, so the name is shortened here: a
  * long full name becomes first name + last initial ("Siti N."), and anything
@@ -1305,7 +1386,7 @@ export function buildHighlights(players: Player[], resultMode: ResultMode = "sco
 
   const byGames = [...counted].sort((a, b) => b.games - a.games);
   if (byGames[0] && byGames[0].games >= 4 && byGames[0].games > (byGames[1]?.games ?? 0)) {
-    out.push({ icon: "💪", label: "Iron player", text: fit(`${shortName(byGames[0].name, 14)} · ${byGames[0].games} games`) });
+    out.push({ icon: "💪", label: copy.highlight.ironPlayer, text: fit(copy.highlight.ironText(shortName(byGames[0].name, 14), byGames[0].games)) });
   }
   return out;
 }

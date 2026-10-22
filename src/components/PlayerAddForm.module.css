@@ -11,7 +11,7 @@
   align-items: center;
 }
 
-.tierLabel { font-size: 12px; font-weight: 700; color: var(--sm-text-3); }
+.tierLabel { font-size: 14px; font-weight: 700; color: var(--sm-text-3); }
 /* wraps the buttons under the label when four tiers don't fit beside it (320px) */
 .tierGroup { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; white-space: nowrap; }
 
@@ -33,7 +33,7 @@
   background: var(--sm-accent);
   color: var(--sm-accent-on);
   font-weight: 700;
-  font-size: 12.5px;
+  font-size: 14px;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
@@ -43,7 +43,7 @@
   border: none;
   background: transparent;
   color: var(--sm-accent);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   padding: 2px 0;

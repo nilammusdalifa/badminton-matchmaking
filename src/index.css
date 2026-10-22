@@ -10,15 +10,27 @@ html, body, #root {
   flex-direction: column;
 }
 
-/* Phone ergonomics: every control is at least 44px tall (row pills 40px) so
+/* Phone ergonomics: every control is at least 44px tall, so
    it can be hit with a thumb, fields are 16px so iOS Safari doesn't zoom in
    on focus, and fast taps aren't read as double-tap zoom. */
 button, select, summary, input { min-height: 44px; }
 button, select, summary, input, textarea { touch-action: manipulation; }
 input, select, textarea { font-size: 16px; }
-button[class*="pillBtn"] { min-height: 40px; }
 button[class*="closeBtn"], button[class*="roundBtn"] { min-width: 44px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Text for screen readers only: keeps a cue that is shown another way (a ✓, a bold name) in the reading order. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
