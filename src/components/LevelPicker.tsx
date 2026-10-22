@@ -1,3 +1,4 @@
+import { copy } from "../lib/copy";
 import type { SkillLevel } from "../types";
 import styles from "./LevelPicker.module.css";
 
@@ -11,7 +12,7 @@ interface LevelPickerProps {
 
 export function LevelPicker({ value, onChange, size = "md" }: LevelPickerProps) {
   return (
-    <div className={styles.group} role="group" aria-label="Tier (A strongest, D newest)">
+    <div className={styles.group} role="group" aria-label={copy.manage.tierGroup}>
       {LEVELS.map((level) => (
         <button
           key={level}

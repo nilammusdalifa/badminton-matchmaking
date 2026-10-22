@@ -177,13 +177,6 @@
   line-height: 1;
   color: var(--sm-accent-hover);
 }
-.scoreCaption {
-  margin-top: 2px;
-  font-family: inherit;
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--sm-text-3);
-}
 .record {
   flex-shrink: 0;
   font-family: var(--sm-font-mono);
@@ -253,8 +246,7 @@
 .detailLabel {
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  text-transform: none;
   color: var(--sm-text-3);
 }
 .detailStrong { color: var(--sm-text); }
@@ -342,8 +334,7 @@
   margin-top: 6px;
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  text-transform: none;
   color: var(--sm-text-2);
 }
 .countBtn {
@@ -381,4 +372,14 @@
   font-size: 14px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+/* "Score" is named once above the list instead of under every number. */
+.columnHead {
+  margin-bottom: -2px;
+  padding-right: 46px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sm-text-3);
 }

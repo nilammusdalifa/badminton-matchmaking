@@ -75,8 +75,7 @@
   gap: 5px;
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  text-transform: none;
   padding: 4px 10px;
   border-radius: 999px;
   white-space: nowrap;
@@ -144,8 +143,7 @@
 .teamLabel {
   font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  text-transform: none;
 }
 .teamLabel.a { color: var(--sm-accent); }
 .teamLabel.b { color: var(--sm-accent-2); }

@@ -63,8 +63,7 @@
 .badge {
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  text-transform: none;
   padding: 3px 8px;
   border-radius: 999px;
   flex-shrink: 0;
@@ -111,8 +110,7 @@
   font-family: var(--font-body), sans-serif;
   font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
   color: var(--sm-text-3);
 }
 

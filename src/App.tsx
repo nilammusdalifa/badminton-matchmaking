@@ -12,6 +12,7 @@ import { ManageTab } from "./components/tabs/ManageTab";
 import { MatchesTab } from "./components/tabs/MatchesTab";
 import { RankingsTab } from "./components/tabs/RankingsTab";
 import { SessionTab } from "./components/tabs/SessionTab";
+import { copy } from "./lib/copy";
 import { useMyPlayer } from "./hooks/useMyPlayer";
 import { useSessionStore } from "./hooks/useSessionStore";
 import styles from "./App.module.css";
@@ -56,9 +57,9 @@ function App() {
 
       {store.photoReminder && (
         <div className={styles.photoBanner}>
-          <span>{store.photoReminder.minutesLeft} min left. Time for a group photo!</span>
+          <span>{copy.banner.photo(store.photoReminder.minutesLeft)}</span>
           <button className={styles.photoBannerBtn} onClick={store.photoReminder.onDismiss}>
-            Done
+            {copy.common.done}
           </button>
         </div>
       )}
@@ -69,17 +70,17 @@ function App() {
           <span className={styles.bannerActions}>
             {r.onPause && (
               <button className={styles.photoBannerBtn} onClick={r.onPause}>
-                Pause now
+                {copy.banner.pauseNow}
               </button>
             )}
             <button className={styles.photoBannerBtn} onClick={r.onKeepOpen}>
-              Keep open
+              {copy.banner.keepOpen}
             </button>
           </span>
         </div>
       ))}
 
-      {isReadOnlyPlayer && <div className={styles.readOnlyBanner}>View only. Ask the organizer to make changes.</div>}
+      {isReadOnlyPlayer && <div className={styles.readOnlyBanner}>{copy.banner.viewOnly}</div>}
 
       <div className={styles.main}>
         {store.tabs.active === "session" && (

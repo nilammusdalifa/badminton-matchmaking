@@ -63,14 +63,26 @@ export function formatAgo(ms: number, now: number, useClock = false): string {
   return d === null ? formatClock(ms) : `${d} ago`;
 }
 
-const ID_WEEKDAYS: Record<string, number> = { senin: 1, selasa: 2, rabu: 3, kamis: 4, jumat: 5, "jum'at": 5, sabtu: 6, minggu: 0 };
+const WEEKDAYS: Record<string, number> = {
+  // Sunday = 0. Indonesian, then English (full and short).
+  minggu: 0, senin: 1, selasa: 2, rabu: 3, kamis: 4, "jum'at": 5, jumat: 5, sabtu: 6,
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+  sun: 0, mon: 1, tue: 2, tues: 2, wed: 3, thu: 4, thur: 4, thurs: 4, fri: 5, sat: 6,
+};
+const WEEKDAY_RE = new RegExp(`\\b(${Object.keys(WEEKDAYS).sort((a, b) => b.length - a.length).join("|").replace("'", "'?")})\\b[.,]?`, "gi");
 
-/** A schedule the organizer typed ("Rabu, 19:00–22:00") with any Indonesian
- * weekday name swapped for the app's language, for display only. */
-export function localizeSchedule(schedule: string): string {
-  return schedule.replace(/\b(senin|selasa|rabu|kamis|jum'?at|sabtu|minggu)\b/gi, (word) => {
-    const day = ID_WEEKDAYS[word.toLowerCase()];
-    // 2024-01-07 was a Sunday, so day N is the 7th + N.
-    return new Intl.DateTimeFormat(APP_LOCALE, { weekday: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, 7 + day)));
-  });
+/** A schedule the organizer typed ("Rabu, 19:00-22:00") the way the app writes
+ * it everywhere: the weekday in the app's language and short ("Wed"), and a
+ * dash between times ("19:00–22:00", "7pm–10pm"). Display only: what was typed
+ * stays as it was, and the end time is still read from the original. */
+export function formatSchedule(schedule: string): string {
+  return schedule
+    .replace(WEEKDAY_RE, (word) => {
+      const day = WEEKDAYS[word.toLowerCase().replace(/[.,]$/, "").replace("'", "")] ?? WEEKDAYS[word.toLowerCase().replace(/[.,]$/, "")];
+      // 2024-01-07 was a Sunday, so day N is the 7th + N.
+      return new Intl.DateTimeFormat(APP_LOCALE, { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, 7 + day)));
+    })
+    .replace(/(\d{1,2}:\d{2}(?:\s?[ap]m)?|\d{1,2}\s?[ap]m)\s*[-–—]\s*(?=\d)/gi, "$1–")
+    .replace(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s*[,·]\s*/g, "$1 ")
+    .trim();
 }

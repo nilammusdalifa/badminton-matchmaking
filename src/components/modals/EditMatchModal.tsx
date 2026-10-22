@@ -1,3 +1,4 @@
+import { copy } from "../../lib/copy";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./EditMatchModal.module.css";
 
@@ -26,21 +27,21 @@ export function EditMatchModal({
       <div className={styles.dialog}>
         <div className={styles.head}>
           <div className={styles.headTitle}>{title}</div>
-          <button className={styles.closeBtn} onClick={close} aria-label="Close">
+          <button className={styles.closeBtn} onClick={close} aria-label={copy.editMatch.close}>
             ×
           </button>
         </div>
         <div className={styles.hintRow}>
-          <div className={styles.hint}>Pick the four players.</div>
+          <div className={styles.hint}>{copy.editMatch.hint}</div>
           <button className={styles.autoFillBtn} onClick={onAutoFill}>
-            Auto-fill
+            {copy.editMatch.autoFill}
           </button>
         </div>
         <div className={styles.grid}>
           <div className={styles.teamCol}>
-            <span className={`${styles.teamLabel} ${styles.a}`}>Team A</span>
+            <span className={`${styles.teamLabel} ${styles.a}`}>{copy.court.teamA}</span>
             <select className={styles.select} value={t1A} onChange={onT1AChange}>
-              <option value="">Choose player…</option>
+              <option value="">{copy.editMatch.choose}</option>
               {editablePlayers.map((ep) => (
                 <option value={ep.id} key={ep.id}>
                   {ep.name}
@@ -48,7 +49,7 @@ export function EditMatchModal({
               ))}
             </select>
             <select className={styles.select} value={t1B} onChange={onT1BChange}>
-              <option value="">Choose player…</option>
+              <option value="">{copy.editMatch.choose}</option>
               {editablePlayers.map((ep) => (
                 <option value={ep.id} key={ep.id}>
                   {ep.name}
@@ -57,9 +58,9 @@ export function EditMatchModal({
             </select>
           </div>
           <div className={styles.teamCol}>
-            <span className={`${styles.teamLabel} ${styles.b}`}>Team B</span>
+            <span className={`${styles.teamLabel} ${styles.b}`}>{copy.court.teamB}</span>
             <select className={styles.select} value={t2A} onChange={onT2AChange}>
-              <option value="">Choose player…</option>
+              <option value="">{copy.editMatch.choose}</option>
               {editablePlayers.map((ep) => (
                 <option value={ep.id} key={ep.id}>
                   {ep.name}
@@ -67,7 +68,7 @@ export function EditMatchModal({
               ))}
             </select>
             <select className={styles.select} value={t2B} onChange={onT2BChange}>
-              <option value="">Choose player…</option>
+              <option value="">{copy.editMatch.choose}</option>
               {editablePlayers.map((ep) => (
                 <option value={ep.id} key={ep.id}>
                   {ep.name}
@@ -78,7 +79,7 @@ export function EditMatchModal({
         </div>
         <div className={styles.footer}>
           <button className={styles.cancelBtn} onClick={close}>
-            Cancel
+            {copy.editMatch.cancel}
           </button>
           <button className={styles.startBtn} onClick={onStart}>
             {confirmLabel}

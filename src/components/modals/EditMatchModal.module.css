@@ -78,8 +78,7 @@
 .teamLabel {
   font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
 }
 .teamLabel.a { color: var(--sm-accent); }
 .teamLabel.b { color: var(--sm-accent-2); }

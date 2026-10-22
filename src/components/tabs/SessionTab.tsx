@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { CourtCard } from "../CourtCard";
 import { WinMark } from "../WinMark";
+import { copy } from "../../lib/copy";
 import { avatarStyle } from "../../lib/playerColor";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./SessionTab.module.css";
@@ -72,13 +73,13 @@ export function SessionTab({
   const yourStatus = !you
     ? null
     : yourCourt
-      ? `You're playing on ${yourCourt.name}`
+      ? copy.session.youPlaying(yourCourt.name)
       : yourQueueIndex >= 0 && !ended
         ? yourQueueIndex === 0
-          ? "You're next in line"
-          : `You're ${ordinal(yourQueueIndex + 1)} in line`
+          ? copy.session.youNext
+          : copy.session.youPosition(ordinal(yourQueueIndex + 1))
         : notInRotationVM.some((n) => n.id === you.id) && !ended
-          ? "You're resting"
+          ? copy.session.youResting
           : null;
 
   const finalRanked = rankings.filter((r) => r.section === "ranked");
@@ -86,10 +87,10 @@ export function SessionTab({
   const youPicker = readOnly && playerOptions.length > 0 && onSetYou && (
     <div className={styles.youRow}>
       <label className={styles.youLabel} htmlFor="who-are-you">
-        Who are you?
+        {copy.session.whoAreYou}
       </label>
       <select id="who-are-you" className={styles.youSelect} value={you?.id ?? ""} onChange={(e) => onSetYou(e.target.value || null)}>
-        <option value="">Pick your name</option>
+        <option value="">{copy.session.pickYourName}</option>
         {playerOptions.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name}
@@ -102,9 +103,9 @@ export function SessionTab({
 
   const resultsPanel = (
     <div className={styles.panel}>
-      <div className={styles.panelTitle}>{ended ? "Final results" : "Recent Results"}</div>
+      <div className={styles.panelTitle}>{ended ? copy.session.finalResults : copy.session.recentResults}</div>
       {recentResultsVM.length === 0 ? (
-        <div className={styles.emptyNote}>No matches completed yet.</div>
+        <div className={styles.emptyNote}>{copy.session.noResults}</div>
       ) : (
         <div className={styles.list}>
           {recentResultsVM.map((r, i) => {
@@ -116,9 +117,9 @@ export function SessionTab({
                   {r.t1Names}
                 </span>
                 <span className={styles.resultScore}>
-                  {r.resultMode === "score" ? r.score : r.resultMode === "winner" ? "Final" : "Played"}
-                  {isTie && !r.notCounted && <span className={styles.tieTag}>Tied</span>}
-                  {r.notCounted && <span className={styles.tieTag}>Not counted</span>}
+                  {r.resultMode === "score" ? r.score : r.resultMode === "winner" ? copy.session.final : copy.session.played}
+                  {isTie && !r.notCounted && <span className={styles.tieTag}>{copy.session.tied}</span>}
+                  {r.notCounted && <span className={styles.tieTag}>{copy.session.notCounted}</span>}
                 </span>
                 <span
                   className={`${styles.resultTeam} ${styles.resultTeamRight} ${r.winner === "t2" ? styles.winner : r.winner === null ? styles.tie : styles.loser}`}
@@ -131,7 +132,7 @@ export function SessionTab({
           })}
           {onSeeAllMatches && (
             <button className={styles.linkBtn} onClick={onSeeAllMatches}>
-              See all matches
+              {copy.session.seeAllMatches}
             </button>
           )}
         </div>
@@ -142,10 +143,9 @@ export function SessionTab({
   const gamesPanel = (
     <div className={styles.panel} ref={gamesRef}>
       <button className={styles.gamesHead} onClick={() => setGamesOpen((o) => !o)} aria-expanded={gamesOpen}>
-        <span className={styles.gamesTitle}>Games played · fewest first</span>
+        <span className={styles.gamesTitle}>{copy.session.fewestMatches}</span>
         <span className={styles.gamesAvg}>
-          Avg {gamesPlayedVM.average} games
-          {gamesPlayedVM.behind > 0 && ` · ${gamesPlayedVM.behind} ${gamesPlayedVM.behind === 1 ? "player" : "players"} behind`}
+          {copy.session.avg(gamesPlayedVM.average, gamesPlayedVM.behind)}
           <span className={`${styles.chevron} ${gamesOpen ? styles.chevronOpen : ""}`} aria-hidden="true">
             ›
           </span>
@@ -159,13 +159,13 @@ export function SessionTab({
               <span className={styles.gamesNames}>{r.text}</span>
               {r.status && <span className={styles.gamesStatus}>{r.status}</span>}
               {r.warn && (
-                <span className={styles.gamesWarn} role="img" aria-label="Two or more games behind">
+                <span className={styles.gamesWarn} role="img" aria-label={copy.session.twoBehind}>
                   ⚠
                 </span>
               )}
             </div>
           ))}
-          {gamesPlayedVM.rows.length === 0 && <div className={styles.emptyNote}>No players yet.</div>}
+          {gamesPlayedVM.rows.length === 0 && <div className={styles.emptyNote}>{copy.session.noPlayers}</div>}
         </div>
       )}
     </div>
@@ -176,21 +176,17 @@ export function SessionTab({
       <>
         <div className={styles.section}>
           <div className={styles.titleRow}>
-            <h1 className={styles.title}>Session ended</h1>
-            <span className={styles.subtitle}>
-              {playersCount} {playersCount === 1 ? "player" : "players"} · {courtsCount} {courtsCount === 1 ? "court" : "courts"}
-            </span>
+            <h1 className={styles.title}>{copy.session.ended}</h1>
+            <span className={styles.subtitle}>{copy.session.summary(playersCount, courtsCount)}</span>
           </div>
-          <div className={styles.endedNote}>
-            {scheduleEndLabel ? `Finished at ${scheduleEndLabel}. ` : ""}Final rankings and results are below.
-          </div>
+          <div className={styles.endedNote}>{copy.session.endedNote(scheduleEndLabel)}</div>
           {youPicker}
         </div>
 
         <div className={styles.panel}>
-          <div className={styles.panelTitle}>Final rankings</div>
+          <div className={styles.panelTitle}>{copy.session.finalRankings}</div>
           {finalRanked.length === 0 ? (
-            <div className={styles.emptyNote}>No one played enough games to be ranked.</div>
+            <div className={styles.emptyNote}>{copy.session.noRanked}</div>
           ) : (
             <ol className={styles.finalList}>
               {finalRanked.map((r) => (
@@ -201,10 +197,10 @@ export function SessionTab({
                   </span>
                   <span className={styles.finalName}>
                     {r.name}
-                    {r.id === you?.id && <span className={styles.youTag}>You</span>}
+                    {r.id === you?.id && <span className={styles.youTag}>{copy.session.youTag}</span>}
                   </span>
                   <span className={styles.finalRecord}>
-                    {r.wins}W–{r.losses}L · <strong>{r.score}</strong>
+                    {copy.rankings.summary(r.wins, r.losses, r.winPct)} · <strong>{r.score}</strong>
                   </span>
                 </li>
               ))}
@@ -212,7 +208,7 @@ export function SessionTab({
           )}
           {onSeeRankings && (
             <button className={styles.linkBtn} onClick={onSeeRankings}>
-              See full rankings
+              {copy.session.seeFullRankings}
             </button>
           )}
         </div>
@@ -227,23 +223,21 @@ export function SessionTab({
     <>
       <div className={styles.section}>
         <div className={styles.titleRow}>
-          <h1 className={styles.title}>Live Session</h1>
-          <span className={styles.subtitle}>
-            {playersCount} {playersCount === 1 ? "player" : "players"} · {courtsCount} {courtsCount === 1 ? "court" : "courts"}
-          </span>
+          <h1 className={styles.title}>{copy.session.live}</h1>
+          <span className={styles.subtitle}>{copy.session.summary(playersCount, courtsCount)}</span>
         </div>
         <div className={styles.chips}>
-          <span className={`${styles.chip} ${styles.chipPlaying}`}>Playing {playingCount}</span>
-          <span className={`${styles.chip} ${styles.chipWaiting}`}>Waiting {readyWaitingCount}</span>
-          <span className={`${styles.chip} ${styles.chipPaused}`}>Resting {pausedCount}</span>
+          <span className={`${styles.chip} ${styles.chipPlaying}`}>{copy.session.chipPlaying(playingCount)}</span>
+          <span className={`${styles.chip} ${styles.chipWaiting}`}>{copy.session.chipQueue(readyWaitingCount)}</span>
+          <span className={`${styles.chip} ${styles.chipPaused}`}>{copy.session.chipResting(pausedCount)}</span>
         </div>
         {fewPlayersHint && !readOnly && <div className={styles.hintNote}>{fewPlayersHint}</div>}
         {hasExpected && (
           <div className={styles.checkInBanner}>
-            <span className={styles.checkInText}>{expectedCount} not checked in</span>
+            <span className={styles.checkInText}>{copy.session.notCheckedIn(expectedCount)}</span>
             {!readOnly && (
               <button className={styles.checkInBtn} onClick={onCheckInAll}>
-                Check In All
+                {copy.session.checkInAll}
               </button>
             )}
           </div>
@@ -260,7 +254,7 @@ export function SessionTab({
       ) : (
         <div className={styles.panel}>
           <div className={styles.emptyNote}>
-            {readOnly ? "No courts yet." : "No courts yet. Add one in Manage."}
+            {readOnly ? copy.session.noCourts : copy.session.noCourtsUmpire}
           </div>
         </div>
       )}
@@ -270,7 +264,7 @@ export function SessionTab({
           <div className={styles.upNextPanel} key={q.index}>
             <div className={styles.upNextHeading}>
               {q.label}
-              {!q.locked && " · may change"}
+              {!q.locked && ` · ${copy.session.mayChange}`}
               {q.detail && <span className={styles.queueDetail}> · {q.detail}</span>}
             </div>
             <div className={styles.upNextTeams}>
@@ -280,11 +274,11 @@ export function SessionTab({
             <div className={styles.upNextReason}>{q.reason}</div>
             <div className={styles.queueActions}>
               <button className={styles.upNextShuffleBtn} onClick={q.onShuffle}>
-                Shuffle
+                {copy.session.shuffle}
               </button>
               {q.onEdit && (
                 <button className={styles.upNextShuffleBtn} onClick={q.onEdit}>
-                  Edit
+                  {copy.session.edit}
                 </button>
               )}
             </div>
@@ -292,43 +286,36 @@ export function SessionTab({
         ))}
 
       <div className={styles.panel}>
-        <div className={styles.panelTitle}>Waiting ({waitingCount})</div>
+        <div className={styles.panelTitle}>{copy.session.queueTitle(waitingCount)}</div>
         {readOnly && queueVM.length > 0 && (
           <div className={styles.previewCard}>
             <div className={styles.previewLabel}>
-              Up next{!queueVM[0].locked && " · may change"}
+              {copy.session.upNext}
+              {!queueVM[0].locked && ` · ${copy.session.mayChange}`}
             </div>
             <div className={styles.previewTeams}>
-              {queueVM[0].team1Label} <span className={styles.upNextVs}>vs</span> {queueVM[0].team2Label}
+              {queueVM[0].team1Label} <span className={styles.upNextVs}>{copy.matches.vs}</span> {queueVM[0].team2Label}
             </div>
           </div>
         )}
         {sessionHealth.hasWarning && sessionHealth.longestWaitName && (
           <div className={`${styles.healthStrip} ${styles.healthWarning}`}>
-            <span>
-              Waiting longest: <strong>{sessionHealth.longestWaitName}</strong> ({sessionHealth.longestWaitMatches} match
-              {sessionHealth.longestWaitMatches === 1 ? "" : "es"})
-            </span>
+            <span>{copy.session.longestWait(sessionHealth.longestWaitName, sessionHealth.longestWaitMatches)}</span>
             <button className={styles.healthLink} onClick={showGames}>
-              Games played: {sessionHealth.gameSpread} apart ›
+              {copy.session.matchesPlayedLink(sessionHealth.minPlayed, sessionHealth.maxPlayed)}
             </button>
           </div>
         )}
         {waitingCount === 0 && !hasNotInRotation ? (
-          <div className={styles.emptyNote}>No one waiting right now.</div>
+          <div className={styles.emptyNote}>{copy.session.queueEmpty}</div>
         ) : (
           <div className={styles.list}>
             {!readOnly && waitingVM.length > 0 && (
-              <div className={styles.emptyNote}>Sit Out Next skips 1 match. Rest pauses them.</div>
+              <div className={styles.emptyNote}>{copy.session.queueHint}</div>
             )}
             {waitingVM.map((w, i) => {
-              const position = `#${i + 1}${i === 0 ? " · Next up" : ""}`;
-              const stats = [
-                `Waited ${w.skipped} ${w.skipped === 1 ? "match" : "matches"}`,
-                `${w.games} ${w.games === 1 ? "game" : "games"}`,
-                ...(w.waitLabel ? [w.waitLabel] : []),
-                ...(w.hasStreak ? [`Played ${w.consec} in a row`] : []),
-              ].join(" · ");
+              const position = copy.session.position(i);
+              const stats = copy.session.queueMeta(w.skipped, w.games, w.hasStreak ? w.consec : 0);
               return (
                 <div className={`${styles.waitingRow} ${w.id === you?.id ? styles.youRowHighlight : ""}`} key={w.id}>
                   <div className={styles.waitingLeft}>
@@ -338,13 +325,13 @@ export function SessionTab({
                     <div className={styles.waitingText}>
                       <div className={styles.waitingPos}>
                         {position}
-                        {w.queueTag && (i > 0 || w.queueTag === "Then") && (
-                          <span className={styles.queueTag}>{w.queueTag === "Up next" ? "In next match" : "In match after"}</span>
+                        {w.queueTag && (i > 0 || w.queueTag === copy.session.then) && (
+                          <span className={styles.queueTag}>{w.queueTag === copy.session.upNext ? copy.session.inNextMatch : copy.session.inMatchAfter}</span>
                         )}
                       </div>
                       <div className={styles.waitingName}>
                         {w.name} {!hideTier && <span className={styles.waitingLevel}>· Tier {w.level}</span>}
-                        {w.id === you?.id && <span className={styles.youTag}>You</span>}
+                        {w.id === you?.id && <span className={styles.youTag}>{copy.session.youTag}</span>}
                       </div>
                       <div className={styles.waitingMeta}>{stats}</div>
                       {w.note && <div className={styles.waitingMeta}>{w.note}</div>}
@@ -353,10 +340,10 @@ export function SessionTab({
                   {!readOnly && (
                     <div className={styles.waitingActions}>
                       <button className={styles.pillBtn} onClick={w.onSkip}>
-                        Sit Out Next
+                        {copy.session.skipNext}
                       </button>
                       <button className={styles.pillBtn} onClick={w.onPause}>
-                        Rest
+                        {copy.session.rest}
                       </button>
                     </div>
                   )}

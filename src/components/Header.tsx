@@ -1,5 +1,6 @@
 import { AppIcon } from "./AppIcon";
-import { localizeSchedule } from "../lib/locale";
+import { copy } from "../lib/copy";
+import { formatSchedule } from "../lib/locale";
 import styles from "./Header.module.css";
 
 interface HeaderProps {
@@ -10,7 +11,7 @@ interface HeaderProps {
   progressWidth: string;
   needsSetup: boolean;
   onOpenSetup: () => void;
-  /** View-only: no "New Session" button. */
+  /** View-only: no "New session" button. */
   readOnly?: boolean;
 }
 
@@ -24,30 +25,21 @@ export function Header({ sessionName, sessionSchedule, matchesCompleted, matches
         <div className={styles.titles}>
           <div className={styles.name}>SmashMatch</div>
           <div className={styles.schedule}>
-            {needsSetup ? "No session set up yet" : sessionSchedule ? `${sessionName} · ${localizeSchedule(sessionSchedule)}` : sessionName}
+            {needsSetup
+              ? copy.header.noSession
+              : copy.header.line([sessionName, formatSchedule(sessionSchedule), copy.header.matches(matchesCompleted, matchesTotal)])}
           </div>
         </div>
         {needsSetup && !readOnly && (
           <button className={styles.setupBtn} onClick={onOpenSetup}>
-            + New Session
+            {copy.header.newSession}
           </button>
         )}
       </div>
-      {!needsSetup && (
-        <>
-          <div className={styles.meta}>
-            <span>
-              {matchesTotal !== null
-                ? `${matchesCompleted}/${matchesTotal} matches`
-                : `${matchesCompleted} ${matchesCompleted === 1 ? "match" : "matches"}`}
-            </span>
-          </div>
-          {matchesTotal !== null && (
-            <div className={styles.progressTrack}>
-              <div className={styles.progressFill} style={{ width: progressWidth }} />
-            </div>
-          )}
-        </>
+      {!needsSetup && matchesTotal !== null && (
+        <div className={styles.progressTrack}>
+          <div className={styles.progressFill} style={{ width: progressWidth }} />
+        </div>
       )}
     </header>
   );

@@ -11,8 +11,6 @@ export interface WaitingEntry {
   consec: number;
   /** Whole minutes since they became free to play; null when unknown. */
   waitMin: number | null;
-  /** `waitMin` as people read it ("45 min", "1h 20m"); null when unknown or too long to mean anything. */
-  waitLabel: string | null;
   /** "Host · plays after round 1" while a host is still being held back. */
   note?: string;
   /** In a planned match, locked or a preview: "Up next" for the first, "Then"
@@ -127,6 +125,8 @@ export interface RankingEntry {
   /** Why this row is where it is, when that isn't obvious: how many games it
    * still needs for a rank, or what separates it from a neighbour on the same score. */
   note: string | null;
+  /** Matches needed for a rank right now (see `rankMinGames`). */
+  minMatches: number;
   /** Counts in the rankings (false for a host or guest switched out). */
   inRankings: boolean;
   /** Set for the organizer only: switch this player in or out of the rankings. */
@@ -264,6 +264,9 @@ export interface SessionHealth {
   longestWaitName: string | null;
   longestWaitMatches: number;
   gameSpread: number;
+  /** Fewest and most matches played by anyone in the rotation, for "Matches played: 2–7". */
+  minPlayed: number;
+  maxPlayed: number;
   hasWarning: boolean;
 }
 
@@ -296,6 +299,8 @@ export interface ConfirmViewModel {
   title: string;
   body: string;
   actionLabel: string;
+  /** The way out: "Cancel" beside "Delete", "Go back" elsewhere. */
+  cancelLabel: string;
 }
 
 export type { PauseReason };

@@ -1,4 +1,6 @@
 import { PlayerAddForm } from "../PlayerAddForm";
+import { copy } from "../../lib/copy";
+import { formatSchedule } from "../../lib/locale";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./SetupWizardModal.module.css";
 
@@ -44,8 +46,8 @@ export function SetupWizardModal({
     <div className={styles.backdrop}>
       <div className={styles.dialog}>
         <div className={styles.head}>
-          <div className={styles.headTitle}>New Session · Step {stepLabel}/4</div>
-          <button className={styles.closeBtn} onClick={close} aria-label="Close setup">
+          <div className={styles.headTitle}>{copy.setup.title(stepLabel)}</div>
+          <button className={styles.closeBtn} onClick={close} aria-label={copy.setup.close}>
             ×
           </button>
         </div>
@@ -55,38 +57,36 @@ export function SetupWizardModal({
 
         {step === 0 && (
           <div className={styles.step}>
-            <div className={styles.stepTitle}>Session basics</div>
-            <div className={styles.stepHint}>Name tonight's session.</div>
+            <div className={styles.stepTitle}>{copy.setup.basics}</div>
+            <div className={styles.stepHint}>{copy.setup.basicsHint}</div>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Session name</span>
+              <span className={styles.fieldLabel}>{copy.setup.sessionName}</span>
               <input
                 className={styles.input}
                 type="text"
                 value={name}
                 onChange={onNameChange}
-                placeholder="e.g. Wednesday Night Badminton"
+                placeholder={copy.setup.namePlaceholder}
               />
             </label>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Schedule</span>
+              <span className={styles.fieldLabel}>{copy.setup.schedule}</span>
               <input
                 className={styles.input}
                 type="text"
                 value={schedule}
                 onChange={onScheduleChange}
-                placeholder="e.g. Wed · 19:00–22:00"
+                placeholder={copy.setup.schedulePlaceholder}
               />
-              <span className={styles.fieldHint}>
-                Optional. Add times like 19:00–22:00 for an end-of-session reminder.
-              </span>
+              <span className={styles.fieldHint}>{copy.setup.scheduleHint}</span>
             </label>
           </div>
         )}
 
         {step === 1 && (
           <div className={styles.step}>
-            <div className={styles.stepTitle}>Players ({playersCount} on the roster)</div>
-            <div className={styles.stepHint}>Check them in when they arrive.</div>
+            <div className={styles.stepTitle}>{copy.setup.playersStep(playersCount)}</div>
+            <div className={styles.stepHint}>{copy.setup.checkInHint}</div>
             <PlayerAddForm
               newPlayerName={newPlayerName}
               newPlayerLevel={newPlayerLevel}
@@ -94,10 +94,10 @@ export function SetupWizardModal({
               setNewPlayerLevel={setNewPlayerLevel}
               onAddPlayer={onAddPlayer}
               onAddPlayers={onAddPlayers}
-              addLabel="Add Player"
+              addLabel={copy.manage.addPlayer}
             />
             {rosterNames.length > 0 && (
-              <div className={styles.rosterChips} aria-label="Players added so far">
+              <div className={styles.rosterChips} aria-label={copy.setup.playersAdded}>
                 {rosterNames.map((p, i) => (
                   <span className={styles.rosterChip} key={i}>
                     {p.name} · {p.level}
@@ -110,84 +110,76 @@ export function SetupWizardModal({
 
         {step === 2 && (
           <div className={styles.step}>
-            <div className={styles.stepTitle}>Courts &amp; scoring</div>
-            <div className={styles.stepHint}>You can change courts later in Manage.</div>
+            <div className={styles.stepTitle}>{copy.setup.courtsAndScoring}</div>
+            <div className={styles.stepHint}>{copy.setup.courtsHint}</div>
             <div className={styles.courtsRow}>
-              <span>
-                {courtsCount} {courtsCount === 1 ? "court" : "courts"}
-              </span>
+              <span>{copy.setup.courtsLabel(courtsCount)}</span>
               <div className={styles.formRow}>
-                <button className={styles.roundBtn} onClick={onRemoveCourt} aria-label="Remove a court">
+                <button className={styles.roundBtn} onClick={onRemoveCourt} aria-label={copy.manage.removeCourt}>
                   –
                 </button>
-                <button className={styles.roundBtn} onClick={onAddCourt} aria-label="Add a court">
+                <button className={styles.roundBtn} onClick={onAddCourt} aria-label={copy.manage.addCourt}>
                   +
                 </button>
               </div>
             </div>
-            {courtsCount === 0 && <div className={styles.warnNote}>Add a court to start matches.</div>}
+            {courtsCount === 0 && <div className={styles.warnNote}>{copy.setup.addCourtWarning}</div>}
             {courtHours.length > 0 && (
               <div className={styles.field}>
-                <span className={styles.fieldLabel}>Closing time</span>
+                <span className={styles.fieldLabel}>{copy.setup.closingTime}</span>
                 {courtHours.map((c) => (
                   <label className={styles.hoursRow} key={c.id}>
-                    <span>{c.name} closes at</span>
+                    <span>{copy.setup.courtCloses(c.name)}</span>
                     <input className={styles.timeInput} type="time" value={c.closesAt} onChange={(e) => onSetCourtClosesAt(c.id, e.target.value)} />
                   </label>
                 ))}
-                <div className={styles.rulesNote}>No new match starts in the last 15 minutes, and the court pauses when its match ends. Leave empty for no closing time.</div>
+                <div className={styles.rulesNote}>{copy.setup.closingRule}</div>
               </div>
             )}
             <div className={styles.field}>
-              <span className={styles.fieldLabel}>How to record results</span>
+              <span className={styles.fieldLabel}>{copy.setup.howToRecord}</span>
               <div className={styles.modeGroup}>
                 <button
                   type="button"
                   className={`${styles.modeOption} ${resultMode === "score" ? styles.modeActive : ""}`}
                   onClick={() => onSetResultMode("score")}
                 >
-                  Final Score
+                  {copy.setup.modeScore}
                 </button>
                 <button
                   type="button"
                   className={`${styles.modeOption} ${resultMode === "winner" ? styles.modeActive : ""}`}
                   onClick={() => onSetResultMode("winner")}
                 >
-                  Winner Only
+                  {copy.setup.modeWinner}
                 </button>
                 <button
                   type="button"
                   className={`${styles.modeOption} ${resultMode === "none" ? styles.modeActive : ""}`}
                   onClick={() => onSetResultMode("none")}
                 >
-                  No Score
+                  {copy.setup.modeNone}
                 </button>
               </div>
             </div>
-            {resultMode === "score" && <div className={styles.rulesNote}>21 points to win · win by 2 · cap 30</div>}
-            {resultMode === "winner" && <div className={styles.rulesNote}>Tap the winning team. No points.</div>}
-            {resultMode === "none" && <div className={styles.rulesNote}>Tracks who played, not who won.</div>}
+            {resultMode === "score" && <div className={styles.rulesNote}>{copy.setup.ruleScore}</div>}
+            {resultMode === "winner" && <div className={styles.rulesNote}>{copy.setup.ruleWinner}</div>}
+            {resultMode === "none" && <div className={styles.rulesNote}>{copy.setup.ruleNone}</div>}
           </div>
         )}
 
         {step === 3 && (
           <div className={styles.step}>
-            <div className={styles.stepTitle}>Review</div>
+            <div className={styles.stepTitle}>{copy.setup.review}</div>
             <div className={styles.review}>
-              <div>
-                {reviewSchedule ? `${reviewName} · ${reviewSchedule}` : reviewName}
-              </div>
-              <div>
-                {playersCount} {playersCount === 1 ? "player" : "players"} · {courtsCount} {courtsCount === 1 ? "court" : "courts"}
-              </div>
+              <div>{copy.header.line([reviewName, formatSchedule(reviewSchedule)])}</div>
+              <div>{copy.session.summary(playersCount, courtsCount)}</div>
               {courtHours.some((c) => c.closesAt) && (
-                <div>{courtHours.map((c) => (c.closesAt ? `${c.name} until ${c.closesAt}` : `${c.name} no closing time`)).join(" · ")}</div>
+                <div>{courtHours.map((c) => (c.closesAt ? copy.setup.reviewUntil(c.name, c.closesAt) : copy.setup.reviewNoClosing(c.name))).join(" · ")}</div>
               )}
-              <div>
-                {resultMode === "score" ? "21 points to win, win by 2" : resultMode === "winner" ? "Winner only" : "No score"}
-              </div>
+              <div>{resultMode === "score" ? copy.setup.reviewScore : resultMode === "winner" ? copy.setup.reviewWinner : copy.setup.reviewNone}</div>
             </div>
-            {courtsCount === 0 && <div className={styles.warnNote}>Add a court to start matches.</div>}
+            {courtsCount === 0 && <div className={styles.warnNote}>{copy.setup.addCourtWarning}</div>}
             {reviewHasHistory && <div className={styles.consequence}>{reviewConsequence}</div>}
           </div>
         )}
@@ -195,16 +187,16 @@ export function SetupWizardModal({
         <div className={styles.footer}>
           {canBack && (
             <button className={styles.backBtn} onClick={back}>
-              Back
+              {copy.setup.back}
             </button>
           )}
           {isLast ? (
             <button className={styles.nextBtn} onClick={finish}>
-              Start Session
+              {copy.setup.start}
             </button>
           ) : (
             <button className={styles.nextBtn} onClick={next}>
-              Continue
+              {copy.setup.next}
             </button>
           )}
         </div>

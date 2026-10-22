@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAgo, formatDuration, localizeSchedule, zonedToEpoch } from "./locale";
+import { formatAgo, formatDuration, formatSchedule, zonedToEpoch } from "./locale";
 import { buildStandings, lastActivityMs, makeBlankPlayer, matchStartedAt, rankMinGames, scheduleEnded, tieBreakReason } from "./session";
 import type { Match, Player } from "../types";
 
@@ -83,11 +83,20 @@ describe("durations", () => {
   });
 });
 
-describe("localizeSchedule", () => {
-  it("shows Indonesian weekday names in the app's language, leaving the rest alone", () => {
-    expect(localizeSchedule("Rabu, 19:00–22:00")).toBe("Wednesday, 19:00–22:00");
-    expect(localizeSchedule("Minggu · 7pm-10pm")).toBe("Sunday · 7pm-10pm");
-    expect(localizeSchedule("Friday 19:00")).toBe("Friday 19:00");
+describe("formatSchedule", () => {
+  it("writes weekdays short and in English, whatever language they were typed in", () => {
+    expect(formatSchedule("Rabu, 19:00–22:00")).toBe("Wed 19:00–22:00");
+    expect(formatSchedule("Minggu · 7pm-10pm")).toBe("Sun 7pm–10pm");
+    expect(formatSchedule("Friday 19:00")).toBe("Fri 19:00");
+    expect(formatSchedule("Jum'at 20:00-23:00")).toBe("Fri 20:00–23:00");
+    expect(formatSchedule("Sabtu, 19.00")).toBe("Sat 19.00");
+  });
+  it("puts an en dash between times, and leaves dates and plain text alone", () => {
+    expect(formatSchedule("19:00-22:00")).toBe("19:00–22:00");
+    expect(formatSchedule("19:00 — 22:00")).toBe("19:00–22:00");
+    expect(formatSchedule("12-11-2026")).toBe("12-11-2026");
+    expect(formatSchedule("Wed 12 Nov")).toBe("Wed 12 Nov");
+    expect(formatSchedule("Tonight")).toBe("Tonight");
   });
 });
 
@@ -115,7 +124,7 @@ describe("ranking explanations", () => {
     expect(tieBreakReason(a, player("b", "Bo", 4, 2, 0.2))).toBe("win rate");
     expect(tieBreakReason(player("c", "Cy", 5, 3, 0.25), player("d", "Di", 4, 3, 0.2))).toBeNull(); // different scores shown
     // 2–2 and 1–1 share a win rate of 50%, and perf 0 shows the same score of 50 for both
-    expect(tieBreakReason(player("e", "Eli", 4, 2, 0), player("f", "Fay", 2, 1, 0))).toBe("games played");
+    expect(tieBreakReason(player("e", "Eli", 4, 2, 0), player("f", "Fay", 2, 1, 0))).toBe("matches played");
     expect(tieBreakReason(player("g", "Gus", 4, 3, 0.2), player("h", "Hal", 4, 3, 0.2))).toBe("name");
   });
 });

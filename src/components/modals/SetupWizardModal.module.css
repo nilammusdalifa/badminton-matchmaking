@@ -82,8 +82,7 @@
 .fieldLabel {
   font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
   color: var(--sm-text-2);
 }
 .input {

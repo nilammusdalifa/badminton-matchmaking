@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { LevelPicker } from "../LevelPicker";
 import { PlayerAddForm } from "../PlayerAddForm";
+import { copy } from "../../lib/copy";
 import type { SkillLevel } from "../../types";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./ManageTab.module.css";
@@ -44,7 +45,7 @@ export function ManageTab({
   onCopyShareLink,
 }: ManageTabProps) {
   const rulesLabel =
-    resultMode === "score" ? "21 points, win by 2, cap 30" : resultMode === "winner" ? "winner only" : "no scoring";
+    resultMode === "score" ? copy.manage.rulesScore : resultMode === "winner" ? copy.manage.rulesWinner : copy.manage.rulesNone;
 
   // One roster row is open for editing at a time; its draft lives here so
   // typing doesn't touch the session until Save.
@@ -57,12 +58,12 @@ export function ManageTab({
   return (
     <>
       <div className={styles.section}>
-        <h1 className={styles.title}>Manage</h1>
+        <h1 className={styles.title}>{copy.manage.title}</h1>
       </div>
 
       <div className={styles.panel}>
-        <div className={styles.panelTitle}>Add a Walk-in Player</div>
-        <div className={styles.panelHint}>Added straight to Waiting.</div>
+        <div className={styles.panelTitle}>{copy.manage.walkIn}</div>
+        <div className={styles.panelHint}>{copy.manage.walkInHint}</div>
         <PlayerAddForm
           newPlayerName={newPlayerName}
           newPlayerLevel={newPlayerLevel}
@@ -70,7 +71,7 @@ export function ManageTab({
           setNewPlayerLevel={setNewPlayerLevel}
           onAddPlayer={onAddPlayer}
           onAddPlayers={onAddPlayers}
-          addLabel="Add Player"
+          addLabel={copy.manage.addPlayer}
         />
       </div>
 
@@ -78,16 +79,16 @@ export function ManageTab({
         <div className={styles.courtsPanel}>
           <div className={styles.courtsHead}>
             <div>
-              <div className={styles.panelTitle}>Courts</div>
+              <div className={styles.panelTitle}>{copy.manage.courts}</div>
               <div className={styles.courtsSub}>
-                {courtsCount} {courtsCount === 1 ? "court" : "courts"} · {rulesLabel}
+                {copy.manage.courtsSub(courtsCount, rulesLabel)}
               </div>
             </div>
             <div className={styles.courtsBtns}>
-              <button className={styles.roundBtn} onClick={onRemoveCourt} aria-label="Remove a court">
+              <button className={styles.roundBtn} onClick={onRemoveCourt} aria-label={copy.manage.removeCourt}>
                 –
               </button>
-              <button className={styles.roundBtn} onClick={onAddCourt} aria-label="Add a court">
+              <button className={styles.roundBtn} onClick={onAddCourt} aria-label={copy.manage.addCourt}>
                 +
               </button>
             </div>
@@ -95,27 +96,23 @@ export function ManageTab({
           <label className={styles.hostToggle}>
             <input type="checkbox" checked={planAhead} onChange={onTogglePlanAhead} />
             <span>
-              <span className={styles.hostToggleTitle}>Lock planned matches</span>
-              <span className={styles.hostToggleHint}>
-                One planned match per court. Locked, and started exactly as shown, once 8 or more players are waiting; otherwise a preview that keeps updating.
-              </span>
+              <span className={styles.hostToggleTitle}>{copy.manage.lockPlanned}</span>
+              <span className={styles.hostToggleHint}>{copy.manage.lockPlannedHint}</span>
             </span>
           </label>
           <label className={styles.hostToggle}>
             <input type="checkbox" checked={hardGames} onChange={onToggleHardGames} />
             <span>
-              <span className={styles.hostToggleTitle}>Hard games</span>
-              <span className={styles.hostToggleHint}>
-                A/B players who have carried a C or D partner twice get an all-A/B match, and C players who have carried a D twice get a match with no D — never while the players they'd leave out are overdue.
-              </span>
+              <span className={styles.hostToggleTitle}>{copy.manage.hardMatches}</span>
+              <span className={styles.hostToggleHint}>{copy.manage.hardHint}</span>
             </span>
           </label>
           {courtHours.length > 0 && (
             <>
-              <div className={styles.panelHint}>Set a closing time to get a reminder to pause the court.</div>
+              <div className={styles.panelHint}>{copy.manage.closingHint}</div>
               {courtHours.map((c) => (
                 <label className={styles.courtHoursRow} key={c.id}>
-                  <span>{c.name} closes at</span>
+                  <span>{copy.manage.courtCloses(c.name)}</span>
                   <input
                     className={styles.timeInput}
                     type="time"
@@ -131,16 +128,16 @@ export function ManageTab({
 
       {isOwner && (
         <div className={styles.panel}>
-          <div className={styles.panelTitle}>Session</div>
+          <div className={styles.panelTitle}>{copy.manage.session}</div>
           <div className={styles.dangerZone}>
             <button className={styles.zoneBtn} onClick={onOpenSetup}>
-              + New Session
+              {copy.manage.newSession}
             </button>
             <button className={`${styles.zoneBtn} ${styles.danger}`} onClick={onEndSession}>
-              End &amp; See Results
+              {copy.manage.endAndSee}
             </button>
             <button className={`${styles.zoneBtn} ${styles.dangerSolid}`} onClick={onResetSession}>
-              Erase Results &amp; Restart
+              {copy.manage.eraseAndRestart}
             </button>
           </div>
         </div>
@@ -148,29 +145,27 @@ export function ManageTab({
 
       {shareEnabled && (
         <div className={styles.panel}>
-          <div className={styles.panelTitle}>Live Sharing</div>
+          <div className={styles.panelTitle}>{copy.manage.liveSharing}</div>
           <div className={styles.panelHint}>
-            {isOwner
-              ? "Share the link to let people watch live. The PIN lets someone score."
-              : "Share the link to let people watch live."}
+            {isOwner ? copy.manage.shareWithPin : copy.manage.shareNoPin}
           </div>
           <div className={styles.shareRow}>
             <button className={styles.addBtn} onClick={onCopyShareLink}>
-              Copy Live Link
+              {copy.manage.copyLink}
             </button>
-            {isOwner && <div className={styles.pinBadge}>PIN: {sessionPin}</div>}
+            {isOwner && <div className={styles.pinBadge}>{copy.manage.pin(sessionPin)}</div>}
           </div>
-          {isOwner && <div className={styles.pinHint}>Only share the PIN with scorers.</div>}
+          {isOwner && <div className={styles.pinHint}>{copy.manage.pinHint}</div>}
           <div className={styles.shareUrl}>{shareUrl}</div>
         </div>
       )}
 
       <div className={styles.panel}>
-        <div className={styles.panelTitle}>Partner Requests</div>
-        <div className={styles.panelHint}>Put two players on the same team next match.</div>
+        <div className={styles.panelTitle}>{copy.manage.partnerRequests}</div>
+        <div className={styles.panelHint}>{copy.manage.partnerHint}</div>
         <div className={styles.formRow}>
           <select className={styles.select} value={requestA} onChange={onRequestAChange}>
-            <option value="">Player A</option>
+            <option value="">{copy.manage.playerA}</option>
             {players.map((p) => (
               <option value={p.id} key={p.id}>
                 {p.name}
@@ -178,7 +173,7 @@ export function ManageTab({
             ))}
           </select>
           <select className={styles.select} value={requestB} onChange={onRequestBChange}>
-            <option value="">Player B</option>
+            <option value="">{copy.manage.playerB}</option>
             {players.map((p) => (
               <option value={p.id} key={p.id}>
                 {p.name}
@@ -186,7 +181,7 @@ export function ManageTab({
             ))}
           </select>
           <button className={styles.addBtn} onClick={onAddPartnerRequest}>
-            Pair Them
+            {copy.manage.pairThem}
           </button>
         </div>
         {hasRequestedPairs && (
@@ -195,7 +190,7 @@ export function ManageTab({
               <div className={styles.requestedRow} key={i}>
                 <span>{rp.label}</span>
                 <button className={styles.removeBtn} onClick={rp.onRemove}>
-                  Remove
+                  {copy.common.remove}
                 </button>
               </div>
             ))}
@@ -204,7 +199,7 @@ export function ManageTab({
       </div>
 
       <div className={styles.panel}>
-        <div className={styles.rosterTitle}>Roster ({playersCount})</div>
+        <div className={styles.rosterTitle}>{copy.manage.roster(playersCount)}</div>
         <div className={styles.rosterList}>
           {managePlayersVM.map((p) => {
             const editing = editingId === p.id;
@@ -213,7 +208,7 @@ export function ManageTab({
                 <div className={styles.rosterMain}>
                   <div className={styles.rosterInfo}>
                     <div className={styles.rosterName}>
-                      {p.name} <span className={styles.rosterLevel}>Tier {p.level}</span>
+                      {p.name} <span className={styles.rosterLevel}>{copy.manage.tierWord(p.level)}</span>
                     </div>
                     <div className={`${styles.rosterStatus} ${styles[p.statusTone]}`}>{p.statusLabel} · {p.gamesLabel}</div>
                   </div>
@@ -239,7 +234,7 @@ export function ManageTab({
                           setDraftCounted(p.inRankings);
                         }}
                       >
-                        Edit
+                        {copy.manage.edit}
                       </button>
                     )}
                   </div>
@@ -258,7 +253,7 @@ export function ManageTab({
                       type="text"
                       value={draftName}
                       onChange={(e) => setDraftName(e.target.value)}
-                      aria-label={`Name for ${p.name}`}
+                      aria-label={copy.manage.nameFor(p.name)}
                       autoCapitalize="words"
                       autoComplete="off"
                       enterKeyHint="done"
@@ -276,25 +271,25 @@ export function ManageTab({
                         }}
                       />
                       <span>
-                        <span className={styles.hostToggleTitle}>Host · plays later</span>
+                        <span className={styles.hostToggleTitle}>{copy.manage.hostTitle}</span>
                         <span className={styles.hostToggleHint}>
-                          {p.hostLocked ? "Round 1 has started, so this only applies to the next session." : "Sits out the first round, then joins the rotation normally."}
+                          {p.hostLocked ? copy.manage.hostLocked : copy.manage.hostHint}
                         </span>
                       </span>
                     </label>
                     <label className={styles.hostToggle}>
                       <input type="checkbox" checked={draftCounted} onChange={(e) => setDraftCounted(e.target.checked)} />
                       <span>
-                        <span className={styles.hostToggleTitle}>Count in rankings</span>
-                        <span className={styles.hostToggleHint}>Off: still plays, but is listed under &quot;Not ranked&quot; and doesn&apos;t change anyone else&apos;s record.</span>
+                        <span className={styles.hostToggleTitle}>{copy.manage.countInRankings}</span>
+                        <span className={styles.hostToggleHint}>{copy.manage.countHint}</span>
                       </span>
                     </label>
                     <div className={styles.editActions}>
                       <button type="submit" className={styles.addBtn} disabled={!draftName.trim()}>
-                        Save
+                        {copy.manage.save}
                       </button>
                       <button type="button" className={styles.pillBtn} onClick={() => setEditingId(null)}>
-                        Cancel
+                        {copy.manage.cancel}
                       </button>
                       {p.onRemove && (
                         <button
@@ -305,7 +300,7 @@ export function ManageTab({
                             setEditingId(null);
                           }}
                         >
-                          Remove {p.name}
+                          {copy.manage.removePlayer(p.name)}
                         </button>
                       )}
                     </div>

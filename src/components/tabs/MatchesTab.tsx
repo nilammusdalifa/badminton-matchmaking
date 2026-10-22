@@ -1,4 +1,5 @@
 import { WinMark } from "../WinMark";
+import { copy } from "../../lib/copy";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./MatchesTab.module.css";
 
@@ -8,31 +9,23 @@ export function MatchesTab({ matchLogVM, courtsCount, readOnly }: MatchesTabProp
   return (
     <>
       <div className={styles.section}>
-        <h1 className={styles.title}>Matches</h1>
-        <div className={styles.subtitle}>Newest first.</div>
+        <h1 className={styles.title}>{copy.matches.title}</h1>
       </div>
 
       <div className={styles.list}>
         {matchLogVM.length === 0 && (
           <div className={styles.empty}>
-            {readOnly
-              ? "No matches yet."
-              : courtsCount === 0
-                ? "No matches yet. Add a court in Manage."
-                : "No matches yet. Start one on the Session tab."}
+            {readOnly ? copy.matches.empty : courtsCount === 0 ? copy.matches.emptyNoCourts : copy.matches.emptyStart}
           </div>
         )}
         {matchLogVM.map((m) => (
           <div className={styles.row} key={m.id}>
             <div className={styles.rowHead}>
               <div className={styles.rowMeta}>
-                <span className={styles.court}>{m.courtName}</span>
-                <span className={styles.matchNum}>#{m.matchNumber}</span>
-                {m.startedLabel && <span className={styles.startedAt}>Started {m.startedLabel}</span>}
+                <span className={styles.court}>{copy.matches.heading(m.matchNumber, m.courtName)}</span>
+                {m.startedLabel && <span className={styles.startedAt}>{copy.matches.started(m.startedLabel)}</span>}
               </div>
-              <span className={`${styles.badge} ${m.status === "in_progress" ? styles.inProgress : styles.completed}`}>
-                {m.status === "in_progress" ? "Live" : m.notCounted ? "Ended early" : "Final"}
-              </span>
+              {m.status === "in_progress" && <span className={`${styles.badge} ${styles.inProgress}`}>{copy.matches.live}</span>}
             </div>
             <div className={styles.teams}>
               <span className={`${styles.teamName} ${m.winner === "t1" ? styles.winner : m.winner === "t2" ? styles.loser : ""}`}>
@@ -40,24 +33,24 @@ export function MatchesTab({ matchLogVM, courtsCount, readOnly }: MatchesTabProp
                 {m.t1Names}
               </span>
               <span className={styles.score}>
-                {m.resultMode === "score" ? m.score : m.status === "completed" ? "Final" : "vs"}
-                {m.isTie && <span className={styles.tieTag}>Tied</span>}
+                {m.resultMode === "score" ? m.score : m.status === "completed" ? copy.session.final : copy.matches.vs}
+                {m.isTie && <span className={styles.tieTag}>{copy.session.tied}</span>}
               </span>
               <span className={`${styles.teamName} ${m.winner === "t2" ? styles.winner : m.winner === "t1" ? styles.loser : ""}`}>
                 {m.winner === "t2" && <WinMark />}
                 {m.t2Names}
               </span>
             </div>
-            {m.notCounted && <div className={styles.notCounted}>Ended early · not counted</div>}
+            {m.notCounted && <div className={styles.notCounted}>{copy.matches.endedEarly}</div>}
             {!readOnly && (
               <div className={styles.rowActions}>
                 {m.status === "completed" && m.resultMode === "score" && (
                   <button className={styles.actionBtn} onClick={m.onEditScore}>
-                    Fix Score
+                    {copy.matches.editScore}
                   </button>
                 )}
                 <button className={`${styles.actionBtn} ${styles.danger}`} onClick={m.onDelete}>
-                  {m.status === "in_progress" ? "Cancel Match" : "Delete"}
+                  {m.status === "in_progress" ? copy.matches.cancelMatch : copy.matches.deleteMatch}
                 </button>
               </div>
             )}

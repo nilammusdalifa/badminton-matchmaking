@@ -34,15 +34,13 @@
 .statLabel {
   font-size: 14px;
   color: var(--sm-text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
 }
 
 .sectionLabel {
   font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
   color: var(--sm-text-3);
 }
 
@@ -88,4 +86,13 @@
   font-size: 14px;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
+}
+
+/* The score column is named once, here, instead of on every row. */
+.columnHead {
+  margin-bottom: -4px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sm-text-3);
 }

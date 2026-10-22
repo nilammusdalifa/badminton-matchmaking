@@ -392,8 +392,8 @@ describe("games played list", () => {
       new Set(),
     );
     expect(vm.rows.map((r) => [r.games, r.text, r.status, r.warn])).toEqual([
-      ["1", "Nilam", "waiting", true],
-      ["1", "Raden", "waiting", true],
+      ["1", "Nilam", "in queue", true],
+      ["1", "Raden", "in queue", true],
       ["3", "Achmad", "left", false],
       ["4", "Akbar · Mariana · Yuni (left)", null, false],
       ["5", "Dadang · Imat", null, false],
@@ -1041,7 +1041,7 @@ describe("share card extras", () => {
     });
 
     it("💪 goes to the one player with the most games, and only from 4 games", () => {
-      expect(buildHighlights([pl("A", { games: 6 }), pl("B", { games: 5 })]).find((h) => h.icon === "💪")!.text).toBe("A · 6 games");
+      expect(buildHighlights([pl("A", { games: 6 }), pl("B", { games: 5 })]).find((h) => h.icon === "💪")!.text).toBe("A · 6 matches");
       expect(buildHighlights([pl("A", { games: 6 }), pl("B", { games: 6 })]).some((h) => h.icon === "💪")).toBe(false);
       expect(buildHighlights([pl("A", { games: 3 }), pl("B", { games: 2 })]).some((h) => h.icon === "💪")).toBe(false);
     });
@@ -1164,11 +1164,11 @@ describe("hard games", () => {
   const roster = () => [T("a1", "A"), T("a2", "A"), T("b1", "B"), T("b2", "B"), T("c1", "C"), T("c2", "C"), T("c3", "C"), T("c4", "C"), T("xb", "B", { status: "left" }), T("xc", "C", { status: "left" })];
   const four = (s: Suggestion | null) => s!.four.map((p) => p.id).sort();
 
-  it("a due A/B player gets an all-A/B match, noted for the organizer", () => {
+  it("a due A/B player gets an all-A/B match, noted for the umpire", () => {
     const sug = buildSuggestion(roster(), history, [], [], 0, { hardGames: true })!;
     expect(sug.hard).toBe(true);
     expect(four(sug)).toEqual(["a1", "a2", "b1", "b2"]);
-    expect(sug.balanceNote).toMatch(/^Hard game · a1 carried 2 games · Teams balanced by tier/);
+    expect(sug.balanceNote).toMatch(/^Hard match · a1 carried 2 matches · Teams balanced by tier/);
   });
 
   it("Shuffle on a hard game stays a hard game", () => {
@@ -1497,13 +1497,13 @@ describe("relief games in suggestions and plans", () => {
   const history = [completed("h1", ["c1", "d1"], ["c2", "d2"], 21, 15), completed("h2", ["c1", "d2"], ["c3", "d3"], 21, 15)];
   const levels = (s: Suggestion | null) => s!.four.map((p) => p.level);
 
-  it("a C due for relief gets a match with no D, flagged and noted for the organizer", () => {
+  it("a C due for relief gets a match with no D, flagged and noted for the umpire", () => {
     const sug = buildSuggestion(roster(), history, [], [], 0, { hardGames: true })!;
     expect(sug.noD).toBe(true);
     expect(sug.hard).toBeFalsy();
     expect(sug.four.map((p) => p.id)).toContain("c1");
     expect(levels(sug)).not.toContain("D");
-    expect(sug.balanceNote).toMatch(/^No-D game · c1 carried 2 games · Teams balanced by tier/);
+    expect(sug.balanceNote).toMatch(/^No-D match · c1 carried 2 matches · Teams balanced by tier/);
   });
 
   it("is off with the switch off", () => {
