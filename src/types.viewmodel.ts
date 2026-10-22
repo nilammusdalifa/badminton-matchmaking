@@ -127,6 +127,10 @@ export interface RankingEntry {
   note: string | null;
   /** Matches needed for a rank right now (see `rankMinGames`). */
   minMatches: number;
+  /** Every completed match played, counted or not (what the Session tab's "Fewest matches" shows). */
+  matchesPlayed: number;
+  /** Two or more matches fewer than the busiest player: the same rule as the Session tab's "behind" count. */
+  behind: boolean;
   /** Counts in the rankings (false for a host or guest switched out). */
   inRankings: boolean;
   /** Set for the organizer only: switch this player in or out of the rankings. */

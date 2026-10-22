@@ -39,6 +39,8 @@ import {
   lastActivityMs,
   matchStartedAt,
   rankMinGames,
+  mostMatchesPlayed,
+  isBehind,
   tieBreakReason,
   courtCloseReminders,
   parseClockTime,
@@ -1661,6 +1663,7 @@ export function useSessionStore() {
   const rankingsVM = useMemo<RankingEntry[]>(() => {
     const rows = standings.rows;
     const needsGames = rankMinGames(standings.maxGames);
+    const mostPlayed = mostMatchesPlayed(livePlayers);
     // Same score as a neighbour: say who is ahead, and on what.
     const tieNote = (i: number): string | null => {
       const cur = rows[i];
@@ -1690,6 +1693,9 @@ export function useSessionStore() {
       section,
       note: noteFor(i),
       minMatches: needsGames,
+      matchesPlayed: p.games,
+      // a player who hasn't checked in and hasn't played isn't behind, they're not here yet
+      behind: (p.status !== "expected" || p.games > 0) && isBehind(p, mostPlayed),
       inRankings: p.inRankings !== false,
       onToggleCounted: isOwner ? () => setPlayerCounted(p.id, p.inRankings === false) : null,
       name: p.name,
@@ -1719,7 +1725,7 @@ export function useSessionStore() {
       toughOppGames: p.toughOppGames,
       onSetLevel: (level) => setPlayerTier(p.id, level),
     }));
-  }, [standings, state.sessionResultMode, isOwner, setPlayerCounted, setPlayerTier]);
+  }, [standings, livePlayers, state.sessionResultMode, isOwner, setPlayerCounted, setPlayerTier]);
 
   // The tier-balance note names tiers, which the read-only Player view hides
   // everywhere else — so it's dropped from the reason line there.

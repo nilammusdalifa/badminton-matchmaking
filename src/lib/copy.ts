@@ -197,8 +197,14 @@ export const copy = {
     groupNotRanked: "Not ranked",
     you: "You",
     rank: (n: number) => `Rank ${n}`,
-    notPlayed: "Not played",
-    playedCount: (n: number) => `Played ${n}`,
+    /** The first stat on every card: matches played, in the same words as the Session tab. */
+    played: (n: number) => `Played ${n}`,
+    behind: "Behind",
+    behindHint: "two or more matches behind the busiest player",
+    sortLabel: "Sort rankings",
+    sortRank: "Rank",
+    sortMatches: "Matches played",
+    sortMatchesHint: "Fewest first",
     summary: (wins: number, losses: number, winPct: number) => `${wins}–${losses} · ${winPct}% wins`,
     formLabel: (form: ("W" | "L")[]) => (form.length === 0 ? "No results yet" : `Last ${form.length}: ${form.join(" ")}`),
     needsMatches: (n: number) => `Needs ${n} more ${n === 1 ? "match" : "matches"} to rank`,
@@ -213,7 +219,7 @@ export const copy = {
 
     detail: {
       thisSession: "This session",
-      playedWon: (played: number, won: number) => `Played ${played} · Won ${won}`,
+      won: (n: number) => `Won ${n}`,
       points: "Points",
       pointsValue: (pct: number, forPts: number, against: number) => `${pct}% · ${forPts}–${against}`,
       opponents: "Opponent strength",

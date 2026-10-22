@@ -3,7 +3,9 @@ import { createPortal } from "react-dom";
 import { LevelPicker } from "../LevelPicker";
 import { ShareNodesIcon } from "../icons";
 import { copy } from "../../lib/copy";
+import { useRankingSort } from "../../hooks/useRankingSort";
 import { avatarStyle } from "../../lib/playerColor";
+import { sortRankings } from "../../lib/rankingSort";
 import { RANK_MIN_GAMES } from "../../lib/session";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./RankingsTab.module.css";
@@ -53,7 +55,6 @@ function RankingRow({ r, resultMode, canEdit, hideTier, isYou }: RankingRowProps
   const [open, setOpen] = useState(false);
   // Medals and their tint follow the medal rule, not just the list position.
   const topRank = r.medal;
-  const record = resultMode === "none" ? copy.rankings.playedCount(r.played) : r.played === 0 ? copy.rankings.notPlayed : `${copy.rankings.summary(r.wins, r.losses, r.winPct)} · ${copy.rankings.playedCount(r.played)}`;
   // With results, the score is the headline and the record sits small beneath it.
   const showRate = resultMode !== "none" && r.played > 0;
   const hasInsights = r.favPartner !== "—" || r.toughOpp !== "—";
@@ -75,18 +76,30 @@ function RankingRow({ r, resultMode, canEdit, hideTier, isYou }: RankingRowProps
             {r.name} {!hideTier && <span className={styles.level}>Tier {r.level}</span>}
             {isYou && <span className={styles.youTag}>{copy.rankings.you}</span>}
           </span>
-          {showRate ? (
-            <span className={styles.winBig}>{r.score}</span>
-          ) : (
-            <span className={styles.record}>{record}</span>
-          )}
+          {showRate && <span className={styles.winBig}>{r.score}</span>}
           <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} aria-hidden="true">
             ›
           </span>
         </div>
         <div className={styles.summaryBottom}>
+          {/* matches played comes first so it can be scanned down the list: "Played 7 · 5–2 · 71% wins" */}
+          <span className={styles.stats}>
+            <strong className={styles.played}>{copy.rankings.played(r.matchesPlayed)}</strong>
+            {r.behind && (
+              <span className={styles.behindTag}>
+                {copy.rankings.behind}
+                <span className="srOnly">: {copy.rankings.behindHint}</span>
+              </span>
+            )}
+            {/* with the Behind tag the record drops to its own line, so a "·" never starts a wrapped line */}
+            {showRate && (
+              <span className={`${styles.rates} ${r.behind ? styles.ratesOwnLine : ""}`}>
+                {r.behind ? "" : "· "}
+                {copy.rankings.summary(r.wins, r.losses, r.winPct)}
+              </span>
+            )}
+          </span>
           <FormDots form={r.recentForm} />
-          {showRate && <span className={styles.rates}>{copy.rankings.summary(r.wins, r.losses, r.winPct)}</span>}
         </div>
         {r.note && <div className={styles.rowNote}>{r.note}</div>}
       </summary>
@@ -94,7 +107,7 @@ function RankingRow({ r, resultMode, canEdit, hideTier, isYou }: RankingRowProps
         {resultMode !== "none" && r.played > 0 && (
           <div className={styles.detailRow}>
             <span className={styles.detailLabel}>{copy.rankings.detail.thisSession}</span>
-            <span>{copy.rankings.detail.playedWon(r.played, r.wins)}</span>
+            <span>{copy.rankings.detail.won(r.wins)}</span>
           </div>
         )}
         {resultMode === "score" && r.played > 0 && r.pointsPct !== null && (
@@ -154,6 +167,7 @@ function RankingRow({ r, resultMode, canEdit, hideTier, isYou }: RankingRowProps
 
 export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRankings, hideTier, ended, youId }: RankingsTabProps) {
   const [infoOpen, setInfoOpen] = useState(false);
+  const [sort, setSort] = useRankingSort();
   const closeRef = useRef<HTMLButtonElement>(null);
   const renderRow = (r: Row) => <RankingRow key={r.id} r={r} resultMode={resultMode} canEdit={canEdit} hideTier={hideTier} isYou={r.id === youId} />;
 
@@ -166,6 +180,7 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
     return () => document.removeEventListener("keydown", onKey);
   }, [infoOpen]);
 
+  const byMatches = sort === "matches";
   const ranked = rankingsVM.filter((r) => r.section === "ranked");
   const tooFew = rankingsVM.filter((r) => r.section === "tooFew");
   const notRanked = rankingsVM.filter((r) => r.section === "notRanked");
@@ -184,6 +199,25 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
               )}
             </div>
             {rankingsVM.length > 0 && <div className={styles.subtitle}>{copy.rankings.rule[resultMode]}</div>}
+            {rankingsVM.length > 1 && (
+              <div className={styles.sortRow}>
+                <div className={styles.segmented} role="group" aria-label={copy.rankings.sortLabel}>
+                  {(["rank", "matches"] as const).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      aria-pressed={sort === option}
+                      className={`${styles.segment} ${sort === option ? styles.segmentOn : ""}`}
+                      onClick={() => setSort(option)}
+                    >
+                      {sort === option && <span aria-hidden="true">✓ </span>}
+                      {option === "rank" ? copy.rankings.sortRank : copy.rankings.sortMatches}
+                    </button>
+                  ))}
+                </div>
+                {byMatches && <span className={styles.sortHint}>{copy.rankings.sortMatchesHint}</span>}
+              </div>
+            )}
           </div>
           {rankingsVM.some((r) => r.rank !== null) && (
             <button className={styles.shareBtn} onClick={onShareRankings}>
@@ -198,8 +232,11 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
 
       {rankingsVM.length === 0 && <div className={styles.empty}>{copy.rankings.none}</div>}
 
-      {resultMode === "none" ? (
-        <div className={styles.list}>{rankingsVM.map(renderRow)}</div>
+      {resultMode === "none" || byMatches ? (
+        <>
+          {resultMode !== "none" && rankingsVM.some((r) => r.played > 0) && <div className={styles.columnHead}>{copy.rankings.scoreColumn}</div>}
+          <div className={styles.list}>{sortRankings(rankingsVM, sort).map(renderRow)}</div>
+        </>
       ) : (
         <>
           {/* the score column is named once, here, rather than under every number */}

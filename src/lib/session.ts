@@ -737,6 +737,19 @@ export function hostSwitchLocked(courts: Court[], matches: Match[]): boolean {
  * (waiting, resting, left…) and a warning; the rest are grouped by count.
  * Players not checked in (and with no games) come last. Counts every game
  * played, including matches that ended early. */
+/** The most matches anyone who has been here has played: the bar "behind" is measured from.
+ * Players not yet checked in (and with no matches) aren't counted. */
+export function mostMatchesPlayed(players: Pick<Player, "status" | "games">[]): number {
+  return Math.max(0, ...players.filter((p) => p.status !== "expected" || p.games > 0).map((p) => p.games));
+}
+
+/** Two or more matches fewer than the busiest player. Someone who has left can't
+ * catch up, so they're never flagged. Used for the Session tab's "behind" count
+ * and for the "Behind" tag on Rankings, so the two always agree. */
+export function isBehind(p: Pick<Player, "status" | "games">, most: number): boolean {
+  return most - p.games >= 2 && p.status !== "left";
+}
+
 export function buildGamesPlayed(players: Player[], playingIds: Set<string>): GamesPlayedVM {
   const where = (p: Player) =>
     playingIds.has(p.id)
@@ -750,13 +763,12 @@ export function buildGamesPlayed(players: Player[], playingIds: Set<string>): Ga
             : copy.status.where.absent;
   const here = players.filter((p) => p.status !== "expected" || p.games > 0);
   const absent = players.filter((p) => p.status === "expected" && p.games === 0);
-  const most = Math.max(0, ...here.map((p) => p.games));
+  const most = mostMatchesPlayed(players);
   const byCount = new Map<number, Player[]>();
   for (const p of [...here].sort((a, b) => a.games - b.games || a.name.localeCompare(b.name))) {
     byCount.set(p.games, [...(byCount.get(p.games) ?? []), p]);
   }
-  // someone who has left can't catch up, so they're never flagged
-  const behind = (p: Player) => most - p.games >= 2 && p.status !== "left";
+  const behind = (p: Player) => isBehind(p, most);
   const rows: GamesPlayedRow[] = [];
   for (const [games, members] of byCount) {
     if (members.length === 1 || members.some(behind)) {
