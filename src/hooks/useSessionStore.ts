@@ -764,8 +764,9 @@ export function useSessionStore() {
       }
       setState((s) => {
         const four = [...ids1, ...ids2];
+        const startedAt = Date.now();
         const newMatch: Match = {
-          id: "m" + Date.now(),
+          id: "m" + startedAt,
           round: 0, // vestigial — the header no longer surfaces a "round" concept
           num: s.matches.length + 1,
           courtId,
@@ -775,6 +776,7 @@ export function useSessionStore() {
           s1: 0,
           s2: 0,
           elapsedAtTick0: -s.tick,
+          startedAt,
           resultMode: s.sessionResultMode,
           // Captured before the mutation below touches anyone, so cancelling
           // this match later can put everyone back exactly where they were.

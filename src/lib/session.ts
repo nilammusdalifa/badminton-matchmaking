@@ -80,9 +80,11 @@ export function scheduleEnded(schedule: string, anchorMs: number | null, nowMs: 
   return false;
 }
 
-/** When a match started, read from its id ("m" + the epoch ms it was created
- * at); null for an id that isn't one of those. */
-export function matchStartedAt(match: Pick<Match, "id">): number | null {
+/** When a match started: its `startedAt`, or for a match from before that was
+ * recorded, the time in its id ("m" + the epoch ms it was created at). Null
+ * when it has neither. */
+export function matchStartedAt(match: Pick<Match, "id" | "startedAt">): number | null {
+  if (typeof match.startedAt === "number" && Number.isFinite(match.startedAt)) return match.startedAt;
   const m = match.id.match(/^m(\d{12,})$/);
   return m ? Number(m[1]) : null;
 }

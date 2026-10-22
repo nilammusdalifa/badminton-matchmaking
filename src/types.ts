@@ -96,6 +96,11 @@ export interface Match {
    * the global `tick` counter to derive a live-updating match clock without
    * a per-match timer. */
   elapsedAtTick0: number;
+  /** Epoch ms when this match was started: what "Started 20 min ago" and the
+   * session's last-activity time are read from. Missing on matches started
+   * before this field existed; those fall back to the time in their id (see
+   * `matchStartedAt`). */
+  startedAt?: number;
   /** Stamped from the session's setting at the moment this match was
    * started — a mode change mid-session only affects matches created after
    * it, never rewrites history. Missing on matches persisted before this

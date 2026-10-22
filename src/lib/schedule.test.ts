@@ -53,9 +53,22 @@ describe("zonedToEpoch", () => {
 
 describe("activity anchors", () => {
   const m = (id: string): Match => ({ id, round: 0, num: 1, courtId: "1", status: "completed", t1: ["a", "b"], t2: ["c", "d"], s1: 21, s2: 10, elapsedAtTick0: 0 });
-  it("reads a match's start from its id", () => {
+  it("reads a match's start from startedAt", () => {
+    expect(matchStartedAt({ ...m("m3"), startedAt: 1792587600000 })).toBe(1792587600000);
+  });
+  it("prefers startedAt to the time in the id", () => {
+    expect(matchStartedAt({ ...m("m1792587600000"), startedAt: 1792588800000 })).toBe(1792588800000);
+  });
+  it("falls back to the id for a match from before startedAt was recorded", () => {
     expect(matchStartedAt(m("m1792587600000"))).toBe(1792587600000);
     expect(matchStartedAt(m("m3"))).toBeNull();
+  });
+  it("ignores a startedAt that isn't a usable number", () => {
+    expect(matchStartedAt({ ...m("m1792587600000"), startedAt: NaN })).toBe(1792587600000);
+    expect(matchStartedAt({ ...m("m3"), startedAt: undefined })).toBeNull();
+  });
+  it("uses startedAt for a match's contribution to the last activity", () => {
+    expect(lastActivityMs([{ ...m("m1792587600000"), startedAt: 1792588800000 }], [])).toBe(1792588800000);
   });
   it("takes the latest of match starts and players coming free", () => {
     expect(lastActivityMs([m("m1792587600000")], [{ idleSince: 1792590000000 }, {}])).toBe(1792590000000);
