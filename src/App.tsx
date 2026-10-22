@@ -12,12 +12,14 @@ import { ManageTab } from "./components/tabs/ManageTab";
 import { MatchesTab } from "./components/tabs/MatchesTab";
 import { RankingsTab } from "./components/tabs/RankingsTab";
 import { SessionTab } from "./components/tabs/SessionTab";
+import { useMyPlayer } from "./hooks/useMyPlayer";
 import { useSessionStore } from "./hooks/useSessionStore";
 import styles from "./App.module.css";
 
 function App() {
   const store = useSessionStore();
   const { remote } = store;
+  const [youId, setYouId] = useMyPlayer();
 
   // A shared `?view=` link: gate on picking a role, entering the Umpire PIN,
   // and the session actually being reachable, before showing anything else.
@@ -28,17 +30,20 @@ function App() {
     if (!ready) return <RemoteGate {...remote} />;
   }
 
+  const isReadOnlyPlayer = remote.isRemoteMode && remote.role === "player";
+
   if (store.isReviewMode) {
     return (
       <>
-        <ReviewScreen {...store.review} />
+        <ReviewScreen {...store.review} readOnly={isReadOnlyPlayer} />
         <ShareRankingsModal {...store.shareRankings} />
         <Toast message={store.toast.message} />
       </>
     );
   }
 
-  const isReadOnlyPlayer = remote.isRemoteMode && remote.role === "player";
+  // Once the schedule has passed, a viewer is shown the final standings, not a live session.
+  const sessionOver = isReadOnlyPlayer && store.session.scheduleOver;
 
   return (
     <div className={styles.app}>
@@ -47,7 +52,7 @@ function App() {
       <div className={styles.blobCenter} />
       <div className={styles.dotGrid} />
 
-      <Header {...store.header} />
+      <Header {...store.header} readOnly={isReadOnlyPlayer} />
 
       {store.photoReminder && (
         <div className={styles.photoBanner}>
@@ -76,10 +81,23 @@ function App() {
 
       {isReadOnlyPlayer && <div className={styles.readOnlyBanner}>View only. Ask the organizer to make changes.</div>}
 
-      <div className={`${styles.main} ${isReadOnlyPlayer ? styles.readOnlyMain : ""}`}>
-        {store.tabs.active === "session" && <SessionTab {...store.session} hideTier={isReadOnlyPlayer} readOnly={isReadOnlyPlayer} onSeeAllMatches={isReadOnlyPlayer ? undefined : () => store.tabs.setActiveTab("matches")} />}
+      <div className={styles.main}>
+        {store.tabs.active === "session" && (
+          <SessionTab
+            {...store.session}
+            hideTier={isReadOnlyPlayer}
+            readOnly={isReadOnlyPlayer}
+            onSeeAllMatches={() => store.tabs.setActiveTab("matches")}
+            rankings={store.rankings.rankingsVM}
+            onSeeRankings={() => store.tabs.setActiveTab("rankings")}
+            youId={youId}
+            onSetYou={setYouId}
+          />
+        )}
         {store.tabs.active === "matches" && <MatchesTab {...store.matches} readOnly={isReadOnlyPlayer} />}
-        {store.tabs.active === "rankings" && <RankingsTab {...store.rankings} hideTier={isReadOnlyPlayer} />}
+        {store.tabs.active === "rankings" && (
+          <RankingsTab {...store.rankings} hideTier={isReadOnlyPlayer} ended={sessionOver} youId={isReadOnlyPlayer ? youId : null} />
+        )}
         {store.tabs.active === "manage" && !isReadOnlyPlayer && <ManageTab {...store.manage} />}
       </div>
 

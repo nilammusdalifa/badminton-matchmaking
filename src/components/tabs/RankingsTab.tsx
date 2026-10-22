@@ -1,11 +1,18 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LevelPicker } from "../LevelPicker";
 import { ShareNodesIcon } from "../icons";
+import { avatarStyle } from "../../lib/playerColor";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./RankingsTab.module.css";
 
-type RankingsTabProps = SessionStore["rankings"] & { hideTier?: boolean };
+type RankingsTabProps = SessionStore["rankings"] & {
+  hideTier?: boolean;
+  /** The session has ended: these are the final standings. */
+  ended?: boolean;
+  /** Who this viewer says they are; their row is marked. */
+  youId?: string | null;
+};
 type Row = RankingsTabProps["rankingsVM"][number];
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
@@ -22,135 +29,179 @@ const share = (pct: number, games: number) => Math.round((pct * games) / 100);
 // "Tougher" only once the gap is clear; a few stray games shouldn't read as a verdict.
 const difficulty = (edge: number) => (edge >= 0.25 ? "Tougher than their team" : edge <= -0.25 ? "Easier than their team" : "About even");
 
-export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRankings, hideTier }: RankingsTabProps) {
-  const [infoOpen, setInfoOpen] = useState(false);
-
-  const renderRow = (r: Row) => {
-    // Medals and their tint follow the medal rule, not just the list position.
-    const topRank = r.medal;
-    const record =
-      resultMode === "none"
-        ? `${r.played} played`
-        : r.played === 0
-          ? "Not played"
-          : `${r.wins}W–${r.losses}L · ${r.played} ${r.played === 1 ? "game" : "games"}`;
-    // With results, the score is the headline and the record sits small beneath it.
-    const showRate = resultMode !== "none" && r.played > 0;
-    const hasInsights = r.favPartner !== "—" || r.toughOpp !== "—";
-    const rankCell = topRank ? MEDAL[topRank] : r.section === "ranked" ? r.rank : "";
-    return (
-      <details className={`${styles.row} ${topRank ? styles["top" + topRank] : ""}`} key={r.id}>
-        <summary className={styles.summary}>
-          <div className={styles.summaryTop}>
-            <span className={styles.rank}>{rankCell}</span>
-            <div className={`${styles.avatar} ${topRank ? styles["avatarTop" + topRank] : ""}`}>{r.initials}</div>
-            <span className={styles.name}>
-              {r.name} {!hideTier && <span className={styles.level}>Tier {r.level}</span>}
+/** Last results as W/L letters (filled for a win, hollow for a loss), so form never depends on colour. */
+function FormDots({ form }: { form: number[] }) {
+  const label = form.length === 0 ? "No results yet" : `Last ${form.length}: ${form.map((res) => (res > 0 ? "W" : "L")).join(" ")}`;
+  return (
+    <div className={styles.formDots} role="img" aria-label={label}>
+      {form.length === 0
+        ? Array.from({ length: 5 }).map((_, i) => <span key={i} className={styles.formDotEmpty} />)
+        : form.map((res, i) => (
+            <span key={i} className={res > 0 ? styles.formDotWin : styles.formDotLoss} aria-hidden="true">
+              {res > 0 ? "W" : "L"}
             </span>
-            {showRate ? (
-              <span className={styles.winBig}>
-                {r.score}
-                <span className={styles.scoreCaption}>score</span>
-              </span>
-            ) : (
-              <span className={styles.record}>{record}</span>
-            )}
+          ))}
+    </div>
+  );
+}
+
+interface RankingRowProps {
+  r: Row;
+  resultMode: RankingsTabProps["resultMode"];
+  canEdit: boolean;
+  hideTier?: boolean;
+  isYou: boolean;
+}
+
+function RankingRow({ r, resultMode, canEdit, hideTier, isYou }: RankingRowProps) {
+  const [open, setOpen] = useState(false);
+  // Medals and their tint follow the medal rule, not just the list position.
+  const topRank = r.medal;
+  const record =
+    resultMode === "none"
+      ? `${r.played} played`
+      : r.played === 0
+        ? "Not played"
+        : `${r.wins}W–${r.losses}L · ${r.played} ${r.played === 1 ? "game" : "games"}`;
+  // With results, the score is the headline and the record sits small beneath it.
+  const showRate = resultMode !== "none" && r.played > 0;
+  const hasInsights = r.favPartner !== "—" || r.toughOpp !== "—";
+  const rankCell = topRank ? MEDAL[topRank] : r.section === "ranked" ? r.rank : "";
+  return (
+    <details
+      className={`${styles.row} ${topRank ? styles["top" + topRank] : ""} ${isYou ? styles.you : ""}`}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
+      <summary className={styles.summary} aria-expanded={open}>
+        <div className={styles.summaryTop}>
+          <span className={styles.rank} role={topRank ? "img" : undefined} aria-label={topRank ? `Rank ${topRank}` : undefined}>
+            {rankCell}
+          </span>
+          <div className={`${styles.avatar} ${topRank ? styles["avatarTop" + topRank] : ""}`} style={avatarStyle(r.name)}>
+            {r.initials}
           </div>
-          <div className={styles.summaryBottom}>
-            <div className={styles.formDots} aria-label="Last 5 results">
-              {r.recentForm.length === 0
-                ? Array.from({ length: 5 }).map((_, i) => <span key={i} className={styles.formDotEmpty} />)
-                : r.recentForm.map((res, i) => <span key={i} className={res > 0 ? styles.formDotWin : styles.formDotLoss} />)}
-            </div>
-            {showRate && (
-              <span className={styles.rates}>
-                {/* each part stays whole, so a narrow row breaks between them, never inside "53% pts" */}
-                <span className={styles.nowrap}>
-                  {r.wins}W–{r.losses}L
-                </span>{" "}
-                · <span className={styles.nowrap}>{r.winPct}% won</span>
-                {r.pointsPct !== null && (
-                  <>
-                    {" "}
-                    · <span className={styles.nowrap}>{r.pointsPct}% pts</span>
-                  </>
-                )}
-              </span>
-            )}
-          </div>
-        </summary>
-        <div className={styles.detail}>
-          {resultMode !== "none" && r.played > 0 && (
-            <div className={styles.detailRow}>
-              <span className={styles.detailLabel}>This session</span>
-              <span>
-                Played <strong className={styles.detailStrong}>{r.played}</strong> · Won <strong className={styles.detailStrong}>{r.wins}</strong>
-                {resultMode === "score" && (
-                  <>
-                    {" "}
-                    · Points{" "}
-                    <strong className={styles.detailStrong}>
-                      {r.pointsFor}–{r.pointsAgainst}
-                    </strong>
-                  </>
-                )}
-              </span>
-            </div>
+          <span className={styles.name}>
+            {r.name} {!hideTier && <span className={styles.level}>Tier {r.level}</span>}
+            {isYou && <span className={styles.youTag}>You</span>}
+          </span>
+          {showRate ? (
+            <span className={styles.winBig}>
+              {r.score}
+              <span className={styles.scoreCaption}>score</span>
+            </span>
+          ) : (
+            <span className={styles.record}>{record}</span>
           )}
-          {resultMode !== "none" && r.played > 0 && (
-            <div className={styles.detailRow}>
-              <span className={styles.detailLabel}>Opponents</span>
-              <span>
-                <strong className={styles.detailStrong}>{difficulty(r.oppEdge)}</strong>
-              </span>
-            </div>
-          )}
-          {r.partnersCount > 0 && (
-            <div className={styles.detailRow}>
-              <span className={styles.detailLabel}>Partners</span>
-              <span>
-                <strong className={styles.detailStrong}>{r.partnersCount}</strong> different
-              </span>
-            </div>
-          )}
-          {r.favPartner !== "—" && (
-            <div className={styles.detailRow}>
-              <span className={styles.detailLabel}>Best partner</span>
-              <span>
-                <strong className={styles.detailStrong}>{r.favPartner}</strong> · won {share(r.favPartnerWin, r.favPartnerGames)} of {r.favPartnerGames}
-              </span>
-            </div>
-          )}
-          {r.toughOpp !== "—" && (
-            <div className={styles.detailRow}>
-              <span className={styles.detailLabel}>Toughest opponent</span>
-              <span>
-                <strong className={styles.detailStrong}>{r.toughOpp}</strong> · lost {share(r.toughOppLoss, r.toughOppGames)} of {r.toughOppGames}
-              </span>
-            </div>
-          )}
-          {r.section === "tooFew" && r.played > 0 && (
-            <div className={styles.fewNote}>
-              Played {r.played} of {r.mostGames}. A rank needs at least 3 games, and at least half as many as the player with the most.
-            </div>
-          )}
-          {r.section === "notRanked" && <div className={styles.fewNote}>Plays, but isn&apos;t competing for a place. Doesn&apos;t change anyone else&apos;s record.</div>}
-          {!hasInsights && <div>Not enough games yet.</div>}
-          {!hideTier && canEdit && (
-            <div className={styles.tierRow}>
-              <span className={styles.tierLabel}>Tier (A strongest):</span>
-              <LevelPicker value={r.level} onChange={r.onSetLevel} size="sm" />
-            </div>
-          )}
-          {canEdit && r.onToggleCounted && resultMode !== "none" && (
-            <button className={styles.countBtn} onClick={r.onToggleCounted}>
-              {r.inRankings ? "Exclude from rankings" : "Include in rankings"}
-            </button>
+          <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} aria-hidden="true">
+            ›
+          </span>
+        </div>
+        <div className={styles.summaryBottom}>
+          <FormDots form={r.recentForm} />
+          {showRate && (
+            <span className={styles.rates}>
+              {/* each part stays whole, so a narrow row breaks between them, never inside "53% pts" */}
+              <span className={styles.nowrap}>
+                {r.wins}W–{r.losses}L
+              </span>{" "}
+              · <span className={styles.nowrap}>{r.winPct}% won</span>
+              {r.pointsPct !== null && (
+                <>
+                  {" "}
+                  · <span className={styles.nowrap}>{r.pointsPct}% pts</span>
+                </>
+              )}
+            </span>
           )}
         </div>
-      </details>
-    );
-  };
+        {r.note && <div className={styles.rowNote}>{r.note}</div>}
+      </summary>
+      <div className={styles.detail}>
+        {resultMode !== "none" && r.played > 0 && (
+          <div className={styles.detailRow}>
+            <span className={styles.detailLabel}>This session</span>
+            <span>
+              Played <strong className={styles.detailStrong}>{r.played}</strong> · Won <strong className={styles.detailStrong}>{r.wins}</strong>
+              {resultMode === "score" && (
+                <>
+                  {" "}
+                  · Points{" "}
+                  <strong className={styles.detailStrong}>
+                    {r.pointsFor}–{r.pointsAgainst}
+                  </strong>
+                </>
+              )}
+            </span>
+          </div>
+        )}
+        {resultMode !== "none" && r.played > 0 && (
+          <div className={styles.detailRow}>
+            <span className={styles.detailLabel}>Opponents</span>
+            <span>
+              <strong className={styles.detailStrong}>{difficulty(r.oppEdge)}</strong>
+            </span>
+          </div>
+        )}
+        {r.partnersCount > 0 && (
+          <div className={styles.detailRow}>
+            <span className={styles.detailLabel}>Partners</span>
+            <span>
+              <strong className={styles.detailStrong}>{r.partnersCount}</strong> different
+            </span>
+          </div>
+        )}
+        {r.favPartner !== "—" && (
+          <div className={styles.detailRow}>
+            <span className={styles.detailLabel}>Best partner</span>
+            <span>
+              <strong className={styles.detailStrong}>{r.favPartner}</strong> · won {share(r.favPartnerWin, r.favPartnerGames)} of {r.favPartnerGames}
+            </span>
+          </div>
+        )}
+        {r.toughOpp !== "—" && (
+          <div className={styles.detailRow}>
+            <span className={styles.detailLabel}>Toughest opponent</span>
+            <span>
+              <strong className={styles.detailStrong}>{r.toughOpp}</strong> · lost {share(r.toughOppLoss, r.toughOppGames)} of {r.toughOppGames}
+            </span>
+          </div>
+        )}
+        {r.section === "tooFew" && r.played > 0 && (
+          <div className={styles.fewNote}>
+            Played {r.played} of {r.mostGames}. A rank needs at least 3 games, and at least half as many as the player with the most.
+          </div>
+        )}
+        {r.section === "notRanked" && <div className={styles.fewNote}>Plays, but isn&apos;t competing for a place. Doesn&apos;t change anyone else&apos;s record.</div>}
+        {!hasInsights && <div>Not enough games yet.</div>}
+        {!hideTier && canEdit && (
+          <div className={styles.tierRow}>
+            <span className={styles.tierLabel}>Tier (A strongest):</span>
+            <LevelPicker value={r.level} onChange={r.onSetLevel} size="sm" />
+          </div>
+        )}
+        {canEdit && r.onToggleCounted && resultMode !== "none" && (
+          <button className={styles.countBtn} onClick={r.onToggleCounted}>
+            {r.inRankings ? "Exclude from rankings" : "Include in rankings"}
+          </button>
+        )}
+      </div>
+    </details>
+  );
+  }
+
+export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRankings, hideTier, ended, youId }: RankingsTabProps) {
+  const [infoOpen, setInfoOpen] = useState(false);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const renderRow = (r: Row) => <RankingRow key={r.id} r={r} resultMode={resultMode} canEdit={canEdit} hideTier={hideTier} isYou={r.id === youId} />;
+
+  // The sheet is a real dialog: Escape closes it, and focus starts inside it.
+  useEffect(() => {
+    if (!infoOpen) return;
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setInfoOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [infoOpen]);
 
   const ranked = rankingsVM.filter((r) => r.section === "ranked");
   const tooFew = rankingsVM.filter((r) => r.section === "tooFew");
@@ -162,9 +213,9 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
         <div className={styles.titleRow}>
           <div>
             <div className={styles.titleLine}>
-              <h1 className={styles.title}>Rankings</h1>
+              <h1 className={styles.title}>{ended ? "Final rankings" : "Rankings"}</h1>
               {resultMode !== "none" && (
-                <button className={styles.infoBtn} onClick={() => setInfoOpen(true)} aria-label="How rankings work">
+                <button className={styles.infoBtn} onClick={() => setInfoOpen(true)} aria-label="How rankings work" aria-haspopup="dialog">
                   i
                 </button>
               )}
@@ -208,7 +259,7 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
       {infoOpen &&
         createPortal(
           <div className={styles.sheetBackdrop} onClick={() => setInfoOpen(false)}>
-            <div className={styles.sheet} role="dialog" aria-label="How rankings work" onClick={(e) => e.stopPropagation()}>
+            <div className={styles.sheet} role="dialog" aria-modal="true" aria-label="How rankings work" onClick={(e) => e.stopPropagation()}>
               <div className={styles.sheetTitle}>How rankings work</div>
               <ol className={styles.sheetList}>
                 {resultMode === "score" ? (
@@ -242,11 +293,11 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
                 </li>
                 <li>
                   <strong>You need at least 3 games</strong>, and at least half as many as the player with the most, to get a rank. Others are listed under
-                  &quot;Not enough games yet&quot;. Medals wait until most players have played 2 games.
+                  &quot;Not enough games yet&quot;. Hosts and guests who play but aren&apos;t competing are listed under &quot;Not ranked&quot;. Medals wait until most players have played 2 games.
                 </li>
               </ol>
               <div className={styles.sheetNote}>Partners rotate all night, and the score allows for how strong your pair was against theirs.</div>
-              <button className={styles.sheetClose} onClick={() => setInfoOpen(false)}>
+              <button className={styles.sheetClose} ref={closeRef} onClick={() => setInfoOpen(false)}>
                 Got it
               </button>
             </div>

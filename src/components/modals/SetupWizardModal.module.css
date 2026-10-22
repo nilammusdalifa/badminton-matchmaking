@@ -55,8 +55,8 @@
   flex-direction: column;
   gap: 16px;
 }
-.stepTitle { font-size: 13px; font-weight: 700; }
-.stepHint { font-size: 12px; color: var(--sm-text-3); margin-top: -12px; }
+.stepTitle { font-size: 14px; font-weight: 700; }
+.stepHint { font-size: 14px; color: var(--sm-text-3); margin-top: -12px; }
 .rosterChips {
   display: flex;
   flex-wrap: wrap;
@@ -69,18 +69,18 @@
   border-radius: 999px;
   background: var(--sm-fill);
   color: var(--sm-text-2);
-  font-size: 12px;
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
-.fieldHint { font-size: 12px; color: var(--sm-text-3); }
-.warnNote { font-size: 12px; color: var(--sm-danger-text); padding: 0 2px; }
+.fieldHint { font-size: 14px; color: var(--sm-text-3); }
+.warnNote { font-size: 14px; color: var(--sm-danger-text); padding: 0 2px; }
 .field {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 .fieldLabel {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -120,7 +120,7 @@
   font-family: var(--font-body), sans-serif;
 }
 .rulesNote {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-text-3);
   padding: 0 2px;
 }
@@ -136,7 +136,7 @@
   border: 1px solid var(--sm-border);
   background: transparent;
   color: var(--sm-text-2);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
@@ -148,7 +148,7 @@
 }
 
 .review {
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--color-neutral-400);
   background: rgba(0, 0, 0, 0.18);
   border-radius: var(--radius-md);
@@ -158,7 +158,7 @@
   gap: 4px;
 }
 .consequence {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-accent-hover);
 }
 
@@ -174,7 +174,7 @@
   background: transparent;
   color: var(--sm-text-2);
   font-weight: 700;
-  font-size: 12.5px;
+  font-size: 14px;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
@@ -186,7 +186,7 @@
   background: var(--sm-accent);
   color: var(--sm-accent-on);
   font-weight: 800;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
@@ -199,7 +199,7 @@
   padding: 6px 6px 6px 14px;
   background: rgba(0, 0, 0, 0.18);
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 .timeInput {

@@ -1,3 +1,4 @@
+import { WinMark } from "../WinMark";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./MatchesTab.module.css";
 
@@ -27,6 +28,7 @@ export function MatchesTab({ matchLogVM, courtsCount, readOnly }: MatchesTabProp
               <div className={styles.rowMeta}>
                 <span className={styles.court}>{m.courtName}</span>
                 <span className={styles.matchNum}>#{m.matchNumber}</span>
+                {m.startedLabel && <span className={styles.startedAt}>Started {m.startedLabel}</span>}
               </div>
               <span className={`${styles.badge} ${m.status === "in_progress" ? styles.inProgress : styles.completed}`}>
                 {m.status === "in_progress" ? "Live" : m.notCounted ? "Ended early" : "Final"}
@@ -34,6 +36,7 @@ export function MatchesTab({ matchLogVM, courtsCount, readOnly }: MatchesTabProp
             </div>
             <div className={styles.teams}>
               <span className={`${styles.teamName} ${m.winner === "t1" ? styles.winner : m.winner === "t2" ? styles.loser : ""}`}>
+                {m.winner === "t1" && <WinMark />}
                 {m.t1Names}
               </span>
               <span className={styles.score}>
@@ -41,20 +44,23 @@ export function MatchesTab({ matchLogVM, courtsCount, readOnly }: MatchesTabProp
                 {m.isTie && <span className={styles.tieTag}>Tied</span>}
               </span>
               <span className={`${styles.teamName} ${m.winner === "t2" ? styles.winner : m.winner === "t1" ? styles.loser : ""}`}>
+                {m.winner === "t2" && <WinMark />}
                 {m.t2Names}
               </span>
             </div>
             {m.notCounted && <div className={styles.notCounted}>Ended early · not counted</div>}
-            <div className={styles.rowActions}>
-              {m.status === "completed" && m.resultMode === "score" && (
-                <button className={styles.actionBtn} onClick={m.onEditScore}>
-                  Fix Score
+            {!readOnly && (
+              <div className={styles.rowActions}>
+                {m.status === "completed" && m.resultMode === "score" && (
+                  <button className={styles.actionBtn} onClick={m.onEditScore}>
+                    Fix Score
+                  </button>
+                )}
+                <button className={`${styles.actionBtn} ${styles.danger}`} onClick={m.onDelete}>
+                  {m.status === "in_progress" ? "Cancel Match" : "Delete"}
                 </button>
-              )}
-              <button className={`${styles.actionBtn} ${styles.danger}`} onClick={m.onDelete}>
-                {m.status === "in_progress" ? "Cancel Match" : "Delete"}
-              </button>
-            </div>
+              </div>
+            )}
           </div>
         ))}
       </div>

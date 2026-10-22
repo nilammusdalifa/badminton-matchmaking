@@ -1,17 +1,21 @@
 import { Fragment } from "react";
+import { localizeSchedule } from "../lib/locale";
 import type { SessionStore } from "../hooks/useSessionStore";
 import styles from "./ReviewScreen.module.css";
 
-type ReviewProps = SessionStore["review"];
+type ReviewProps = SessionStore["review"] & {
+  /** View-only: no way to start a new session. */
+  readOnly?: boolean;
+};
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
-export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, playersCount, courtsCount, resultMode, rankingsVM, onShareRankings, onStartNew }: ReviewProps) {
+export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, playersCount, courtsCount, resultMode, rankingsVM, onShareRankings, onStartNew, readOnly }: ReviewProps) {
   return (
     <div className={styles.wrap}>
       <div className={styles.heading}>
         <div className={styles.title}>Session Complete</div>
-        <div className={styles.subtitle}>{sessionSchedule ? `${sessionName} · ${sessionSchedule}` : sessionName}</div>
+        <div className={styles.subtitle}>{sessionSchedule ? `${sessionName} · ${localizeSchedule(sessionSchedule)}` : sessionName}</div>
       </div>
       <div className={styles.stats}>
         <div className={styles.stat}>
@@ -54,9 +58,11 @@ export function ReviewScreen({ sessionName, sessionSchedule, matchesCompleted, p
           Share Rankings
         </button>
       )}
-      <button className={styles.startNewBtn} onClick={onStartNew}>
-        New Session
-      </button>
+      {!readOnly && (
+        <button className={styles.startNewBtn} onClick={onStartNew}>
+          New Session
+        </button>
+      )}
     </div>
   );
 }

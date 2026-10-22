@@ -1,9 +1,28 @@
 import { useRef, useState } from "react";
 import { CourtCard } from "../CourtCard";
+import { WinMark } from "../WinMark";
+import { avatarStyle } from "../../lib/playerColor";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./SessionTab.module.css";
 
-type SessionTabProps = SessionStore["session"] & { hideTier?: boolean; readOnly?: boolean; onSeeAllMatches?: () => void };
+type SessionTabProps = SessionStore["session"] & {
+  hideTier?: boolean;
+  /** View-only (a Player on a shared link): information only, no editing controls rendered. */
+  readOnly?: boolean;
+  onSeeAllMatches?: () => void;
+  /** Rankings, for the final standings shown once the session has ended. */
+  rankings: SessionStore["rankings"]["rankingsVM"];
+  onSeeRankings?: () => void;
+  /** Who this viewer says they are ("Who are you?"); highlights them in the queue. */
+  youId?: string | null;
+  onSetYou?: (id: string | null) => void;
+};
+
+const ordinal = (n: number) => {
+  const rest = n % 100;
+  if (rest >= 11 && rest <= 13) return `${n}th`;
+  return `${n}${["th", "st", "nd", "rd"][n % 10 > 3 ? 0 : n % 10]}`;
+};
 
 export function SessionTab({
   playersCount,
@@ -24,9 +43,16 @@ export function SessionTab({
   sessionHealth,
   gamesPlayedVM,
   fewPlayersHint,
+  scheduleOver,
+  scheduleEndLabel,
+  playerOptions,
   hideTier,
   readOnly,
   onSeeAllMatches,
+  rankings,
+  onSeeRankings,
+  youId,
+  onSetYou,
 }: SessionTabProps) {
   // The "Games played" card is collapsed until asked for; the strip under
   // Waiting opens it and brings it into view.
@@ -36,6 +62,167 @@ export function SessionTab({
     setGamesOpen(true);
     requestAnimationFrame(() => gamesRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
   };
+
+  // A viewer only sees "ended" once the schedule has passed; the umpire's own
+  // screen keeps running as it always did (it has End Session for that).
+  const ended = Boolean(readOnly && scheduleOver);
+  const you = readOnly && youId ? playerOptions.find((p) => p.id === youId) : undefined;
+  const yourQueueIndex = you ? waitingVM.findIndex((w) => w.id === you.id) : -1;
+  const yourCourt = you ? courtsVM.find((c) => c.match && [c.match.t1p1, c.match.t1p2, c.match.t2p1, c.match.t2p2].includes(you.name)) : undefined;
+  const yourStatus = !you
+    ? null
+    : yourCourt
+      ? `You're playing on ${yourCourt.name}`
+      : yourQueueIndex >= 0 && !ended
+        ? yourQueueIndex === 0
+          ? "You're next in line"
+          : `You're ${ordinal(yourQueueIndex + 1)} in line`
+        : notInRotationVM.some((n) => n.id === you.id) && !ended
+          ? "You're resting"
+          : null;
+
+  const finalRanked = rankings.filter((r) => r.section === "ranked");
+
+  const youPicker = readOnly && playerOptions.length > 0 && onSetYou && (
+    <div className={styles.youRow}>
+      <label className={styles.youLabel} htmlFor="who-are-you">
+        Who are you?
+      </label>
+      <select id="who-are-you" className={styles.youSelect} value={you?.id ?? ""} onChange={(e) => onSetYou(e.target.value || null)}>
+        <option value="">Pick your name</option>
+        {playerOptions.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      {yourStatus && <div className={styles.youStatus}>{yourStatus}</div>}
+    </div>
+  );
+
+  const resultsPanel = (
+    <div className={styles.panel}>
+      <div className={styles.panelTitle}>{ended ? "Final results" : "Recent Results"}</div>
+      {recentResultsVM.length === 0 ? (
+        <div className={styles.emptyNote}>No matches completed yet.</div>
+      ) : (
+        <div className={styles.list}>
+          {recentResultsVM.map((r, i) => {
+            const isTie = r.winner === null && r.resultMode === "score";
+            return (
+              <div className={styles.resultRow} key={i}>
+                <span className={`${styles.resultTeam} ${r.winner === "t1" ? styles.winner : r.winner === null ? styles.tie : styles.loser}`}>
+                  {r.winner === "t1" && <WinMark />}
+                  {r.t1Names}
+                </span>
+                <span className={styles.resultScore}>
+                  {r.resultMode === "score" ? r.score : r.resultMode === "winner" ? "Final" : "Played"}
+                  {isTie && !r.notCounted && <span className={styles.tieTag}>Tied</span>}
+                  {r.notCounted && <span className={styles.tieTag}>Not counted</span>}
+                </span>
+                <span
+                  className={`${styles.resultTeam} ${styles.resultTeamRight} ${r.winner === "t2" ? styles.winner : r.winner === null ? styles.tie : styles.loser}`}
+                >
+                  {r.winner === "t2" && <WinMark />}
+                  {r.t2Names}
+                </span>
+              </div>
+            );
+          })}
+          {onSeeAllMatches && (
+            <button className={styles.linkBtn} onClick={onSeeAllMatches}>
+              See all matches
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  const gamesPanel = (
+    <div className={styles.panel} ref={gamesRef}>
+      <button className={styles.gamesHead} onClick={() => setGamesOpen((o) => !o)} aria-expanded={gamesOpen}>
+        <span className={styles.gamesTitle}>Games played · fewest first</span>
+        <span className={styles.gamesAvg}>
+          Avg {gamesPlayedVM.average} games
+          {gamesPlayedVM.behind > 0 && ` · ${gamesPlayedVM.behind} ${gamesPlayedVM.behind === 1 ? "player" : "players"} behind`}
+          <span className={`${styles.chevron} ${gamesOpen ? styles.chevronOpen : ""}`} aria-hidden="true">
+            ›
+          </span>
+        </span>
+      </button>
+      {gamesOpen && (
+        <div className={styles.gamesList}>
+          {gamesPlayedVM.rows.map((r, i) => (
+            <div className={styles.gamesRow} key={i}>
+              <span className={styles.gamesCount}>{r.games}</span>
+              <span className={styles.gamesNames}>{r.text}</span>
+              {r.status && <span className={styles.gamesStatus}>{r.status}</span>}
+              {r.warn && (
+                <span className={styles.gamesWarn} role="img" aria-label="Two or more games behind">
+                  ⚠
+                </span>
+              )}
+            </div>
+          ))}
+          {gamesPlayedVM.rows.length === 0 && <div className={styles.emptyNote}>No players yet.</div>}
+        </div>
+      )}
+    </div>
+  );
+
+  if (ended) {
+    return (
+      <>
+        <div className={styles.section}>
+          <div className={styles.titleRow}>
+            <h1 className={styles.title}>Session ended</h1>
+            <span className={styles.subtitle}>
+              {playersCount} {playersCount === 1 ? "player" : "players"} · {courtsCount} {courtsCount === 1 ? "court" : "courts"}
+            </span>
+          </div>
+          <div className={styles.endedNote}>
+            {scheduleEndLabel ? `Finished at ${scheduleEndLabel}. ` : ""}Final rankings and results are below.
+          </div>
+          {youPicker}
+        </div>
+
+        <div className={styles.panel}>
+          <div className={styles.panelTitle}>Final rankings</div>
+          {finalRanked.length === 0 ? (
+            <div className={styles.emptyNote}>No one played enough games to be ranked.</div>
+          ) : (
+            <ol className={styles.finalList}>
+              {finalRanked.map((r) => (
+                <li className={`${styles.finalRow} ${r.id === you?.id ? styles.youRowHighlight : ""}`} key={r.id}>
+                  <span className={styles.finalRank}>{r.medal ? ["", "🥇", "🥈", "🥉"][r.medal] : r.rank}</span>
+                  <span className={styles.avatar} style={avatarStyle(r.name)}>
+                    {r.initials}
+                  </span>
+                  <span className={styles.finalName}>
+                    {r.name}
+                    {r.id === you?.id && <span className={styles.youTag}>You</span>}
+                  </span>
+                  <span className={styles.finalRecord}>
+                    {r.wins}W–{r.losses}L · <strong>{r.score}</strong>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+          {onSeeRankings && (
+            <button className={styles.linkBtn} onClick={onSeeRankings}>
+              See full rankings
+            </button>
+          )}
+        </div>
+
+        {resultsPanel}
+        {gamesPanel}
+      </>
+    );
+  }
+
   return (
     <>
       <div className={styles.section}>
@@ -54,17 +241,20 @@ export function SessionTab({
         {hasExpected && (
           <div className={styles.checkInBanner}>
             <span className={styles.checkInText}>{expectedCount} not checked in</span>
-            <button className={styles.checkInBtn} onClick={onCheckInAll}>
-              Check In All
-            </button>
+            {!readOnly && (
+              <button className={styles.checkInBtn} onClick={onCheckInAll}>
+                Check In All
+              </button>
+            )}
           </div>
         )}
+        {youPicker}
       </div>
 
       {courtsVM.length > 0 ? (
         <div className={styles.courtsGrid}>
           {courtsVM.map((court) => (
-            <CourtCard key={court.id} court={court} />
+            <CourtCard key={court.id} court={court} readOnly={readOnly} />
           ))}
         </div>
       ) : (
@@ -75,19 +265,19 @@ export function SessionTab({
         </div>
       )}
 
-      {queueVM.map((q) => (
-        <div className={styles.upNextPanel} key={q.index}>
-          <div className={styles.upNextHeading}>
-            {q.label}
-            {!q.locked && " · may change"}
-            {q.detail && <span className={styles.queueDetail}> · {q.detail}</span>}
-          </div>
-          <div className={styles.upNextTeams}>
-            <span className={styles.upNextTeamA}>{q.team1Label}</span> <span className={styles.upNextVs}>vs</span>{" "}
-            <span className={styles.upNextTeamB}>{q.team2Label}</span>
-          </div>
-          <div className={styles.upNextReason}>{q.reason}</div>
-          {!readOnly && (
+      {!readOnly &&
+        queueVM.map((q) => (
+          <div className={styles.upNextPanel} key={q.index}>
+            <div className={styles.upNextHeading}>
+              {q.label}
+              {!q.locked && " · may change"}
+              {q.detail && <span className={styles.queueDetail}> · {q.detail}</span>}
+            </div>
+            <div className={styles.upNextTeams}>
+              <span className={styles.upNextTeamA}>{q.team1Label}</span> <span className={styles.upNextVs}>vs</span>{" "}
+              <span className={styles.upNextTeamB}>{q.team2Label}</span>
+            </div>
+            <div className={styles.upNextReason}>{q.reason}</div>
             <div className={styles.queueActions}>
               <button className={styles.upNextShuffleBtn} onClick={q.onShuffle}>
                 Shuffle
@@ -98,12 +288,21 @@ export function SessionTab({
                 </button>
               )}
             </div>
-          )}
-        </div>
-      ))}
+          </div>
+        ))}
 
       <div className={styles.panel}>
         <div className={styles.panelTitle}>Waiting ({waitingCount})</div>
+        {readOnly && queueVM.length > 0 && (
+          <div className={styles.previewCard}>
+            <div className={styles.previewLabel}>
+              Up next{!queueVM[0].locked && " · may change"}
+            </div>
+            <div className={styles.previewTeams}>
+              {queueVM[0].team1Label} <span className={styles.upNextVs}>vs</span> {queueVM[0].team2Label}
+            </div>
+          </div>
+        )}
         {sessionHealth.hasWarning && sessionHealth.longestWaitName && (
           <div className={`${styles.healthStrip} ${styles.healthWarning}`}>
             <span>
@@ -122,108 +321,67 @@ export function SessionTab({
             {!readOnly && waitingVM.length > 0 && (
               <div className={styles.emptyNote}>Sit Out Next skips 1 match. Rest pauses them.</div>
             )}
-            {waitingVM.map((w, i) => (
-              <div className={styles.waitingRow} key={w.id}>
-                <div className={styles.waitingLeft}>
-                  <div className={styles.avatar}>{w.initials}</div>
-                  <div className={styles.waitingText}>
-                    <div className={styles.waitingName}>
-                      {w.name} {!hideTier && <span className={styles.waitingLevel}>· Tier {w.level}</span>}
-                      {w.queueTag && <span className={styles.queueTag}>{w.queueTag}</span>}
+            {waitingVM.map((w, i) => {
+              const position = `#${i + 1}${i === 0 ? " · Next up" : ""}`;
+              const stats = [
+                `Waited ${w.skipped} ${w.skipped === 1 ? "match" : "matches"}`,
+                `${w.games} ${w.games === 1 ? "game" : "games"}`,
+                ...(w.waitLabel ? [w.waitLabel] : []),
+                ...(w.hasStreak ? [`Played ${w.consec} in a row`] : []),
+              ].join(" · ");
+              return (
+                <div className={`${styles.waitingRow} ${w.id === you?.id ? styles.youRowHighlight : ""}`} key={w.id}>
+                  <div className={styles.waitingLeft}>
+                    <div className={styles.avatar} style={avatarStyle(w.name)}>
+                      {w.initials}
                     </div>
-                    <div className={styles.waitingMeta}>
-                      {i === 0 && "Next up · "}Waited {w.skipped} {w.skipped === 1 ? "match" : "matches"}{w.waitMin !== null ? ` · ${w.waitMin} min` : ""} · {w.games} {w.games === 1 ? "game" : "games"} played
-                      {w.hasStreak ? ` · back-to-back x${w.consec}` : ""}
+                    <div className={styles.waitingText}>
+                      <div className={styles.waitingPos}>
+                        {position}
+                        {w.queueTag && (i > 0 || w.queueTag === "Then") && (
+                          <span className={styles.queueTag}>{w.queueTag === "Up next" ? "In next match" : "In match after"}</span>
+                        )}
+                      </div>
+                      <div className={styles.waitingName}>
+                        {w.name} {!hideTier && <span className={styles.waitingLevel}>· Tier {w.level}</span>}
+                        {w.id === you?.id && <span className={styles.youTag}>You</span>}
+                      </div>
+                      <div className={styles.waitingMeta}>{stats}</div>
+                      {w.note && <div className={styles.waitingMeta}>{w.note}</div>}
                     </div>
-                    {w.note && <div className={styles.waitingMeta}>{w.note}</div>}
                   </div>
+                  {!readOnly && (
+                    <div className={styles.waitingActions}>
+                      <button className={styles.pillBtn} onClick={w.onSkip}>
+                        Sit Out Next
+                      </button>
+                      <button className={styles.pillBtn} onClick={w.onPause}>
+                        Rest
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div className={styles.waitingActions}>
-                  <button className={styles.pillBtn} onClick={w.onSkip}>
-                    Sit Out Next
-                  </button>
-                  <button className={styles.pillBtn} onClick={w.onPause}>
-                    Rest
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             {hasNotInRotation &&
               notInRotationVM.map((n) => (
                 <div className={styles.notInRotationRow} key={n.id}>
                   <div className={styles.notInRotationName}>
                     {n.name} · {n.tag}
                   </div>
-                  <button className={styles.linkBtn} onClick={n.onAction}>
-                    {n.actionLabel}
-                  </button>
+                  {!readOnly && (
+                    <button className={styles.linkBtn} onClick={n.onAction}>
+                      {n.actionLabel}
+                    </button>
+                  )}
                 </div>
               ))}
           </div>
         )}
       </div>
 
-      <div className={styles.panel} ref={gamesRef}>
-        <button className={styles.gamesHead} onClick={() => setGamesOpen((o) => !o)} aria-expanded={gamesOpen}>
-          <span className={styles.gamesTitle}>Games played · fewest first</span>
-          <span className={styles.gamesAvg}>
-            avg {gamesPlayedVM.average}
-            {gamesPlayedVM.behind > 0 && ` · ⚠ ${gamesPlayedVM.behind}`}
-          </span>
-        </button>
-        {gamesOpen && (
-          <div className={styles.gamesList}>
-            {gamesPlayedVM.rows.map((r, i) => (
-              <div className={styles.gamesRow} key={i}>
-                <span className={styles.gamesCount}>{r.games}</span>
-                <span className={styles.gamesNames}>{r.text}</span>
-                {r.status && <span className={styles.gamesStatus}>{r.status}</span>}
-                {r.warn && (
-                  <span className={styles.gamesWarn} role="img" aria-label="Two or more games behind">
-                    ⚠
-                  </span>
-                )}
-              </div>
-            ))}
-            {gamesPlayedVM.rows.length === 0 && <div className={styles.emptyNote}>No players yet.</div>}
-          </div>
-        )}
-      </div>
-
-      <div className={styles.panel}>
-        <div className={styles.panelTitle}>Recent Results</div>
-        {recentResultsVM.length === 0 ? (
-          <div className={styles.emptyNote}>No matches completed yet.</div>
-        ) : (
-          <div className={styles.list}>
-            {recentResultsVM.map((r, i) => {
-              const isTie = r.winner === null && r.resultMode === "score";
-              return (
-                <div className={styles.resultRow} key={i}>
-                  <span className={`${styles.resultTeam} ${r.winner === "t1" ? styles.winner : r.winner === null ? styles.tie : styles.loser}`}>
-                    {r.t1Names}
-                  </span>
-                  <span className={styles.resultScore}>
-                    {r.resultMode === "score" ? r.score : r.resultMode === "winner" ? "Final" : "Played"}
-                    {isTie && !r.notCounted && <span className={styles.tieTag}>Tied</span>}
-                    {r.notCounted && <span className={styles.tieTag}>Not counted</span>}
-                  </span>
-                  <span
-                    className={`${styles.resultTeam} ${styles.resultTeamRight} ${r.winner === "t2" ? styles.winner : r.winner === null ? styles.tie : styles.loser}`}
-                  >
-                    {r.t2Names}
-                  </span>
-                </div>
-              );
-            })}
-            {onSeeAllMatches && (
-              <button className={styles.linkBtn} onClick={onSeeAllMatches}>
-                See all matches
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      {gamesPanel}
+      {resultsPanel}
     </>
   );
 }

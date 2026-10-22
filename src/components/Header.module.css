@@ -42,7 +42,7 @@
   text-overflow: ellipsis;
 }
 .schedule {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-text-2);
   white-space: nowrap;
   overflow: hidden;
@@ -57,7 +57,7 @@
   border: none;
   background: var(--sm-accent);
   color: var(--sm-accent-on);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
@@ -67,7 +67,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-text-2);
   white-space: nowrap;
   margin-top: 8px;

@@ -11,6 +11,8 @@ export interface WaitingEntry {
   consec: number;
   /** Whole minutes since they became free to play; null when unknown. */
   waitMin: number | null;
+  /** `waitMin` as people read it ("45 min", "1h 20m"); null when unknown or too long to mean anything. */
+  waitLabel: string | null;
   /** "Host · plays after round 1" while a host is still being held back. */
   note?: string;
   /** In a planned match, locked or a preview: "Up next" for the first, "Then"
@@ -46,6 +48,11 @@ export interface GamesPlayedRow {
   status: string | null;
   /** Two or more games behind the busiest player. */
   warn: boolean;
+}
+
+export interface PlayerOption {
+  id: string;
+  name: string;
 }
 
 export interface GamesPlayedVM {
@@ -117,6 +124,9 @@ export interface RankingEntry {
   medal: 1 | 2 | 3 | null;
   /** Which part of the list: ranked, "not enough games yet" or "not ranked". */
   section: "ranked" | "tooFew" | "notRanked";
+  /** Why this row is where it is, when that isn't obvious: how many games it
+   * still needs for a rank, or what separates it from a neighbour on the same score. */
+  note: string | null;
   /** Counts in the rankings (false for a host or guest switched out). */
   inRankings: boolean;
   /** Set for the organizer only: switch this player in or out of the rankings. */
@@ -227,6 +237,8 @@ export interface MatchLogEntry {
   resultMode: ResultMode;
   /** Stopped early and not counted towards anyone's record. */
   notCounted: boolean;
+  /** When it started: "20 min ago", or the clock time once the session is over; null when unknown. */
+  startedLabel: string | null;
   onEditScore: () => void;
   onDelete: () => void;
 }

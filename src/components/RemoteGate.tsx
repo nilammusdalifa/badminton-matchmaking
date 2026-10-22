@@ -31,10 +31,12 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
           {roleStep === "choose" ? (
             <div className={styles.buttons}>
               <button className={styles.primaryBtn} onClick={() => chooseRole("player")}>
-                Player (just watching)
+                <span className={styles.btnTitle}>Watch session</span>
+                <span className={styles.btnSub}>See courts, queue and rankings</span>
               </button>
               <button className={styles.secondaryBtn} onClick={() => chooseRole("umpire")}>
-                Umpire (I'm scoring)
+                <span className={styles.btnTitle}>Umpire</span>
+                <span className={styles.btnSub}>Score matches · PIN required</span>
               </button>
             </div>
           ) : (

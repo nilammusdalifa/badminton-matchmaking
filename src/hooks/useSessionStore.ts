@@ -35,6 +35,11 @@ import {
   nameTaken,
   photoReminderMinutes,
   scheduleEndTime,
+  scheduleEnded,
+  lastActivityMs,
+  matchStartedAt,
+  rankMinGames,
+  tieBreakReason,
   courtCloseReminders,
   parseClockTime,
   playerPriority,
@@ -53,6 +58,7 @@ import {
   teamNames,
   withListDefaults,
 } from "../lib/session";
+import { formatAgo, formatDuration } from "../lib/locale";
 import { SHARE_CARD_H, SHARE_CARD_W, SHARE_TOP_COUNT } from "../lib/shareCard";
 import { prepareSharePhoto } from "../lib/sharePhoto";
 import type { Court, Match, PauseReason, Player, QueueItem, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion, Tab } from "../types";
@@ -63,6 +69,7 @@ import type {
   ManagePlayerEntry,
   MatchLogEntry,
   NotInRotationEntry,
+  PlayerOption,
   RankingEntry,
   RecentResultEntry,
   RequestedPairEntry,
@@ -1651,11 +1658,39 @@ export function useSessionStore() {
   const standings = useMemo(() => buildStandings(livePlayers, state.sessionResultMode), [livePlayers, state.sessionResultMode]);
 
   const rankingsVM = useMemo<RankingEntry[]>(() => {
-    return standings.rows.map(({ player: p, rank, medal, section }) => ({
+    const rows = standings.rows;
+    const needsGames = rankMinGames(standings.maxGames);
+    // Same score as a neighbour: say who is ahead, and on what.
+    const tieNote = (i: number): string | null => {
+      const cur = rows[i];
+      const prev = rows[i - 1];
+      const next = rows[i + 1];
+      const phrase = (key: NonNullable<ReturnType<typeof tieBreakReason>>) => (key === "name" ? "first by name" : `ahead on ${key}`);
+      if (prev?.section === "ranked") {
+        const key = tieBreakReason(prev.player, cur.player);
+        if (key) return `Same score as ${prev.player.name}, who is ${phrase(key)}`;
+      }
+      if (next?.section === "ranked") {
+        const key = tieBreakReason(cur.player, next.player);
+        if (key) return `Same score as ${next.player.name} · ${phrase(key)}`;
+      }
+      return null;
+    };
+    const noteFor = (i: number): string | null => {
+      const { player: p, section } = rows[i];
+      if (section === "ranked") return tieNote(i);
+      if (state.sessionResultMode === "none") return null;
+      if (section === "notRanked") return "Not competing for a rank";
+      if (p.rankGames === 0) return "Hasn't played yet";
+      const more = needsGames - p.rankGames;
+      return `Needs ${more} more ${more === 1 ? "game" : "games"} to be ranked`;
+    };
+    return rows.map(({ player: p, rank, medal, section }, i) => ({
       id: p.id,
       rank,
       medal,
       section,
+      note: noteFor(i),
       inRankings: p.inRankings !== false,
       onToggleCounted: isOwner ? () => setPlayerCounted(p.id, p.inRankings === false) : null,
       name: p.name,
@@ -1943,6 +1978,7 @@ export function useSessionStore() {
         hasStreak: p.consecutiveGames >= 2,
         consec: p.consecutiveGames,
         waitMin: p.idleSince ? Math.max(0, Math.floor((now - p.idleSince) / 60000)) : null,
+        waitLabel: p.idleSince ? formatDuration(Math.max(0, Math.floor((now - p.idleSince) / 60000))) : null,
         note: p.isHost && holdingHosts ? "Host · plays after round 1" : undefined,
         queueTag: queueTagFor(p.id),
         onSkip: () => skipNext(p.id),
@@ -1986,12 +2022,18 @@ export function useSessionStore() {
     });
   }, [state.matches, state.players]);
 
+  // The scheduled end has passed (read in Jakarta time, placed by the latest
+  // match or player activity, since the schedule text has no date).
+  const scheduleOver = scheduleEnded(state.sessionSchedule, lastActivityMs(state.matches, state.players), Date.now());
+
   // A chronological log of every match this session (in-progress and
   // completed) — replaces the Matches tab's old "suggested next match"
   // cards, which just duplicated what's already on the Session tab's courts.
   const matchLogVM = useMemo<MatchLogEntry[]>(() => {
+    const now = Date.now();
     return [...state.matches].reverse().map((m) => {
       const court = state.courts.find((c) => c.id === m.courtId);
+      const startedAt = matchStartedAt(m);
       const t1 = teamNames(m.t1, state.players);
       const t2 = teamNames(m.t2, state.players);
       const resultMode = m.resultMode ?? "score";
@@ -2011,11 +2053,14 @@ export function useSessionStore() {
         isTie: m.status === "completed" && m.counted !== false && m.s1 === m.s2 && resultMode === "score",
         resultMode,
         notCounted: m.counted === false,
+        startedLabel: startedAt === null ? null : formatAgo(startedAt, now, scheduleOver || state.sessionEnded),
         onEditScore: () => openScorekeeper(m.id),
         onDelete: () => openDeleteMatchConfirm(m.id),
       };
     });
-  }, [state.matches, state.courts, state.players, openScorekeeper, openDeleteMatchConfirm]);
+    // state.tick keeps "20 min ago" current
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.matches, state.courts, state.players, state.tick, scheduleOver, state.sessionEnded, openScorekeeper, openDeleteMatchConfirm]);
 
   const requestedPairsVM = useMemo<RequestedPairEntry[]>(
     () =>
@@ -2182,6 +2227,9 @@ export function useSessionStore() {
       sessionHealth,
       gamesPlayedVM,
       fewPlayersHint: playersHint,
+      scheduleOver,
+      scheduleEndLabel: scheduleEndTime(state.sessionSchedule),
+      playerOptions: state.players.map<PlayerOption>((p) => ({ id: p.id, name: p.name })).sort((a, b) => a.name.localeCompare(b.name)),
     },
 
     matches: {

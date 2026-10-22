@@ -3,9 +3,11 @@ import styles from "./CourtCard.module.css";
 
 interface CourtCardProps {
   court: CourtViewModel;
+  /** View-only: just teams and score. No button is rendered, not even a greyed-out one. */
+  readOnly?: boolean;
 }
 
-export function CourtCard({ court }: CourtCardProps) {
+export function CourtCard({ court, readOnly }: CourtCardProps) {
   const { state, match, suggestion } = court;
   const stateLabel = state === "playing" ? "Playing" : state === "scoreNeeded" ? "Score Needed" : state === "paused" ? "Paused" : "Available";
 
@@ -52,12 +54,12 @@ export function CourtCard({ court }: CourtCardProps) {
               </div>
             </div>
             {court.inNextButOne && <div className={styles.nextButOne}>Players here are in the next-but-one match</div>}
-            {match.resultMode === "score" && (
+            {!readOnly && match.resultMode === "score" && (
               <button className={`${styles.ctaBtn} ${styles[state]}`} onClick={match.onEnterScore}>
                 {state === "scoreNeeded" ? "Save Result" : "Enter Score"}
               </button>
             )}
-            {match.resultMode === "winner" && (
+            {!readOnly && match.resultMode === "winner" && (
               <div className={styles.actionsRow}>
                 <button className={styles.startBtn} onClick={match.onWinT1}>
                   Team A Won
@@ -67,7 +69,7 @@ export function CourtCard({ court }: CourtCardProps) {
                 </button>
               </div>
             )}
-            {match.resultMode === "none" && (
+            {!readOnly && match.resultMode === "none" && (
               <button className={styles.startBtn} onClick={match.onQuickFinish}>
                 Match Finished
               </button>
@@ -78,19 +80,23 @@ export function CourtCard({ court }: CourtCardProps) {
           <>
             <div className={styles.availableLabel}>Closing soon</div>
             <div className={styles.noSuggestion}>Closes at {court.closingSoon.closesAt}. No new match will start here.</div>
-            <button className={styles.manualAssignBtn} onClick={court.closingSoon.onKeepOpen}>
-              Keep open and start a match
-            </button>
-            <button className={styles.pauseLink} onClick={court.onTogglePause}>
-              Pause this court
-            </button>
+            {!readOnly && (
+              <>
+                <button className={styles.manualAssignBtn} onClick={court.closingSoon.onKeepOpen}>
+                  Keep open and start a match
+                </button>
+                <button className={styles.pauseLink} onClick={court.onTogglePause}>
+                  Pause this court
+                </button>
+              </>
+            )}
           </>
         )}
         {state === "available" && !court.closingSoon && (
           <>
             <div className={styles.availableLabel}>Court is open</div>
             {court.keptOpen && <div className={styles.keptOpen}>Kept open for 1 more match</div>}
-            {suggestion ? (
+            {readOnly ? null : suggestion ? (
               <>
                 <div className={styles.suggestion}>
                   <div>
@@ -128,9 +134,11 @@ export function CourtCard({ court }: CourtCardProps) {
                 </button>
               </>
             )}
-            <button className={styles.pauseLink} onClick={court.onTogglePause}>
-              Pause this court
-            </button>
+            {!readOnly && (
+              <button className={styles.pauseLink} onClick={court.onTogglePause}>
+                Pause this court
+              </button>
+            )}
           </>
         )}
         {state === "paused" && (
@@ -138,16 +146,20 @@ export function CourtCard({ court }: CourtCardProps) {
             {court.pastClosing ? (
               <>
                 <div className={styles.pausedNote}>Closed at {court.pastClosing.closesAt}.</div>
-                <button className={styles.startBtn} onClick={court.pastClosing.onKeepOpen}>
-                  Keep open for 1 more match
-                </button>
+                {!readOnly && (
+                  <button className={styles.startBtn} onClick={court.pastClosing.onKeepOpen}>
+                    Keep open for 1 more match
+                  </button>
+                )}
               </>
             ) : (
               <>
-                <div className={styles.pausedNote}>Court paused. No matches until resumed.</div>
-                <button className={styles.startBtn} onClick={court.onTogglePause}>
-                  Resume Court
-                </button>
+                <div className={styles.pausedNote}>{readOnly ? "Court paused." : "Court paused. No matches until resumed."}</div>
+                {!readOnly && (
+                  <button className={styles.startBtn} onClick={court.onTogglePause}>
+                    Resume Court
+                  </button>
+                )}
               </>
             )}
           </>

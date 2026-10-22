@@ -1,4 +1,5 @@
 import { AppIcon } from "./AppIcon";
+import { localizeSchedule } from "../lib/locale";
 import styles from "./Header.module.css";
 
 interface HeaderProps {
@@ -9,9 +10,11 @@ interface HeaderProps {
   progressWidth: string;
   needsSetup: boolean;
   onOpenSetup: () => void;
+  /** View-only: no "New Session" button. */
+  readOnly?: boolean;
 }
 
-export function Header({ sessionName, sessionSchedule, matchesCompleted, matchesTotal, progressWidth, needsSetup, onOpenSetup }: HeaderProps) {
+export function Header({ sessionName, sessionSchedule, matchesCompleted, matchesTotal, progressWidth, needsSetup, onOpenSetup, readOnly }: HeaderProps) {
   return (
     <header className={styles.header}>
       <div className={styles.row}>
@@ -21,10 +24,10 @@ export function Header({ sessionName, sessionSchedule, matchesCompleted, matches
         <div className={styles.titles}>
           <div className={styles.name}>SmashMatch</div>
           <div className={styles.schedule}>
-            {needsSetup ? "No session set up yet" : sessionSchedule ? `${sessionName} · ${sessionSchedule}` : sessionName}
+            {needsSetup ? "No session set up yet" : sessionSchedule ? `${sessionName} · ${localizeSchedule(sessionSchedule)}` : sessionName}
           </div>
         </div>
-        {needsSetup && (
+        {needsSetup && !readOnly && (
           <button className={styles.setupBtn} onClick={onOpenSetup}>
             + New Session
           </button>

@@ -1,5 +1,6 @@
 import type { GamesPlayedRow, GamesPlayedVM } from "../types.viewmodel";
 import type { CounterSnapshot, Court, Match, Player, PlayerStatus, QueueItem, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
+import { APP_TIME_ZONE, zonedDate, zonedToEpoch } from "./locale";
 import { carriesSinceHard, dCarriesSinceRelief, hardGamePick, isDFreeMatch, isHardMatch, isLower } from "./hardGames";
 
 const PHOTO_REMINDER_LEAD_MINUTES = 30;
@@ -51,6 +52,48 @@ export function photoReminderMinutes(schedule: string, now: Date): number | null
     if (left > 0 && left <= PHOTO_REMINDER_LEAD_MINUTES) return Math.ceil(left);
   }
   return null;
+}
+
+/** How long after the scheduled end a late match can still be played before
+ * the session counts as over (and a later start is read as the next day's). */
+const SCHEDULE_END_SLACK_MS = 60 * 60000;
+
+/** Whether the session named by a free-text schedule ("Rabu, 19:00–22:00") has
+ * passed its end, read in `timeZone`. The text has no date, so `anchorMs` says
+ * which day it was held: any moment known to belong to it (a match start, a
+ * player coming off court). The end is the first one at most an hour before
+ * that anchor or later, so a match that runs a little over doesn't end the
+ * session early, and the clock times of the next week don't either. False when
+ * the text has no start and end, or when there's no anchor to place it by. */
+export function scheduleEnded(schedule: string, anchorMs: number | null, nowMs: number, timeZone: string = APP_TIME_ZONE): boolean {
+  const times = scheduleTimes(schedule);
+  if (times.length < 2 || anchorMs === null) return false;
+  const start = times[0];
+  let end = times[times.length - 1];
+  if (end <= start) end += 1440; // runs past midnight
+  const day = zonedDate(anchorMs, timeZone);
+  for (const offset of [-1, 0, 1]) {
+    const endMs = zonedToEpoch({ ...day, day: day.day + offset }, end, timeZone);
+    if (endMs >= anchorMs - SCHEDULE_END_SLACK_MS) return nowMs > endMs;
+  }
+  return false;
+}
+
+/** When a match started, read from its id ("m" + the epoch ms it was created
+ * at); null for an id that isn't one of those. */
+export function matchStartedAt(match: Pick<Match, "id">): number | null {
+  const m = match.id.match(/^m(\d{12,})$/);
+  return m ? Number(m[1]) : null;
+}
+
+/** The latest moment known to belong to the session: a match start, or a
+ * player becoming free. Null on a session with neither. */
+export function lastActivityMs(matches: Match[], players: Pick<Player, "idleSince">[]): number | null {
+  let latest: number | null = null;
+  for (const t of [...matches.map(matchStartedAt), ...players.map((p) => p.idleSince ?? null)]) {
+    if (t !== null && (latest === null || t > latest)) latest = t;
+  }
+  return latest;
 }
 
 const COURT_CLOSE_LEAD_MINUTES = 10;
@@ -1174,6 +1217,12 @@ export function pointsShare(p: Pick<Player, "pointsFor" | "pointsAgainst">): num
 const RANK_MIN_GAMES = 3;
 /** …and this share of the most games anyone ranked has played. */
 const RANK_MIN_SHARE = 0.5;
+/** Games a player needs to get a rank: at least 3, and at least half as many
+ * as the player with the most (the same bar `buildStandings` applies). */
+export function rankMinGames(maxGames: number): number {
+  return Math.max(RANK_MIN_GAMES, Math.ceil(RANK_MIN_SHARE * maxGames));
+}
+
 /** Medals wait until this many of the players in the rotation have played 2. */
 const SETTLED_SHARE = 0.75;
 const SETTLED_GAMES = 2;
@@ -1249,6 +1298,17 @@ export function buildStandings(players: Player[], resultMode: ResultMode = "scor
     ...counted.filter((p) => p.rankGames === 0).sort((a, b) => a.name.localeCompare(b.name)),
   ].map((player) => ({ player, rank: null, medal: null, section: "tooFew" }));
   return { rows: [...ranked, ...tooFew, ...notRanked], early, maxGames };
+}
+
+/** What puts `above` ahead of `below` when both show the same score, in the
+ * order `buildStandings` applies: the exact score before rounding, win rate, games
+ * played, then name. Null when the scores shown differ. */
+export function tieBreakReason(above: Player, below: Player): "exact score" | "win rate" | "games played" | "name" | null {
+  if (scoreLabel(above) !== scoreLabel(below)) return null;
+  if (key4(performanceScore(above)) !== key4(performanceScore(below))) return "exact score";
+  if (key4(winRate(above)) !== key4(winRate(below))) return "win rate";
+  if (above.rankGames !== below.rankGames) return "games played";
+  return "name";
 }
 
 /** A name that fits a fixed-width spot on the share card. The exporter cuts

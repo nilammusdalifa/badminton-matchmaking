@@ -20,14 +20,16 @@
   background: var(--sm-scrim);
   border-bottom: 1px solid var(--sm-surface-hairline);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
 .headLeft {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 4px 10px;
   min-width: 0;
   flex-shrink: 1;
 }
@@ -41,19 +43,19 @@
   align-items: center;
   justify-content: center;
   font-family: var(--font-heading);
-  font-size: 13px;
+  font-size: 14px;
   color: var(--sm-accent-hover);
   flex-shrink: 0;
 }
 .keptOpen {
   text-align: center;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--sm-accent);
 }
 .closesAt {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-text-3);
   white-space: nowrap;
 }
@@ -71,7 +73,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -124,7 +126,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-text-3);
   font-family: var(--sm-font-mono);
 }
@@ -140,7 +142,7 @@
   min-width: 0;
 }
 .teamLabel {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -148,7 +150,7 @@
 .teamLabel.a { color: var(--sm-accent); }
 .teamLabel.b { color: var(--sm-accent-2); }
 .teamP1 {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   margin-top: 2px;
   overflow: hidden;
@@ -156,7 +158,7 @@
   white-space: nowrap;
 }
 .teamP2 {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--sm-text-2);
   overflow: hidden;
@@ -176,7 +178,7 @@
   font-size: 18px;
 }
 .scoreVs {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--sm-text-3);
 }
@@ -187,7 +189,7 @@
   border-radius: 999px;
   border: none;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   font-family: var(--font-body), sans-serif;
   display: flex;
@@ -208,21 +210,21 @@
   text-align: center;
   padding: 6px 0;
   color: var(--sm-text-3);
-  font-size: 12.5px;
+  font-size: 14px;
 }
 
 .suggestion {
   background: var(--sm-scrim);
   border-radius: var(--radius-md);
   padding: 11px 13px;
-  font-size: 12.5px;
+  font-size: 14px;
 }
 .suggestionTeam1 { color: var(--sm-accent-hover); font-weight: 700; }
 .suggestionVs { color: var(--sm-text-3); }
 .suggestionTeam2 { color: var(--color-accent-2-300); font-weight: 700; }
 .suggestionReason {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--sm-text-3);
 }
 
@@ -236,7 +238,7 @@
   border-radius: 999px;
   border: none;
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 700;
   font-family: var(--font-body), sans-serif;
   background: linear-gradient(135deg, var(--color-accent-300), var(--sm-accent));
@@ -248,7 +250,7 @@
   border-radius: 999px;
   border: 1px solid var(--sm-border);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   font-family: var(--font-body), sans-serif;
   background: transparent;
@@ -257,7 +259,7 @@
 
 .noSuggestion {
   text-align: center;
-  font-size: 12px;
+  font-size: 14px;
   font-style: italic;
   color: var(--sm-text-3);
   padding: 8px;
@@ -270,7 +272,7 @@
   border-radius: 999px;
   border: 1px solid var(--sm-border);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   font-family: var(--font-body), sans-serif;
   background: transparent;
@@ -283,21 +285,21 @@
   border: none;
   background: transparent;
   color: var(--sm-text-3);
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   font-family: var(--font-body), sans-serif;
 }
 
 .pausedNote {
   text-align: center;
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--sm-text-3);
   padding: 8px 4px;
 }
 
 .nextButOne {
   text-align: center;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--sm-accent-hover);
 }
