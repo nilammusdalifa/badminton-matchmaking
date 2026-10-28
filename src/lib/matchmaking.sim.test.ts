@@ -613,12 +613,15 @@ describe("partner variety", () => {
   // night, before -> after: 12 players 4.64 / 2.8 -> 4.85 / 1.9, 15 players 3A/5B/7C 3.90 / 1.8
   // -> 4.10 / 0.4, 20 players on 3 courts 5.35 / 2.5 -> 5.51 / 1.0, 8 players on 1 court
   // 3.66 / 4.0 -> 4.65 / 0.0. 16 players barely moved (3.86 / 0.3 -> 3.88 / 0.1).
+  // The same-group rule (a foursome never repeats, and never shares 3 of 4 with the last two
+  // matches, while a new one exists) costs 8 players on 1 court its easiest source of new
+  // partners — the same four with the pairs switched — so it settles at 4.3 / 1.3.
   // label, scenario, floor on different partners, ceiling on repeated pairs
   const cases: [string, Scenario, number, number][] = [
     ["12 players, 2 courts", { players: 12, courts: twoCourts, planAhead: true }, 4.75, 2.3],
     ["15 players 3A/5B/7C", { players: 15, courts: twoCourts, levels: [3, 5, 7], planAhead: true }, 4.0, 0.8],
     ["20 players, 3 courts", { players: 20, courts: threeCourts, planAhead: true }, 5.45, 1.4],
-    ["8 players, 1 court", { players: 8, courts: oneCourt, planAhead: true }, 4.5, 0.5],
+    ["8 players, 1 court", { players: 8, courts: oneCourt, planAhead: true }, 4.3, 1.5],
   ];
   for (const [label, scenario, minPartners, maxTwice] of cases) {
     it(`${label}: more different partners, fewer repeats`, () => {
@@ -683,10 +686,10 @@ describe("relief games: a C who has carried a D", () => {
   // longer), back-to-back is the same, and the worst new-group ratio of a night dips to 0.93-0.94 on two nights (one repeated
   // group). The average tier gap rises by 0.03-0.05. Nights with no D are unchanged.
   const cases: [string, Scenario, boolean][] = [
-    // label, night, whether the worst carry must fall (it does in both roster orders)
+    // label, night, whether the worst carry must fall (no longer for 12 players: 3 -> 3 since the same-group rule)
     ["15 players 3A/4B/4C/4D", { players: 15, courts: twoCourts, levels: [3, 4, 4, 4], planAhead: true }, false],
     ["16 players 2A/3B/5C/6D", { players: 16, courts: twoCourts, levels: [2, 3, 5, 6], planAhead: true }, false],
-    ["12 players 2A/2B/4C/4D", { players: 12, courts: twoCourts, levels: [2, 2, 4, 4], planAhead: true }, true],
+    ["12 players 2A/2B/4C/4D", { players: 12, courts: twoCourts, levels: [2, 2, 4, 4], planAhead: true }, false],
     ["20 players 4A/5B/5C/6D, 3 courts", { players: 20, courts: threeCourts, levels: [4, 5, 5, 6], planAhead: true }, false],
   ];
   for (const [label, night, mustFall] of cases) {

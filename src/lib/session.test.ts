@@ -1490,6 +1490,67 @@ describe("partner variety", () => {
   });
 });
 
+describe("same group never repeats", () => {
+  const B = (id: string): Player => makeBlankPlayer(id, id, "B", "ready");
+  const ids = (ps: Player[] | null) => ps!.map((p) => p.id).sort();
+  const pool = ["p1", "p2", "p3", "p4", "p5", "p6"].map(B);
+
+  it("skips the four of the last match, however well it otherwise scores", () => {
+    // nothing else tells the groups apart, so p1-p4 would go first in line
+    expect(ids(pickFour(pool, new Map()))).toEqual(["p1", "p2", "p3", "p4"]);
+    expect(ids(pickFour(pool, new Map(), 0, false, 0, { history: [["p1", "p2", "p3", "p4"]] }))).not.toEqual(["p1", "p2", "p3", "p4"]);
+  });
+
+  it("skips a group sharing 3 of 4 with a recent match: the same people with one swapped", () => {
+    const four = pickFour(pool, new Map(), 0, false, 0, { history: [["p1", "p2", "p3", "p4"]] })!;
+    expect(four.filter((p) => ["p1", "p2", "p3", "p4"].includes(p.id)).length).toBeLessThan(3);
+  });
+
+  it("only looks at the last two matches for 3 of 4, but never allows an exact repeat", () => {
+    const old: string[][] = [["p1", "p2", "p3", "p5"], ["p2", "p3", "p4", "p6"], ["p1", "p4", "p5", "p6"]];
+    // p1,p2,p3,p5 shares 3 with nothing recent, so it may come back; but never a repeat of any match
+    const four = ids(pickFour(pool, new Map(), 0, false, 0, { history: old }));
+    expect(old.map((g) => [...g].sort())).not.toContainEqual(four);
+  });
+
+  it("falls back to the least repeated group when every one repeats", () => {
+    const four = ["p1", "p2", "p3", "p4"].map(B);
+    const history = [["p1", "p2", "p3", "p4"]];
+    expect(ids(pickFour(four, new Map(), 0, false, 0, { history }))).toEqual(["p1", "p2", "p3", "p4"]);
+  });
+
+  it("Shuffle only cycles through groups as new as the best one", () => {
+    const history = [["p1", "p2", "p3", "p4"]];
+    for (let seed = 0; seed < 6; seed++) {
+      const four = pickFour(pool, new Map(), seed, false, 0, { history })!;
+      expect(four.filter((p) => ["p1", "p2", "p3", "p4"].includes(p.id)).length).toBeLessThan(3);
+    }
+  });
+
+  it("10 players on one court: across a night no four meets again and no match is the last one with a swap", () => {
+    const roster = ["Dadang", "Fery", "Florencia", "Mario", "Milzam", "Setyo", "Timothy", "Ulfa", "Vincent", "Wiznu"];
+    const levels: SkillLevel[] = ["D", "A", "C", "B", "D", "C", "C", "D", "C", "A"];
+    let players = roster.map((n, i) => markReady(makeBlankPlayer(n, n, levels[i], "ready"), 0));
+    const matches: Match[] = [];
+    for (let r = 0; r < 20; r++) {
+      const sug = buildSuggestion(players, matches, [], [], 0, { singleCourt: true })!;
+      const four = sug.four.map((p) => p.id);
+      players = applyMatchStart(players, matches, four);
+      const m = completed("m" + r, [sug.team1[0].id, sug.team1[1].id], [sug.team2[0].id, sug.team2[1].id], 21, 15);
+      matches.push(m);
+      players = applyAfterMatch(players, m, (r + 1) * 1000);
+    }
+    const groups = matches.map((m) => new Set([...m.t1, ...m.t2]));
+    groups.forEach((g, i) => {
+      for (let j = i + 1; j < groups.length; j++) {
+        const shared = [...g].filter((id) => groups[j].has(id)).length;
+        expect(shared).toBeLessThan(4);
+        if (j - i <= 2) expect(shared).toBeLessThan(3);
+      }
+    });
+  });
+});
+
 describe("relief games in suggestions and plans", () => {
   const T = (id: string, level: SkillLevel, over: Partial<Player> = {}): Player => ({ ...makeBlankPlayer(id, id, level, "ready"), ...over });
   // c1 has carried a D twice (d1, then d2); nobody else is due

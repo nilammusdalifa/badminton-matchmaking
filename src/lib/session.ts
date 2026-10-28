@@ -481,6 +481,11 @@ const MAX_CONSECUTIVE = 2;
 const CANDIDATE_WINDOW = 8;
 /** How many of the best-scoring groups Shuffle cycles through. */
 const SHUFFLE_CHOICES = 6;
+/** A group of four that shares this many players with a recent match is the
+ * same people again, only with the partners switched. */
+const SAME_GROUP_OVERLAP = 3;
+/** How many of the latest matches count as "recent" for `SAME_GROUP_OVERLAP`. */
+const RECENT_MATCHES = 2;
 
 /** Waiting this many matches makes a player a must-play: a quarter of the
  * ready players, rounded up. A fixed number breaks down as the group grows —
@@ -533,14 +538,19 @@ function mustPlayers(pool: Player[], extraReady: number): Player[] {
  *     next-best few. So four people who just finished together get split up
  *     rather than sent straight back out as the same group, and neither
  *     balance nor variety ever costs anyone a turn: they only choose between
- *     groups that are otherwise equal. */
+ *     groups that are otherwise equal.
+ *  4. A hard rule over the costs: with `opts.history` (the four of every match
+ *     so far, in order), a group that is the same four as an earlier match, or
+ *     shares 3 of its 4 with one of the last 2, is passed over for any group
+ *     that doesn't. Only when every candidate repeats one (a small roster) is
+ *     the least repeated taken, and the costs decide among those. */
 export function pickFour(
   pool: Player[],
   meet: Map<string, number>,
   seed = 0,
   singleCourt = false,
   extraReady = 0,
-  opts: { forced?: Player[]; avoidAC?: boolean; partner?: Map<string, number> } = {},
+  opts: { forced?: Player[]; avoidAC?: boolean; partner?: Map<string, number>; history?: string[][] } = {},
 ): Player[] | null {
   if (pool.length < 4) return null;
   const waitWeight = singleCourt ? SINGLE_COURT_WAIT_WEIGHT : 1;
@@ -554,6 +564,14 @@ export function pickFour(
   rest = rest.slice(0, CANDIDATE_WINDOW);
 
   const minGames = Math.min(...[...pool, ...must].map((p) => p.games));
+  const history = (opts.history ?? []).map((ids) => new Set(ids));
+  const recent = history.slice(-RECENT_MATCHES);
+  // 2 = the same four as an earlier match, 1 = 3 of 4 with a recent one, 0 = a new group
+  const repeatLevel = (four: Player[]): number => {
+    const shared = (group: Set<string>) => four.filter((p) => group.has(p.id)).length;
+    if (history.some((group) => shared(group) === 4)) return 2;
+    return recent.some((group) => shared(group) >= SAME_GROUP_OVERLAP) ? 1 : 0;
+  };
   const ranked = combinations(rest, 4 - must.length)
     .map((combo) => {
       const four = [...must, ...combo];
@@ -572,12 +590,14 @@ export function pickFour(
       const points = (team: [Player, Player]) => tierPointsOf(team[0].level) + tierPointsOf(team[1].level);
       const unsplittable = !opts.avoidAC && bestSplitGap(four) >= 2;
       const gap = opts.avoidAC ? 0 : Math.abs(points(split.team1) - points(split.team2));
-      return { four, familiarity, cost, unsplittable, repeats, gap };
+      return { four, familiarity, cost, unsplittable, repeats, gap, repeat: repeatLevel(four) };
     })
-    .sort((x, y) => x.cost - y.cost || Number(x.unsplittable) - Number(y.unsplittable) || x.repeats - y.repeats || x.gap - y.gap);
+    .sort((x, y) => x.repeat - y.repeat || x.cost - y.cost || Number(x.unsplittable) - Number(y.unsplittable) || x.repeats - y.repeats || x.gap - y.gap);
   // never empty: `pool` has 4+ players and at most `must.length` of them are in `must`,
   // so `rest` always holds the 4 - must.length still needed
-  return ranked[seed % Math.min(ranked.length, SHUFFLE_CHOICES)].four;
+  // Shuffle steps only through groups as new as the best one
+  const fresh = ranked.filter((r) => r.repeat === ranked[0].repeat);
+  return fresh[seed % Math.min(fresh.length, SHUFFLE_CHOICES)].four;
 }
 
 /** How many players at the front of the line are weighed as opponents for a requested pair. */
@@ -638,6 +658,7 @@ export function buildSuggestion(
   if (pool.length < 4) return null;
   const ordered = playerPriority(pool);
   const { meet, partner } = pairCounts(matches);
+  const history = matches.map((m) => [...m.t1, ...m.t2]);
 
   const reqPair = requestedPairs.find(
     ([a, b]) => ordered.some((p) => p.id === a) && ordered.some((p) => p.id === b),
@@ -681,7 +702,7 @@ export function buildSuggestion(
       hardActive,
     });
     if (pick) {
-      four = pickFour(pick.candidates, meet, seed, options.singleCourt, extraReady, { forced: pick.forced, partner });
+      four = pickFour(pick.candidates, meet, seed, options.singleCourt, extraReady, { forced: pick.forced, partner, history });
       if (four) {
         const due = pick.due.filter((p) => four!.some((q) => q.id === p.id));
         const carried = pick.kind === "mid" ? dCarries : carries;
@@ -693,9 +714,9 @@ export function buildSuggestion(
             : copy.reason.plain(label);
       }
     }
-    four ??= pickFour(pool, meet, seed, options.singleCourt, extraReady, { avoidAC: hardActive || !!options.avoidAC, partner });
+    four ??= pickFour(pool, meet, seed, options.singleCourt, extraReady, { avoidAC: hardActive || !!options.avoidAC, partner, history });
   } else {
-    four = pickFour(pool, meet, seed, options.singleCourt, extraReady, { partner });
+    four = pickFour(pool, meet, seed, options.singleCourt, extraReady, { partner, history });
   }
   if (!four) return null;
   const split = pickBalancedFoursome(four, partner);
