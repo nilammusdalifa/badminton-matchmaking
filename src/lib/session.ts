@@ -519,6 +519,15 @@ function mustPlayers(pool: Player[], extraReady: number): Player[] {
     .slice(0, 4);
 }
 
+/** How much a group of four repeats the night so far (`history`: the four of
+ * every match, in order): 2 = the same four as an earlier match, 1 = shares 3
+ * of its 4 with one of the last `RECENT_MATCHES`, 0 = a new group. */
+function repeatLevel(four: readonly Pick<Player, "id">[], history: readonly (readonly string[])[]): number {
+  const shared = (group: readonly string[]) => four.filter((p) => group.includes(p.id)).length;
+  if (history.some((group) => shared(group) === 4)) return 2;
+  return history.slice(-RECENT_MATCHES).some((group) => shared(group) >= SAME_GROUP_OVERLAP) ? 1 : 0;
+}
+
 /** Picks who plays next from the ready pool. Rules, in order:
  *  1. Anyone who has waited a quarter of the pool's size (rounded up) must
  *     play (at most 4, by priority). `opts.forced`, when given, replaces this
@@ -564,14 +573,6 @@ export function pickFour(
   rest = rest.slice(0, CANDIDATE_WINDOW);
 
   const minGames = Math.min(...[...pool, ...must].map((p) => p.games));
-  const history = (opts.history ?? []).map((ids) => new Set(ids));
-  const recent = history.slice(-RECENT_MATCHES);
-  // 2 = the same four as an earlier match, 1 = 3 of 4 with a recent one, 0 = a new group
-  const repeatLevel = (four: Player[]): number => {
-    const shared = (group: Set<string>) => four.filter((p) => group.has(p.id)).length;
-    if (history.some((group) => shared(group) === 4)) return 2;
-    return recent.some((group) => shared(group) >= SAME_GROUP_OVERLAP) ? 1 : 0;
-  };
   const ranked = combinations(rest, 4 - must.length)
     .map((combo) => {
       const four = [...must, ...combo];
@@ -590,7 +591,7 @@ export function pickFour(
       const points = (team: [Player, Player]) => tierPointsOf(team[0].level) + tierPointsOf(team[1].level);
       const unsplittable = !opts.avoidAC && bestSplitGap(four) >= 2;
       const gap = opts.avoidAC ? 0 : Math.abs(points(split.team1) - points(split.team2));
-      return { four, familiarity, cost, unsplittable, repeats, gap, repeat: repeatLevel(four) };
+      return { four, familiarity, cost, unsplittable, repeats, gap, repeat: repeatLevel(four, opts.history ?? []) };
     })
     .sort((x, y) => x.repeat - y.repeat || x.cost - y.cost || Number(x.unsplittable) - Number(y.unsplittable) || x.repeats - y.repeats || x.gap - y.gap);
   // never empty: `pool` has 4+ players and at most `must.length` of them are in `must`,
@@ -703,6 +704,11 @@ export function buildSuggestion(
     });
     if (pick) {
       four = pickFour(pick.candidates, meet, seed, options.singleCourt, extraReady, { forced: pick.forced, partner, history });
+      // A hard game is the fix for A/Bs (or Cs) who carried, and with exactly four upper players it can
+      // only be the same four. So it is held back only from coming straight back (the last matches, as
+      // for any group); the normal pick below takes that turn. Never ruled out for good, or those
+      // players would carry for the rest of the night.
+      if (four && repeatLevel(four, history.slice(-RECENT_MATCHES)) > 0) four = null;
       if (four) {
         const due = pick.due.filter((p) => four!.some((q) => q.id === p.id));
         const carried = pick.kind === "mid" ? dCarries : carries;

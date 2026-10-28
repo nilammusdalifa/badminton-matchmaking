@@ -1527,6 +1527,20 @@ describe("same group never repeats", () => {
     }
   });
 
+  it("a due hard game still happens when its four are the only A/B players, after other matches in between", () => {
+    // a1 carried c1 twice since the last all-A/B match: the same four A/B are the only hard game there is
+    const T = (id: string, level: SkillLevel): Player => makeBlankPlayer(id, id, level, "ready");
+    const players = [T("a1", "A"), T("a2", "A"), T("b1", "B"), T("b2", "B"), T("c1", "C"), T("c2", "C"), T("c3", "C"), T("c4", "C")];
+    const history = [
+      completed("m1", ["a1", "a2"], ["b1", "b2"], 21, 15),
+      completed("m2", ["a1", "c1"], ["c2", "c3"], 21, 15),
+      completed("m3", ["a1", "c1"], ["c3", "c4"], 21, 15),
+    ];
+    const sug = buildSuggestion(players, history, [], [], 0, { hardGames: true })!;
+    expect(sug.hard).toBe(true);
+    expect(ids(sug.four)).toEqual(["a1", "a2", "b1", "b2"]);
+  });
+
   it("10 players on one court: across a night no four meets again and no match is the last one with a swap", () => {
     const roster = ["Dadang", "Fery", "Florencia", "Mario", "Milzam", "Setyo", "Timothy", "Ulfa", "Vincent", "Wiznu"];
     const levels: SkillLevel[] = ["D", "A", "C", "B", "D", "C", "C", "D", "C", "A"];
