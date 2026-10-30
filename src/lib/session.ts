@@ -486,6 +486,15 @@ const SHUFFLE_CHOICES = 6;
 const SAME_GROUP_OVERLAP = 3;
 /** How many of the latest matches count as "recent" for `SAME_GROUP_OVERLAP`. */
 const RECENT_MATCHES = 2;
+/** With this many ready players or fewer, a repeated partnership counts against a
+ * group (`SMALL_ROSTER_PARTNER_WEIGHT` each). The same-group rule leaves a small
+ * roster few ways to split the four, so partners would otherwise come round again
+ * and again. Larger rosters have the choice anyway and are left as they are. */
+const SMALL_ROSTER = 9;
+/** Cost added per repeated partnership (same scale as `8 × familiarity`). 16 brought 8
+ * players back to the partner variety they had before the same-group rule; 24 started to
+ * cost games (5 to 7 for the same night). */
+const SMALL_ROSTER_PARTNER_WEIGHT = 16;
 
 /** Waiting this many matches makes a player a must-play: a quarter of the
  * ready players, rounded up. A fixed number breaks down as the group grows —
@@ -548,7 +557,10 @@ function repeatLevel(four: readonly Pick<Player, "id">[], history: readonly (rea
  *     rather than sent straight back out as the same group, and neither
  *     balance nor variety ever costs anyone a turn: they only choose between
  *     groups that are otherwise equal.
- *  4. A hard rule over the costs: with `opts.history` (the four of every match
+ *  4. With `opts.partnerWeight`, every repeated partnership in the way the four
+ *     would be split adds that much to the cost, so a group with fresh partners
+ *     can beat one that is a little ahead on waiting (see `SMALL_ROSTER`).
+ *  5. A hard rule over the costs: with `opts.history` (the four of every match
  *     so far, in order), a group that is the same four as an earlier match, or
  *     shares 3 of its 4 with one of the last 2, is passed over for any group
  *     that doesn't. Only when every candidate repeats one (a small roster) is
@@ -559,7 +571,7 @@ export function pickFour(
   seed = 0,
   singleCourt = false,
   extraReady = 0,
-  opts: { forced?: Player[]; avoidAC?: boolean; partner?: Map<string, number>; history?: string[][] } = {},
+  opts: { forced?: Player[]; avoidAC?: boolean; partner?: Map<string, number>; history?: string[][]; partnerWeight?: number } = {},
 ): Player[] | null {
   if (pool.length < 4) return null;
   const waitWeight = singleCourt ? SINGLE_COURT_WAIT_WEIGHT : 1;
@@ -573,6 +585,7 @@ export function pickFour(
   rest = rest.slice(0, CANDIDATE_WINDOW);
 
   const minGames = Math.min(...[...pool, ...must].map((p) => p.games));
+  const partnerWeight = opts.partnerWeight ?? 0;
   const ranked = combinations(rest, 4 - must.length)
     .map((combo) => {
       const four = [...must, ...combo];
@@ -593,7 +606,7 @@ export function pickFour(
       const gap = opts.avoidAC ? 0 : Math.abs(points(split.team1) - points(split.team2));
       return { four, familiarity, cost, unsplittable, repeats, gap, repeat: repeatLevel(four, opts.history ?? []) };
     })
-    .sort((x, y) => x.repeat - y.repeat || x.cost - y.cost || Number(x.unsplittable) - Number(y.unsplittable) || x.repeats - y.repeats || x.gap - y.gap);
+    .sort((x, y) => x.repeat - y.repeat || x.cost + partnerWeight * x.repeats - (y.cost + partnerWeight * y.repeats) || Number(x.unsplittable) - Number(y.unsplittable) || x.repeats - y.repeats || x.gap - y.gap);
   // never empty: `pool` has 4+ players and at most `must.length` of them are in `must`,
   // so `rest` always holds the 4 - must.length still needed
   // Shuffle steps only through groups as new as the best one
@@ -660,6 +673,7 @@ export function buildSuggestion(
   const ordered = playerPriority(pool);
   const { meet, partner } = pairCounts(matches);
   const history = matches.map((m) => [...m.t1, ...m.t2]);
+  const partnerWeight = players.filter((p) => p.status === "ready").length <= SMALL_ROSTER ? SMALL_ROSTER_PARTNER_WEIGHT : 0;
 
   const reqPair = requestedPairs.find(
     ([a, b]) => ordered.some((p) => p.id === a) && ordered.some((p) => p.id === b),
@@ -703,7 +717,7 @@ export function buildSuggestion(
       hardActive,
     });
     if (pick) {
-      four = pickFour(pick.candidates, meet, seed, options.singleCourt, extraReady, { forced: pick.forced, partner, history });
+      four = pickFour(pick.candidates, meet, seed, options.singleCourt, extraReady, { forced: pick.forced, partner, history, partnerWeight });
       // A hard game is the fix for A/Bs (or Cs) who carried, and with exactly four upper players it can
       // only be the same four. So it is held back only from coming straight back (the last matches, as
       // for any group); the normal pick below takes that turn. Never ruled out for good, or those
@@ -720,9 +734,9 @@ export function buildSuggestion(
             : copy.reason.plain(label);
       }
     }
-    four ??= pickFour(pool, meet, seed, options.singleCourt, extraReady, { avoidAC: hardActive || !!options.avoidAC, partner, history });
+    four ??= pickFour(pool, meet, seed, options.singleCourt, extraReady, { avoidAC: hardActive || !!options.avoidAC, partner, history, partnerWeight });
   } else {
-    four = pickFour(pool, meet, seed, options.singleCourt, extraReady, { partner, history });
+    four = pickFour(pool, meet, seed, options.singleCourt, extraReady, { partner, history, partnerWeight });
   }
   if (!four) return null;
   const split = pickBalancedFoursome(four, partner);

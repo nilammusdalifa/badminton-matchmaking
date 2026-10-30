@@ -615,13 +615,15 @@ describe("partner variety", () => {
   // 3.66 / 4.0 -> 4.65 / 0.0. 16 players barely moved (3.86 / 0.3 -> 3.88 / 0.1).
   // The same-group rule (a foursome never repeats, and never shares 3 of 4 with the last two
   // matches, while a new one exists) costs 8 players on 1 court its easiest source of new
-  // partners — the same four with the pairs switched — so it settles at 4.3 / 1.3.
+  // partners — the same four with the pairs switched — which alone left it at 4.3 / 1.3. With
+  // 9 ready players or fewer a repeated partnership also counts against a group, which gives
+  // the partner variety back (SMALL_ROSTER_PARTNER_WEIGHT): the floor and ceiling are as before.
   // label, scenario, floor on different partners, ceiling on repeated pairs
   const cases: [string, Scenario, number, number][] = [
     ["12 players, 2 courts", { players: 12, courts: twoCourts, planAhead: true }, 4.75, 2.3],
     ["15 players 3A/5B/7C", { players: 15, courts: twoCourts, levels: [3, 5, 7], planAhead: true }, 4.0, 0.8],
     ["20 players, 3 courts", { players: 20, courts: threeCourts, planAhead: true }, 5.45, 1.4],
-    ["8 players, 1 court", { players: 8, courts: oneCourt, planAhead: true }, 4.3, 1.5],
+    ["8 players, 1 court", { players: 8, courts: oneCourt, planAhead: true }, 4.5, 0.5],
   ];
   for (const [label, scenario, minPartners, maxTwice] of cases) {
     it(`${label}: more different partners, fewer repeats`, () => {

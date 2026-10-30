@@ -1541,6 +1541,17 @@ describe("same group never repeats", () => {
     expect(ids(sug.four)).toEqual(["a1", "a2", "b1", "b2"]);
   });
 
+  it("a small roster counts repeated partnerships against a group, when asked to", () => {
+    // p1-p4 have partnered every way before, so any split of them repeats two pairs; p5 is new to all.
+    // p1-p4 have each waited one match, p5 none, so p1-p4 is ahead on waiting
+    const B2 = (id: string, over: Partial<Player> = {}): Player => ({ ...makeBlankPlayer(id, id, "B", "ready"), ...over });
+    const players = [B2("p1", { skipped: 1 }), B2("p2", { skipped: 1 }), B2("p3", { skipped: 1 }), B2("p4", { skipped: 1 }), B2("p5")];
+    const partner = new Map([["p1", "p2"], ["p3", "p4"], ["p1", "p3"], ["p2", "p4"], ["p1", "p4"], ["p2", "p3"]].map(([a, b]) => [[a, b].sort().join("|"), 1] as const));
+    expect(ids(pickFour(players, new Map(), 0, false, 0, { partner }))).toEqual(["p1", "p2", "p3", "p4"]);
+    // a group with p5 repeats one pair instead of two, which is worth more than one match of waiting
+    expect(ids(pickFour(players, new Map(), 0, false, 0, { partner, partnerWeight: 16 }))).toContain("p5");
+  });
+
   it("10 players on one court: across a night no four meets again and no match is the last one with a swap", () => {
     const roster = ["Dadang", "Fery", "Florencia", "Mario", "Milzam", "Setyo", "Timothy", "Ulfa", "Vincent", "Wiznu"];
     const levels: SkillLevel[] = ["D", "A", "C", "B", "D", "C", "C", "D", "C", "A"];
