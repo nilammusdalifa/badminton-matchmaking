@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CourtCard } from "../CourtCard";
 import { WinMark } from "../WinMark";
 import { copy } from "../../lib/copy";
@@ -57,6 +57,10 @@ export function SessionTab({
   const gamesRef = useRef<HTMLDivElement>(null);
   // The umpire opens one queue row at a time to reach Skip next and Rest.
   const [openRowId, setOpenRowId] = useState<string | null>(null);
+  // A player who leaves the queue (a match starts) must not come back with their row already open.
+  useEffect(() => {
+    if (openRowId && !waitingVM.some((w) => w.id === openRowId)) setOpenRowId(null);
+  }, [openRowId, waitingVM]);
   const showGames = () => {
     setGamesOpen(true);
     requestAnimationFrame(() => gamesRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
@@ -319,7 +323,7 @@ export function SessionTab({
               // "Plays next" repeats the tag beside it, so only the other reasons get words
               const reasonText = w.reason && w.reason !== w.note && w.reason !== copy.session.why.next && w.reason !== copy.session.why.after ? w.reason : null;
               const tagText = w.queueTag ? (w.queueTag === copy.session.upNext ? copy.session.inNextMatch : copy.session.inMatchAfter) : null;
-              const detail = [w.note, reasonText].filter(Boolean).join(" · ");
+              const detail = copy.session.dotJoin([w.note, reasonText].filter((t): t is string => Boolean(t)));
               const content = (
                 <>
                   <span className={styles.queueLine}>
@@ -329,7 +333,7 @@ export function SessionTab({
                     </span>
                     <span className={styles.queueName}>
                       {w.name}
-                      {!hideTier && <span className={styles.waitingLevel}> · Tier {w.level}</span>}
+                      {!hideTier && <span className={styles.waitingLevel}>{copy.session.nameTier(w.level)}</span>}
                     </span>
                     {isYou && <span className={styles.youTag}>{copy.session.youTag}</span>}
                     <span className={styles.queueStats}>{stats}</span>

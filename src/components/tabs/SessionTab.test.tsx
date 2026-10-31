@@ -90,7 +90,7 @@ describe("SessionTab queue rows", () => {
     const umpire = renderText(<SessionTab {...props()} />);
     expect(umpire).toContain("#1");
     expect(umpire).toContain("Sat out 1 · Played 2");
-    expect(umpire).toContain("Tier B");
+    expect(umpire).toContain("Ana · Tier B");
     expect(renderText(<SessionTab {...props()} hideTier />)).not.toContain("Tier");
   });
 
@@ -105,5 +105,6 @@ describe("SessionTab queue rows", () => {
     const waitingVM = base.waitingVM.map((w, i) => (i === 5 ? { ...w, note: copy.session.hostLater, reason: copy.session.hostLater } : w));
     const text = renderText(<SessionTab {...props({ waitingVM })} readOnly />);
     expect(text.split(copy.session.hostLater)).toHaveLength(2);
+    expect(renderText(<SessionTab {...props({ waitingVM: waitingVM.map((w, i) => (i === 5 ? { ...w, note: copy.session.hostLater, reason: copy.session.why.fair } : w)) })} readOnly />)).toContain(`${copy.session.hostLater} · ${copy.session.why.fair}`);
   });
 });

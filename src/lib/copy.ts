@@ -97,6 +97,10 @@ export const copy = {
     queueTitle: (n: number) => `Queue (${n})`,
     queueEmpty: "No one in the queue right now.",
     queueHint: "Tap a player to sit them out of one match or give them a rest.",
+    /** " · Tier B" after a name; the middle dot is an escape so a byte-level slip cannot corrupt it. */
+    nameTier: (level: string) => ` \u00b7 Tier ${level}`,
+    /** Joins the parts of one line ("note · reason"). */
+    dotJoin: (parts: string[]) => parts.join(" \u00b7 "),
     /** Accessible name of a queue row that opens its actions. */
     rowActions: (name: string) => `Actions for ${name}`,
     upNext: "Up next",
