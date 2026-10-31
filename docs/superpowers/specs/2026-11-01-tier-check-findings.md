@@ -46,9 +46,10 @@ So no hint was shipped.
 ## Why
 
 A one-tier gap is one skill unit, but a single match is decided by pair strength,
-not one player, and a 21-point game is noisy. After 3 to 5 matches p0's mean score
-is only about 54 to 60, while correctly tiered players, whose own skill varies by
-half a unit within a tier, regularly reach 62 or more. The two groups overlap, so
+not one player, and a 21-point game is noisy. After 3 matches p0's mean score
+was about 54 on one seeded night (not measured across all 300), while correctly
+tiered players, whose own skill varies by half a unit within a tier, regularly
+reach 62 or more (inferred from the false-flag rates above). The two groups overlap, so
 any bound that catches the mis-listed player also catches many correct ones. More
 matches help detection slowly (the score is pulled toward 50 by its prior and by
 averaging across mixed partners), and the spread among correct players does not
