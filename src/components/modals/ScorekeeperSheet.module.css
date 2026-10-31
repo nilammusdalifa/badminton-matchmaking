@@ -92,6 +92,41 @@
 .plusBtn.b { background: var(--sm-accent-2); color: var(--sm-accent-2-on); }
 .plusBtn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.serve {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.serveLine {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sm-text);
+  text-align: center;
+}
+.serveChoices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+.serveBtn {
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text-2);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .gameOverNote {
   margin-top: 12px;
   text-align: center;

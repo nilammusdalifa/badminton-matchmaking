@@ -19,6 +19,10 @@ export function ScorekeeperSheet({
   isLikelyIncomplete,
   isTie,
   isEditingCompleted,
+  resultMode,
+  serve,
+  serverChoices,
+  onSwapReceivers,
   addT1,
   addT2,
   setT1,
@@ -86,6 +90,32 @@ export function ScorekeeperSheet({
             </button>
           </div>
         </div>
+        {/* Who serves only means something while a scored match is being
+            played. Unknown (sheet reopened, page reloaded, score typed in):
+            ask instead of guessing. */}
+        {resultMode === "score" && !isEditingCompleted && !isGameOver && !askEndedEarly && (
+          <div className={styles.serve}>
+            {serve ? (
+              <>
+                <div className={styles.serveLine}>{copy.scorekeeper.serving(serve.name, serve.side)}</div>
+                <button className={styles.serveBtn} onClick={onSwapReceivers}>
+                  {copy.scorekeeper.swapReceivers}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className={styles.serveLine}>{copy.scorekeeper.whoServes}</div>
+                <div className={styles.serveChoices}>
+                  {serverChoices.map((c) => (
+                    <button key={c.label} className={styles.serveBtn} onClick={c.onPick}>
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {askEndedEarly ? (
           <div className={styles.endedEarly}>
             <div className={styles.endedEarlyTitle}>{copy.scorekeeper.endedEarlyTitle}</div>

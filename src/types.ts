@@ -1,3 +1,5 @@
+import type { ServeState } from "./lib/serve";
+
 /** Organizer-set tier, A strongest. D was added below C later: A–C mean what they always did. */
 export type SkillLevel = "A" | "B" | "C" | "D";
 export type PlayerStatus = "expected" | "ready" | "paused" | "left";
@@ -116,6 +118,11 @@ export interface Match {
    * after being cancelled. Not meaningful once a match completes for real,
    * so never applied to a completed match's deletion. */
   counterSnapshot?: Record<string, CounterSnapshot>;
+  /** Who serves and where everyone stands, set once the umpire picks the
+   * first server in the scorekeeper. Kept only while the match is in
+   * progress; a typed score deletes it (the order can't be worked out from a
+   * jump in the score). Never `undefined` — Firebase rejects that. */
+  serve?: ServeState;
 }
 
 export interface Court {

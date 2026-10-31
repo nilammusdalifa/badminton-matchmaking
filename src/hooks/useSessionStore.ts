@@ -62,6 +62,7 @@ import {
   withListDefaults,
 } from "../lib/session";
 import { formatAgo } from "../lib/locale";
+import { afterRally, serverOf, startServe, swapReceivers, type ServeState, type Team } from "../lib/serve";
 import { copy } from "../lib/copy";
 import { queueReasons } from "../lib/queueReasons";
 import { SHARE_CARD_H, SHARE_CARD_W, SHARE_TOP_COUNT } from "../lib/shareCard";
@@ -128,7 +129,10 @@ interface AppState {
   scorekeeperMatchId: string | null;
   scorekeeperT1: number;
   scorekeeperT2: number;
-  scorekeeperHistory: { t1: number; t2: number }[];
+  /** Who serves in the open scorekeeper; null until the umpire picks the first server. */
+  scorekeeperServe: ServeState | null;
+  /** Every score the sheet has shown, with who served at it, for Undo. */
+  scorekeeperHistory: ScorekeeperStep[];
   editCourtId: string | null;
   editT1A: string;
   editT1B: string;
@@ -187,6 +191,7 @@ function initialState(): AppState {
     scorekeeperMatchId: null,
     scorekeeperT1: 0,
     scorekeeperT2: 0,
+    scorekeeperServe: null,
     scorekeeperHistory: [],
     editCourtId: null,
     editT1A: "",
@@ -210,6 +215,10 @@ function initialState(): AppState {
     shareRankingsOpen: false,
   };
 }
+
+type ScorekeeperStep = { t1: number; t2: number; serve?: ServeState };
+/** A history entry without a `serve` key when the server isn't known. */
+const skStep = (t1: number, t2: number, serve: ServeState | null): ScorekeeperStep => (serve ? { t1, t2, serve } : { t1, t2 });
 
 export function useSessionStore() {
   const [state, setState] = useState<AppState>(() => {
@@ -280,7 +289,8 @@ export function useSessionStore() {
       // write the old ones back over them.
       const live = liveScoreFor(next.matches, s.scorekeeperMatchId);
       if (live && (live.s1 !== s.scorekeeperT1 || live.s2 !== s.scorekeeperT2)) {
-        return { ...next, scorekeeperT1: live.s1, scorekeeperT2: live.s2, scorekeeperHistory: [{ t1: live.s1, t2: live.s2 }] };
+        const serve = next.matches.find((m) => m.id === s.scorekeeperMatchId)?.serve ?? null;
+        return { ...next, scorekeeperT1: live.s1, scorekeeperT2: live.s2, scorekeeperServe: serve, scorekeeperHistory: [skStep(live.s1, live.s2, serve)] };
       }
       return next;
     });
@@ -618,12 +628,16 @@ export function useSessionStore() {
     (matchId: string) => {
       const m = state.matches.find((x) => x.id === matchId);
       if (!m) return;
+      // Who serves survives closing and reopening the sheet; a match with no
+      // server picked yet (or saved before this existed) asks again.
+      const serve = m.status === "in_progress" ? (m.serve ?? null) : null;
       setState((s) => ({
         ...s,
         scorekeeperMatchId: matchId,
         scorekeeperT1: m.s1,
         scorekeeperT2: m.s2,
-        scorekeeperHistory: [{ t1: m.s1, t2: m.s2 }],
+        scorekeeperServe: serve,
+        scorekeeperHistory: [skStep(m.s1, m.s2, serve)],
       }));
     },
     [state.matches],
@@ -634,12 +648,14 @@ export function useSessionStore() {
     setState((s) => {
       const t1 = team === 1 ? s.scorekeeperT1 + 1 : s.scorekeeperT1;
       const t2 = team === 2 ? s.scorekeeperT2 + 1 : s.scorekeeperT2;
+      const serve = s.scorekeeperServe ? afterRally(s.scorekeeperServe, team === 1 ? "t1" : "t2") : null;
       return {
         ...s,
         scorekeeperT1: t1,
         scorekeeperT2: t2,
-        scorekeeperHistory: [...s.scorekeeperHistory, { t1, t2 }],
-        matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", t1, t2),
+        scorekeeperServe: serve,
+        scorekeeperHistory: [...s.scorekeeperHistory, skStep(t1, t2, serve)],
+        matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", t1, t2, serve),
       };
     });
   }, []);
@@ -648,8 +664,10 @@ export function useSessionStore() {
     setState((s) => ({
       ...s,
       scorekeeperT1: v,
-      scorekeeperHistory: [...s.scorekeeperHistory, { t1: v, t2: s.scorekeeperT2 }],
-      matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", v, s.scorekeeperT2),
+      // A typed score can jump several points, so who serves can't be worked out: ask again.
+      scorekeeperServe: null,
+      scorekeeperHistory: [...s.scorekeeperHistory, skStep(v, s.scorekeeperT2, null)],
+      matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", v, s.scorekeeperT2, null),
     }));
   }, []);
   const skSetT2 = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -657,8 +675,9 @@ export function useSessionStore() {
     setState((s) => ({
       ...s,
       scorekeeperT2: v,
-      scorekeeperHistory: [...s.scorekeeperHistory, { t1: s.scorekeeperT1, t2: v }],
-      matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", s.scorekeeperT1, v),
+      scorekeeperServe: null,
+      scorekeeperHistory: [...s.scorekeeperHistory, skStep(s.scorekeeperT1, v, null)],
+      matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", s.scorekeeperT1, v, null),
     }));
   }, []);
   const skUndo = useCallback(() => {
@@ -666,15 +685,34 @@ export function useSessionStore() {
       if (s.scorekeeperHistory.length <= 1) return s;
       const h = s.scorekeeperHistory.slice(0, -1);
       const last = h[h.length - 1];
+      const serve = last.serve ?? null;
       return {
         ...s,
         scorekeeperHistory: h,
         scorekeeperT1: last.t1,
         scorekeeperT2: last.t2,
-        matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", last.t1, last.t2),
+        scorekeeperServe: serve,
+        matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", last.t1, last.t2, serve),
       };
     });
   }, []);
+  // Picking the server (or fixing who receives) changes who serves at the
+  // current score, not the score: it rewrites the latest history entry, so
+  // Undo still steps back one point at a time.
+  const skSetServe = useCallback((change: (current: ServeState | null) => ServeState | null) => {
+    setState((s) => {
+      const serve = change(s.scorekeeperServe);
+      if (!serve) return s;
+      return {
+        ...s,
+        scorekeeperServe: serve,
+        scorekeeperHistory: [...s.scorekeeperHistory.slice(0, -1), skStep(s.scorekeeperT1, s.scorekeeperT2, serve)],
+        matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", s.scorekeeperT1, s.scorekeeperT2, serve),
+      };
+    });
+  }, []);
+  const skPickServer = useCallback((team: Team, index: 0 | 1) => skSetServe(() => startServe(team, index)), [skSetServe]);
+  const skSwapReceivers = useCallback(() => skSetServe((cur) => (cur ? swapReceivers(cur) : null)), [skSetServe]);
   // "final": the result counts. "early": the match stopped before it finished
   // (injury, time up) — the score so far is kept for the log, but nothing about
   // it counts towards wins, losses or points; it still counts as a game played
@@ -700,6 +738,7 @@ export function useSessionStore() {
         const matches = s.matches.map((m) => {
           if (m.id !== matchId) return m;
           const next: Match = { ...m, s1: s.scorekeeperT1, s2: s.scorekeeperT2, status: "completed" };
+          delete next.serve; // only kept while the match is being played
           if (mode === "early") {
             next.endedEarly = true;
             next.counted = false;
@@ -2149,6 +2188,17 @@ export function useSessionStore() {
   // that case only gets a soft second-tap confirmation, not a hard block.
   const skIsTie = sk ? state.scorekeeperT1 === state.scorekeeperT2 : false;
   const skLikelyIncomplete = sk ? skIsTie || (state.scorekeeperT1 < 21 && state.scorekeeperT2 < 21) : false;
+  const skServer = sk && state.scorekeeperServe ? serverOf(state.scorekeeperServe, { t1: state.scorekeeperT1, t2: state.scorekeeperT2 }) : null;
+  const skServe = skServer ? { name: (skServer.team === "t1" ? skT1Names : skT2Names)[skServer.player], side: skServer.side } : null;
+  // Server unknown (sheet reopened, page reloaded, score typed): the four
+  // players to pick from, instead of a guess.
+  const skServerChoices =
+    sk && !skServe
+      ? ([["t1", 0], ["t1", 1], ["t2", 0], ["t2", 1]] as const).map(([team, index]) => ({
+          label: (team === "t1" ? skT1Names : skT2Names)[index],
+          onPick: () => skPickServer(team, index),
+        }))
+      : [];
 
   const playingCount = useMemo(() => state.players.filter((p) => isPlaying(p.id)).length, [state.players, isPlaying]);
   const pausedCount = useMemo(() => state.players.filter((p) => p.status === "paused").length, [state.players]);
@@ -2344,6 +2394,10 @@ export function useSessionStore() {
       isLikelyIncomplete: skLikelyIncomplete,
       isTie: skIsTie,
       isEditingCompleted: sk?.status === "completed",
+      resultMode: sk?.resultMode ?? "score",
+      serve: skServe,
+      serverChoices: skServerChoices,
+      onSwapReceivers: skSwapReceivers,
       addT1: () => skPoint(1),
       addT2: () => skPoint(2),
       setT1: skSetT1,

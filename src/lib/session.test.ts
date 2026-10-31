@@ -437,6 +437,15 @@ describe("live scoring", () => {
   it("applyLiveScore leaves completed matches untouched", () => {
     expect(applyLiveScore([done], done.id, 30, 0)[0]).toMatchObject({ s1: 21, s2: 15, status: "completed" });
   });
+
+  it("applyLiveScore writes, deletes or keeps the serve", () => {
+    const serve = { serving: "t2" as const, right: { t1: 1 as const, t2: 0 as const } };
+    const withServe = applyLiveScore([live], live.id, 1, 0, serve)[0];
+    expect(withServe.serve).toEqual(serve);
+    expect(applyLiveScore([withServe], live.id, 2, 0)[0].serve).toEqual(serve);
+    const cleared = applyLiveScore([withServe], live.id, 2, 0, null)[0];
+    expect("serve" in cleared).toBe(false);
+  });
 });
 
 describe("roster editing", () => {
@@ -472,6 +481,11 @@ describe("remote sync helpers", () => {
 
   it("syncFingerprint ignores live points on an in-progress match", () => {
     expect(syncFingerprint(doc([{ ...live, s1: 5, s2: 3 }, done]))).toBe(syncFingerprint(doc([live, done])));
+  });
+
+  it("syncFingerprint ignores the serve on an in-progress match", () => {
+    const serve = { serving: "t1" as const, right: { t1: 0 as const, t2: 0 as const } };
+    expect(syncFingerprint(doc([{ ...live, serve }, done]))).toBe(syncFingerprint(doc([live, done])));
   });
 
   it("syncFingerprint changes when anything other than live points changes", () => {

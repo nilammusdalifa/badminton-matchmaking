@@ -1,6 +1,7 @@
 import type { GamesPlayedRow, GamesPlayedVM } from "../types.viewmodel";
 import type { CounterSnapshot, Court, Match, Player, PlayerStatus, QueueItem, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion } from "../types";
 import { copy } from "./copy";
+import type { ServeState } from "./serve";
 import { APP_TIME_ZONE, zonedDate, zonedToEpoch } from "./locale";
 import { carriesSinceHard, dCarriesSinceRelief, hardGamePick, isDFreeMatch, isHardMatch, isLower } from "./hardGames";
 
@@ -237,8 +238,16 @@ export function courtCloseReminders(courts: Court[], matches: Match[], now: Date
  * still being played, so closing the sheet (or a viewer watching) doesn't
  * lose them. A completed match is only ever changed by an explicit save —
  * otherwise retyping a score while fixing it would rewrite rankings live. */
-export function applyLiveScore(matches: Match[], matchId: string, s1: number, s2: number): Match[] {
-  return matches.map((m) => (m.id === matchId && m.status === "in_progress" ? { ...m, s1, s2 } : m));
+export function applyLiveScore(matches: Match[], matchId: string, s1: number, s2: number, serve?: ServeState | null): Match[] {
+  return matches.map((m) => {
+    if (m.id !== matchId || m.status !== "in_progress") return m;
+    const next: Match = { ...m, s1, s2 };
+    // null: the server is no longer known, drop the key (never write
+    // `serve: undefined`, Firebase rejects it). undefined: leave it alone.
+    if (serve === null) delete next.serve;
+    else if (serve) next.serve = serve;
+    return next;
+  });
 }
 
 /** Identity of a session document for sync purposes: everything EXCEPT the
@@ -246,9 +255,10 @@ export function applyLiveScore(matches: Match[], matchId: string, s1: number, s2
  * scorekeeper change many times a rally; pushing the whole session to
  * Firebase each time makes two devices' writes collide constantly (the
  * server only accepts a strictly higher `rev`, and the loser silently
- * diverges). Live points travel with the next real push instead. */
+ * diverges). Live points travel with the next real push instead, and so
+ * does who serves, which changes with every point. */
 export function syncFingerprint<T extends { matches: Match[] }>(data: T): string {
-  return JSON.stringify({ ...data, matches: data.matches.map((m) => (m.status === "in_progress" ? { ...m, s1: 0, s2: 0 } : m)) });
+  return JSON.stringify({ ...data, matches: data.matches.map((m) => (m.status === "in_progress" ? { ...m, s1: 0, s2: 0, serve: undefined } : m)) });
 }
 
 /** The points on the board for a match that's still being played — what an
