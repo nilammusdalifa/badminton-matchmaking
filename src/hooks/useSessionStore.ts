@@ -2225,6 +2225,7 @@ export function useSessionStore() {
       onCheckInAll: checkInAll,
       courtsVM,
       queueVM,
+      plannedIds: plan.map((item) => [...item.team1, ...item.team2]),
       waitingVM,
       waitingCount: waitingVM.length,
       hasNotInRotation: notInRotationVM.length > 0,

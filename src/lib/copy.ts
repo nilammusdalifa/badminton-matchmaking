@@ -83,6 +83,10 @@ export const copy = {
     youPlaying: (court: string) => `You're playing on ${court}`,
     youNext: "You're next in line",
     youPosition: (ordinal: string) => `You're ${ordinal} in line`,
+    youInNext: "You're in the next match",
+    youInMatchAfter: "You're in the match after",
+    youPassed: (ordinal: string, reason: string) => `You're ${ordinal} in line · ${reason}`,
+    passedGeneric: "not in the next match – picks also mix groups and even out teams",
     youResting: "You're resting",
 
     queueTitle: (n: number) => `Queue (${n})`,
@@ -96,7 +100,7 @@ export const copy = {
     includesCourt: (court: string, longest: boolean, minutes: number) => `includes ${court} players (${longest ? "playing longest, " : "playing "}${minutes} min)`,
     shuffle: "Shuffle",
     edit: "Edit",
-    position: (index: number) => `#${index + 1}${index === 0 ? " · Next up" : ""}`,
+    position: (index: number) => `#${index + 1}`,
     inNextMatch: "In next match",
     inMatchAfter: "In match after",
     /** "Sat out 2 · Played 5 · 2 in a row" */

@@ -67,6 +67,7 @@ describe("copy: house style", () => {
     expect(copy.session.queueMeta(2, 5, 0)).toBe("Sat out 2 · Played 5");
     expect(copy.session.queueMeta(2, 5, 2)).toBe("Sat out 2 · Played 5 · 2 in a row");
     expect(copy.session.queueTitle(8)).toBe("Queue (8)");
+    expect(copy.session.position(0)).toBe("#1");
     expect(copy.session.avg(5.3, 3)).toBe("Avg 5.3 · 3 behind");
     expect(copy.matches.heading(12, "Court 1")).toBe("Match 12 · Court 1");
     expect(copy.confirm.deleteTitle(12)).toBe("Delete match 12?");

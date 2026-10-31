@@ -3,6 +3,7 @@ import { CourtCard } from "../CourtCard";
 import { WinMark } from "../WinMark";
 import { copy } from "../../lib/copy";
 import { avatarStyle } from "../../lib/playerColor";
+import { youStatus } from "../../lib/youStatus";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./SessionTab.module.css";
 
@@ -19,12 +20,6 @@ type SessionTabProps = SessionStore["session"] & {
   onSetYou?: (id: string | null) => void;
 };
 
-const ordinal = (n: number) => {
-  const rest = n % 100;
-  if (rest >= 11 && rest <= 13) return `${n}th`;
-  return `${n}${["th", "st", "nd", "rd"][n % 10 > 3 ? 0 : n % 10]}`;
-};
-
 export function SessionTab({
   playersCount,
   courtsCount,
@@ -36,6 +31,7 @@ export function SessionTab({
   onCheckInAll,
   courtsVM,
   queueVM,
+  plannedIds,
   waitingVM,
   waitingCount,
   hasNotInRotation,
@@ -68,19 +64,16 @@ export function SessionTab({
   // screen keeps running as it always did (it has End Session for that).
   const ended = Boolean(readOnly && scheduleOver);
   const you = readOnly && youId ? playerOptions.find((p) => p.id === youId) : undefined;
-  const yourQueueIndex = you ? waitingVM.findIndex((w) => w.id === you.id) : -1;
   const yourCourt = you ? courtsVM.find((c) => c.match && [c.match.t1p1, c.match.t1p2, c.match.t2p1, c.match.t2p2].includes(you.name)) : undefined;
-  const yourStatus = !you
-    ? null
-    : yourCourt
-      ? copy.session.youPlaying(yourCourt.name)
-      : yourQueueIndex >= 0 && !ended
-        ? yourQueueIndex === 0
-          ? copy.session.youNext
-          : copy.session.youPosition(ordinal(yourQueueIndex + 1))
-        : notInRotationVM.some((n) => n.id === you.id) && !ended
-          ? copy.session.youResting
-          : null;
+  const yourStatus = you
+    ? youStatus(you.id, {
+        waitingIds: waitingVM.map((w) => w.id),
+        plannedIds,
+        playingCourt: yourCourt?.name ?? null,
+        resting: notInRotationVM.some((n) => n.id === you.id),
+        ended,
+      })
+    : null;
 
   const finalRanked = rankings.filter((r) => r.section === "ranked");
 
@@ -325,7 +318,7 @@ export function SessionTab({
                     <div className={styles.waitingText}>
                       <div className={styles.waitingPos}>
                         {position}
-                        {w.queueTag && (i > 0 || w.queueTag === copy.session.then) && (
+                        {w.queueTag && (
                           <span className={styles.queueTag}>{w.queueTag === copy.session.upNext ? copy.session.inNextMatch : copy.session.inMatchAfter}</span>
                         )}
                       </div>
