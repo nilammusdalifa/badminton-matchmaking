@@ -8,16 +8,29 @@
           ".validate": "!data.exists() || newData.child('rev').val() > data.child('rev').val()"
         },
         "pin": {
-          ".write": "!data.exists() || auth.uid === root.child('sessions').child($sessionId).child('ownerUid').val()",
-          ".validate": "newData.isString() && newData.val().matches(/^([0-9]{4}|[0-9]{6})$/)"
+          ".write": "auth != null && (!data.exists() || auth.uid === root.child('sessions').child($sessionId).child('ownerUid').val())",
+          ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}([0-9]{2})?$/)"
         },
         "ownerUid": {
           ".write": "!data.exists()"
         },
         "attempts": {
           "$uid": {
-            ".write": "auth.uid === $uid",
-            ".validate": "newData.hasChildren(['count', 'at', 'guess']) && newData.child('at').val() === now && newData.child('count').val() === ((!data.exists() || data.child('at').val() <= now - 600000) ? 1 : data.child('count').val() + 1)"
+            ".read": "auth.uid === $uid",
+            ".write": "auth.uid === $uid && newData.exists()",
+            ".validate": "newData.hasChildren(['count', 'at', 'guess']) && newData.child('at').val() === now && newData.child('count').val() === ((!data.exists() || data.child('at').val() <= now - 600000) ? 1 : data.child('count').val() + 1)",
+            "count": {
+              ".validate": "newData.parent().child('at').val() === now && newData.val() === ((!data.parent().exists() || data.parent().child('at').val() <= now - 600000) ? 1 : data.parent().child('count').val() + 1)"
+            },
+            "at": {
+              ".validate": "newData.val() === now && newData.parent().child('count').val() === ((!data.parent().exists() || data.parent().child('at').val() <= now - 600000) ? 1 : data.parent().child('count').val() + 1)"
+            },
+            "guess": {
+              ".validate": "newData.isString() && newData.parent().child('at').val() === now && newData.parent().child('count').val() === ((!data.parent().exists() || data.parent().child('at').val() <= now - 600000) ? 1 : data.parent().child('count').val() + 1)"
+            },
+            "$other": {
+              ".validate": false
+            }
           }
         },
         "editorClaims": {

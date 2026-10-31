@@ -1,7 +1,7 @@
 import { get, off, onValue, ref, serverTimestamp, set } from "firebase/database";
 import { auth, database, firebaseConfigured } from "./firebase";
 import type { PersistedState } from "./persistence";
-import { MAX_PIN_TRIES, nextAttempt } from "./pin";
+import { isLocked, MAX_PIN_TRIES, nextAttempt } from "./pin";
 
 /** What actually lives at `sessions/{id}/data` — the shared game data plus a
  * `rev` counter used purely to detect stale writes (see useSessionStore's
@@ -129,10 +129,15 @@ export async function claimUmpireAccess(sessionId: string, enteredPin: string): 
     return "unavailable";
   }
 
+  // Out of tries: say so without counting another one, so pressing again
+  // never pushes the end of the lock further out.
+  const nowMs = Date.now();
+  if (isLocked(prev, nowMs)) return "locked";
+
   // The rules check the count against the server's clock, not this device's.
   // If the two disagree about whether the lock period has passed, the first
   // write is rejected; the other count is then the one the server expects.
-  const first = nextAttempt(prev, Date.now());
+  const first = nextAttempt(prev, nowMs);
   const other = first === 1 ? (prev ? prev.count + 1 : 1) : 1;
   let count = first;
   try {

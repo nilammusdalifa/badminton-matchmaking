@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { generateSessionPin, isPinLength, nextAttempt } from "./pin";
+import { generateSessionPin, isLocked, isPinLength, nextAttempt } from "./pin";
 
 describe("umpire PIN", () => {
   afterEach(() => {
@@ -22,5 +22,13 @@ describe("umpire PIN", () => {
     expect(nextAttempt({ count: 3, at: t - 1000 }, t)).toBe(4);
     expect(nextAttempt({ count: 5, at: t - 599_999 }, t)).toBe(6);
     expect(nextAttempt({ count: 5, at: t - 600_000 }, t)).toBe(1);
+  });
+  it("is locked only after 5 tries inside the 10-minute window", () => {
+    const t = 10_000_000;
+    expect(isLocked(null, t)).toBe(false);
+    expect(isLocked({ count: 4, at: t - 1000 }, t)).toBe(false);
+    expect(isLocked({ count: 5, at: t - 1000 }, t)).toBe(true);
+    expect(isLocked({ count: 5, at: t - 599_999 }, t)).toBe(true);
+    expect(isLocked({ count: 5, at: t - 600_000 }, t)).toBe(false);
   });
 });

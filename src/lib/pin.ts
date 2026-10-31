@@ -25,3 +25,11 @@ export function nextAttempt(prev: { count: number; at: number } | null, nowMs: n
   if (!prev || nowMs - prev.at >= PIN_LOCK_MS) return 1;
   return prev.count + 1;
 }
+
+/** True when this device has used all its tries and the last one is still
+ * inside the lock period. The client then says "locked" without writing
+ * another try, so pressing again never extends the lock. The fifth try itself
+ * is still allowed and may succeed. */
+export function isLocked(prev: { count: number; at: number } | null, nowMs: number): boolean {
+  return prev !== null && nowMs - prev.at < PIN_LOCK_MS && prev.count >= MAX_PIN_TRIES;
+}
