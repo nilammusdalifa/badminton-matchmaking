@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player, ResultMode, SkillLevel, Suggestion } from "../types";
-import { bestSplitGap, tierPointsOf, buildCounterSnapshot, cancelMatchPlayers, buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, openCourts, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, buildSessionSummary, expectedValue, gameValue, performanceScore, pointsShare, scoreLabel, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, smallGroup, syncFingerprint, withListDefaults } from "./session";
+import { bestSplitGap, tierPointsOf, buildCounterSnapshot, cancelMatchPlayers, buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, openCourts, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, buildSessionSummary, expectedValue, gameValue, performanceScore, pointsShare, scoreLabel, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, smallGroup, syncFingerprint, tinyGroup, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -1509,6 +1509,32 @@ describe("partner variety", () => {
     expect(smallGroup(roster(10))).toBe(false);
     // someone resting or not yet here doesn't count
     expect(smallGroup([...roster(9), { ...B("x"), status: "paused" }, { ...B("y"), status: "expected" }])).toBe(true);
+    expect(tinyGroup(roster(6))).toBe(true);
+    expect(tinyGroup(roster(7))).toBe(false);
+  });
+
+  it("tiny groups: one uneven split a night each, only for a new partner", () => {
+    // a+c and b1+b2 (the only even split) have both partnered already; b1+c or b2+c would be new
+    const four = [B("a", "A"), B("b1"), B("b2"), B("c", "C")];
+    const partner = new Map([[pk("a", "c"), 1], [pk("b1", "b2"), 1]]);
+    const teamOfC = (split: { team1: Player[]; team2: Player[] }) => [split.team1, split.team2].find((t) => t.some((p) => p.id === "c"))!.map((p) => p.level).sort().join("");
+    expect(teamOfC(pickBalancedFoursome(four, partner, new Map(), new Set()))).toBe("BC");
+    // not for someone who has already played an uneven match tonight, and not outside tiny groups
+    expect(teamOfC(pickBalancedFoursome(four, partner, new Map(), new Set(["c"])))).toBe("AC");
+    expect(teamOfC(pickBalancedFoursome(four, partner, new Map()))).toBe("AC");
+  });
+
+  it("6 players on one court: who sits out together is paired off for variety", () => {
+    // b1 and b2 sat out a1+c1 v a2+c2. Sending on a1+a2 (or c1+c2) with them pairs off A/A, B/B
+    // and C/C for the night, two even matchups in every foursome; a1+c2 would leave A+C, A+C and
+    // B+B, where A+C+B+B splits evenly only one way
+    const six = [B("b1"), B("b2"), B("a1", "A"), B("c2", "C"), B("a2", "A"), B("c1", "C")];
+    const players = six.map((p) => (p.level === "B" ? { ...p, skipped: 1 } : { ...p, games: 1, consecutiveGames: 1 }));
+    const history = [completed("m1", ["a1", "c1"], ["a2", "c2"], 21, 15)];
+    const tiers = (sug: Suggestion | null) => sug!.four.map((p) => p.level).sort().join("");
+    expect(["AABB", "BBCC"]).toContain(tiers(buildSuggestion(players, history, [], [], 0, { singleCourt: true })));
+    // on two courts the first even group in line goes on, as before: a1 and c2 with the Bs
+    expect(tiers(buildSuggestion(players, history, [], [], 0))).toBe("ABBC");
   });
 });
 

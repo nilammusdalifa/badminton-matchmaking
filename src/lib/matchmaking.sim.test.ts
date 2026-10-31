@@ -754,29 +754,33 @@ describe("relief games: a C who has carried a D", () => {
   });
 });
 
-type SmallFloor = { minRatio: number; minMatchupRatio: number; partners: number; gap: number; inARow: number };
+/** Floors on variety (and ceilings on the games gap and back-to-back), plus ceilings on balance:
+ * `meanGap`, the average tier-point gap between the teams, and `gap2Share`, the share of matches 2+
+ * tier points apart. Teams balanced by tier is a strength of the app, so balance is guarded too. */
+type SmallFloor = { minRatio: number; minMatchupRatio: number; partners: number; gap: number; inARow: number; meanGap: number; gap2Share: number };
 
 /** The numbers for 5–9 players on 1 court (planAhead: true, 60 nights), roster shuffled: the runs
  * the review measured (6 players, before variety for small groups: new group 27% on the worst
- * night, 2.25 partners each). Measured with variety for small groups, rounded down to 4 decimals.
- * These are floors against regressions; the targets are `VARIETY_TARGET`. */
+ * night, 2.25 partners each). Measured with variety for small groups; floors rounded down to 4
+ * decimals, balance ceilings rounded up to 2. Guards against regressions; the targets are
+ * `VARIETY_TARGET`. */
 const SMALL: Record<number, SmallFloor> = {
-  5: { minRatio: 0.4545, minMatchupRatio: 1, partners: 4, gap: 1, inARow: 4 },
-  6: { minRatio: 0.2727, minMatchupRatio: 0.7272, partners: 4.5, gap: 1, inARow: 2 },
-  7: { minRatio: 1, minMatchupRatio: 1, partners: 5.0857, gap: 1, inARow: 2 },
-  8: { minRatio: 0.7777, minMatchupRatio: 1, partners: 4.6958, gap: 1, inARow: 2 },
-  9: { minRatio: 1, minMatchupRatio: 1, partners: 4.1518, gap: 1, inARow: 1 },
+  5: { minRatio: 0.4545, minMatchupRatio: 0.8181, partners: 3.1999, gap: 1, inARow: 4, meanGap: 0.58, gap2Share: 0.11 },
+  6: { minRatio: 0.2727, minMatchupRatio: 0.6363, partners: 4.6666, gap: 1, inARow: 2, meanGap: 0.22, gap2Share: 0.11 },
+  7: { minRatio: 1, minMatchupRatio: 1, partners: 4.0238, gap: 1, inARow: 2, meanGap: 0.37, gap2Share: 0.02 },
+  8: { minRatio: 0.7777, minMatchupRatio: 0.8888, partners: 4.35, gap: 1, inARow: 2, meanGap: 0.54, gap2Share: 0.02 },
+  9: { minRatio: 1, minMatchupRatio: 1, partners: 3.8185, gap: 1, inARow: 1, meanGap: 0.46, gap2Share: 0 },
 };
 
 /** The same nights in roster order. Roster order hid the 6-player problem (4 partners each and a
  * new matchup in 60% of matches already before), so it is guarded too but is not what the review
  * measured. */
 const SMALL_ROSTER_ORDER: Record<number, SmallFloor> = {
-  5: { minRatio: 0.5, minMatchupRatio: 1, partners: 4, gap: 1, inARow: 4 },
-  6: { minRatio: 0.3, minMatchupRatio: 0.8, partners: 4.9833, gap: 1, inARow: 2 },
-  7: { minRatio: 1, minMatchupRatio: 1, partners: 5.2142, gap: 1, inARow: 2 },
-  8: { minRatio: 0.75, minMatchupRatio: 1, partners: 4.65, gap: 1, inARow: 2 },
-  9: { minRatio: 1, minMatchupRatio: 1, partners: 4.1333, gap: 1, inARow: 1 },
+  5: { minRatio: 0.5, minMatchupRatio: 0.875, partners: 3.1999, gap: 1, inARow: 4, meanGap: 0.58, gap2Share: 0.11 },
+  6: { minRatio: 0.3, minMatchupRatio: 0.7, partners: 4.6666, gap: 1, inARow: 2, meanGap: 0.22, gap2Share: 0.11 },
+  7: { minRatio: 1, minMatchupRatio: 1, partners: 4.7428, gap: 1, inARow: 2, meanGap: 0.37, gap2Share: 0 },
+  8: { minRatio: 0.75, minMatchupRatio: 1, partners: 4.65, gap: 1, inARow: 2, meanGap: 0.61, gap2Share: 0.04 },
+  9: { minRatio: 1, minMatchupRatio: 1, partners: 4.1333, gap: 1, inARow: 1, meanGap: 0.43, gap2Share: 0 },
 };
 
 describe("small groups on 1 court", () => {
@@ -790,6 +794,8 @@ describe("small groups on 1 court", () => {
         expect(r.partners).toBeGreaterThanOrEqual(floor.partners);
         expect(r.gap).toBeLessThanOrEqual(floor.gap);
         expect(r.inARow).toBeLessThanOrEqual(floor.inARow);
+        expect(r.meanGap).toBeLessThanOrEqual(floor.meanGap);
+        expect(r.gap2Share).toBeLessThanOrEqual(floor.gap2Share);
       });
     }
   }
@@ -810,18 +816,28 @@ const VARIETY_TARGET: Record<number, VarietyTarget> = {
 };
 
 describe("variety for small groups on 1 court", () => {
-  // With 9 or fewer ready players (smallGroup), the split goes first to a matchup the four haven't
-  // played, then to fewer repeated partners, and may be up to 2 tier points off the best balance
-  // instead of 1 (candidate B; A, the matchup tie-break alone, left 5 players at 2.8 partners and
-  // 6 players at 0.40 / 2.25: with 1 point of slack a C could only ever partner an A). New matchup
-  // on the worst night / partners each, roster shuffled, before -> after: 5 players 0.45 / 2.80 ->
-  // 1.00 / 4.00, 6 players 0.30 / 2.25 -> 0.73 / 4.50, 7 players 1.00 / 4.02 -> 1.00 / 5.09,
-  // 8 players 0.89 / 4.35 -> 1.00 / 4.70, 9 players 1.00 / 3.82 -> 1.00 / 4.15. Roster order: 5
-  // 0.50 / 2.80 -> 1.00 / 4.00, 6 0.60 / 4.00 -> 0.80 / 4.98, 7 1.00 / 4.74 -> 1.00 / 5.21, 8 and 9
-  // unchanged. New groups, games gap, back-to-back and waits are unchanged in every row; queue order
-  // is skipped more often with 5 players (shuffled 24% -> 29%, roster order 11% -> 22%) and with 7 in
-  // roster order (32% -> 36%). The price is balance: matches 2+ tier points apart, shuffled, 0% / 0% / 1.1% / 2.0% / 0% -> 32% / 40% /
-  // 30% / 12% / 12% (average gap 0.43 / 0 / 0.37 / 0.53 / 0.45 -> 1.00 / 0.79 / 1.07 / 0.72 / 0.69).
+  // With 9 or fewer ready players (smallGroup) the split goes first to a matchup the four haven't
+  // played, then fewer repeated partners, then the gap, within 1 tier point of the best as always.
+  // With 6 or fewer on one court (tinyGroup) a split 2 points off may be taken, at most once a night
+  // per player and only for a new partner; with exactly 6, groups still tied after the most even
+  // split look one pick ahead, since early picks pair off who sits out together all night (ahead of
+  // the even split it raised the lopsided share with 4 tiers and failed "fourth tier (D)"). 7–9
+  // already met the targets and are unchanged.
+  //
+  // Measured, roster shuffled; new matchup on the worst night / partners each / average tier gap /
+  // share of matches 2+ tier points apart, for 5 | 6 | 7 | 8 | 9 players:
+  //   before        .45/2.80/.43/0%    | .30/2.25/0/0%     | 1/4.02/.37/1.1% | .89/4.35/.53/2.0% | 1/3.82/.45/0%
+  //   B (+2 slack)  1/4.00/1.00/32%    | .73/4.50/.79/40%  | 1/5.09/1.07/30% | 1/4.70/.72/12%    | 1/4.15/.69/12%
+  //   chosen        .82/3.20/.57/10.7% | .64/4.67/.22/10.8% | as before       | as before         | as before
+  // The matchup tie-break alone (A) leaves 5 at 2.80 partners (with 1 point of slack, A+A+B+B+C, the
+  // C only ever partners an A) and 6 at .40 / 2.25 (Bs sat out together, so A+C, A+C and B+B were
+  // paired off, and A+C+B+B splits evenly one way only). Neither can meet its targets without some
+  // uneven matches (5: no other way to a 3rd partner on average; 6: at most 6 even matchups exist and
+  // some nights have 11 matches). The rules above take about one a night, so 10.7% / 10.8% sit just
+  // above a 10% ceiling. Other variants measured are in the Task 12 report. Roster order: 5 .50/2.80 -> .88/3.20, 6 .60/4.00 ->
+  // .70/4.67, 7–9 as before. New groups, games gap, back-to-back and waits are unchanged everywhere;
+  // queue order is skipped more with 5 (shuffled 24% -> 29%, roster order 11% -> 22%) and 6 shuffled
+  // (12% -> 18%).
   for (let players = 5; players <= 9; players++) {
     it(`${players} players (roster shuffled): a new matchup in 60% of matches, 3+ partners each`, () => {
       const r = summarize({ players, courts: oneCourt, planAhead: true }, NIGHTS, true);
