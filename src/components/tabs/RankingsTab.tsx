@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { LevelPicker } from "../LevelPicker";
 import { ShareNodesIcon } from "../icons";
@@ -6,6 +6,7 @@ import { copy } from "../../lib/copy";
 import { useRankingSort } from "../../hooks/useRankingSort";
 import { avatarStyle } from "../../lib/playerColor";
 import { sortRankings } from "../../lib/rankingSort";
+import { RankingsInfoSheet } from "./RankingsInfoSheet";
 import { RANK_MIN_GAMES } from "../../lib/session";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./RankingsTab.module.css";
@@ -168,17 +169,8 @@ function RankingRow({ r, resultMode, canEdit, hideTier, isYou }: RankingRowProps
 export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRankings, hideTier, ended, youId }: RankingsTabProps) {
   const [infoOpen, setInfoOpen] = useState(false);
   const [sort, setSort] = useRankingSort();
-  const closeRef = useRef<HTMLButtonElement>(null);
+  const closeInfo = useCallback(() => setInfoOpen(false), []);
   const renderRow = (r: Row) => <RankingRow key={r.id} r={r} resultMode={resultMode} canEdit={canEdit} hideTier={hideTier} isYou={r.id === youId} />;
-
-  // The sheet is a real dialog: Escape closes it, and focus starts inside it.
-  useEffect(() => {
-    if (!infoOpen) return;
-    closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setInfoOpen(false);
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [infoOpen]);
 
   const byMatches = sort === "matches";
   const ranked = rankingsVM.filter((r) => r.section === "ranked");
@@ -260,36 +252,7 @@ export function RankingsTab({ rankingsVM, resultMode, early, canEdit, onShareRan
 
       {infoOpen &&
         createPortal(
-          <div className={styles.sheetBackdrop} onClick={() => setInfoOpen(false)}>
-            <div className={styles.sheet} role="dialog" aria-modal="true" aria-label={copy.rankings.howItWorks} onClick={(e) => e.stopPropagation()}>
-              <div className={styles.sheetTitle}>{copy.rankings.howItWorks}</div>
-              <ol className={styles.sheetList}>
-                {resultMode === "score" ? (
-                  <li>
-                    <strong>{copy.rankings.sheet.scoreMatch}</strong> {copy.rankings.sheet.scoreMatchBody}
-                  </li>
-                ) : (
-                  <li>
-                    <strong>{copy.rankings.sheet.winnerMatch}</strong>
-                  </li>
-                )}
-                <li>
-                  <strong>{copy.rankings.sheet.expected}</strong> {hideTier ? copy.rankings.sheet.expectedViewer : copy.rankings.sheet.expectedUmpire}
-                </li>
-                <li>
-                  <strong>{copy.rankings.sheet.fifty}</strong> {copy.rankings.sheet.fiftyBody}
-                </li>
-                <li>
-                  <strong>{copy.rankings.sheet.need(RANK_MIN_GAMES)}</strong>
-                  {copy.rankings.sheet.needBody}
-                </li>
-              </ol>
-              <div className={styles.sheetNote}>{copy.rankings.sheet.note}</div>
-              <button className={styles.sheetClose} ref={closeRef} onClick={() => setInfoOpen(false)}>
-                {copy.rankings.sheet.gotIt}
-              </button>
-            </div>
-          </div>,
+          <RankingsInfoSheet resultMode={resultMode} hideTier={hideTier} onClose={closeInfo} />,
           document.body,
         )}
     </>

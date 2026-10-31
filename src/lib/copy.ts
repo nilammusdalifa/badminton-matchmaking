@@ -260,6 +260,9 @@ export const copy = {
     strength: { stronger: "Stronger than average", weaker: "Weaker than average", average: "Average" },
 
     sheet: {
+      summary: "Your score compares each match with what your pair was expected to do: 50 is as expected, higher is better.",
+      more: "More",
+      less: "Less",
       scoreMatch: "Every match is worth up to 1.",
       scoreMatchBody: "Half for the result (a win 1, a loss 0), half for your share of the points. Any win is worth more than any loss, and a big win more than a close one.",
       winnerMatch: "Every match is worth 1 for a win, 0 for a loss.",
