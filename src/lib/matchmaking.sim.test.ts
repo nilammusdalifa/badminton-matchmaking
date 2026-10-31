@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Court, Match, Player, SkillLevel } from "../types";
 import type { QueueItem } from "../types";
 import { carriesSinceHard, dCarriesSinceRelief, isHardMatch, isLower } from "./hardGames";
-import { applyAfterMatch, applyMatchStart, courtSuggestions, courtsDueToPause, dropStarted, lockableWaiting, lockedCount, makeBlankPlayer, markReady, planQueue, recomputePlayerStats, tierPointsOf } from "./session";
+import { queueReasons } from "./queueReasons";
+import { applyAfterMatch, applyMatchStart, courtSuggestions, courtsDueToPause, dropStarted, hostsHolding, lockableWaiting, lockedCount, makeBlankPlayer, markReady, openCourts, planQueue, playerPriority, readyPool, recomputePlayerStats, tierPointsOf } from "./session";
 
 /** Plays whole evenings through the app's own matchmaking functions — the
  * same ones the Session tab uses — with random game lengths, and measures how
@@ -48,6 +49,12 @@ const minutes = (hhmm: string) => parseInt(hhmm.slice(0, 2), 10) * 60 + parseInt
 interface Night {
   matches: number;
   distinctFoursomes: number;
+  /** Distinct matchups: the same four split into different teams count as a new one. */
+  distinctMatchups: number;
+  /** Matches started while a ready player ranked above one of the four (by playerPriority) was left out. */
+  skipStarts: number;
+  /** Over every match start, waiting players passed over by the plan for whom queueReasons gives no reason. */
+  unexplained: number;
   avgDistinctPartners: number;
   gamesGap: number;
   maxInARow: number;
@@ -144,6 +151,8 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
   let maxDCarries = 0;
   let maxWaitD = 0;
   let straightBack = 0;
+  let skipStarts = 0;
+  let unexplained = 0;
   const lastEnd = new Map<string, number>();
   const hostIds = new Set(players.slice(0, 0).map((p) => p.id));
   for (const p of players) if (p.name <= "P" + String(hostCount).padStart(2, "0") && hostCount > 0) hostIds.add(p.id);
@@ -195,6 +204,24 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
       if (!courtId) break;
       const sug = suggestions[courtId]!;
       const ids = sug.four.map((p) => p.id);
+      // the Waiting list's order, as the store builds it: was anyone ranked above one of the four left out?
+      const ordered = playerPriority(readyPool(live, matches));
+      const lastOfFour = Math.max(...ids.map((id) => ordered.findIndex((p) => p.id === id)));
+      if (ordered.slice(0, lastOfFour).some((p) => !ids.includes(p.id))) skipStarts++;
+      // and does everyone the plan passed over get a reason, as the Waiting list shows it?
+      const plannedIds = new Set(full.flatMap((item) => [...item.team1, ...item.team2]));
+      const reasons = queueReasons({
+        ordered,
+        plan: full,
+        matches,
+        requestedPairs: [],
+        holdingHosts: hostsHolding(courts, matches),
+        singleCourt: openCourts(open, matches, now).length === 1,
+      });
+      ordered.forEach((p, i) => {
+        const passedOver = !plannedIds.has(p.id) && ordered.slice(i + 1).some((q) => plannedIds.has(q.id));
+        if (passedOver && reasons.get(p.id) == null) unexplained++;
+      });
       if (sug.queueIndex !== undefined) fromQueue++;
       for (const id of ids) {
         const waited = t - (lastEnd.get(id) ?? start);
@@ -236,8 +263,10 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
   const finished = recomputePlayerStats(players, matches);
   const partners = new Map<string, Set<string>>();
   const foursomes = new Set<string>();
+  const matchups = new Set<string>();
   for (const m of matches) {
     foursomes.add([...m.t1, ...m.t2].sort().join("|"));
+    matchups.add([[...m.t1].sort().join("|"), [...m.t2].sort().join("|")].sort().join(" v "));
     for (const team of [m.t1, m.t2]) {
       for (const [x, y] of [[team[0], team[1]], [team[1], team[0]]]) {
         if (!partners.has(x)) partners.set(x, new Set());
@@ -274,6 +303,9 @@ function playNight(scenario: Scenario, random: () => number, shuffleRoster: bool
   return {
     matches: matches.length,
     distinctFoursomes: foursomes.size,
+    distinctMatchups: matchups.size,
+    skipStarts,
+    unexplained,
     avgDistinctPartners: finished.reduce((sum, p) => sum + (partners.get(p.id)?.size ?? 0), 0) / finished.length,
     gamesGap: Math.max(...games) - Math.min(...games),
     maxInARow: Math.max(...players.map((p) => p.maxConsecutive)),
@@ -350,6 +382,12 @@ export function summarize(scenario: Scenario, nights: number, shuffleRoster: boo
     hardOverlaps: results.reduce((s, n) => s + n.hardOverlaps, 0),
     waitOneCourt: worst((n) => n.waitOneCourt),
     minRatio: Math.min(...results.map((n) => n.distinctFoursomes / n.matches)),
+    /** The worst night's distinct matchups ÷ matches (the same four in new teams is a new matchup). */
+    minMatchupRatio: Math.min(...results.map((n) => n.distinctMatchups / n.matches)),
+    /** Average share of a night's matches started while a higher-ranked ready player was left out. */
+    skipShare: avg((n) => (n.matches ? n.skipStarts / n.matches : 0)),
+    /** Passed-over waiting players with no reason, summed over every match start of every night. */
+    unexplained: results.reduce((s, n) => s + n.unexplained, 0),
     hostGames: avg((n) => n.hostGames),
     otherGames: avg((n) => n.otherGames),
     hostFirstStart: avg((n) => (Number.isNaN(n.hostFirstStart) ? 999 : n.hostFirstStart)),
@@ -361,7 +399,7 @@ export function summarize(scenario: Scenario, nights: number, shuffleRoster: boo
  * from rng(12345), and fewer nights change the worst-night numbers (with SIM_NIGHTS=20, three
  * tests failed). SIM_NIGHTS only sets how many nights the printed report plays. */
 const NIGHTS = 60;
-export const REPORT_NIGHTS = Number(process.env.SIM_NIGHTS ?? 60);
+const REPORT_NIGHTS =Number(process.env.SIM_NIGHTS ?? 60);
 const both = (open: string, close: string) => ({ opens: open, closes: close });
 const twoCourts = [both("19:00", "22:00"), both("19:00", "21:00")];
 const threeCourts = [both("19:00", "22:00"), both("19:00", "22:00"), both("19:00", "22:00")];
@@ -713,5 +751,83 @@ describe("relief games: a C who has carried a D", () => {
   it("15 players 3A/5B/7C (no D): the rule never fires", () => {
     const r = summarize({ players: 15, courts: twoCourts, levels: [3, 5, 7], planAhead: true, hardGames: true }, NIGHTS, false);
     expect(r.reliefStarts).toBe(0);
+  });
+});
+
+type SmallFloor = { minRatio: number; minMatchupRatio: number; partners: number; gap: number; inARow: number };
+
+/** Today's numbers for 5–9 players on 1 court (planAhead: true, 60 nights), roster shuffled: the
+ * runs the review measured (6 players: new group 27% on the worst night, 2.25 partners each). These
+ * are floors against regressions, not targets; variety for small groups raises them. */
+const SMALL: Record<number, SmallFloor> = {
+  5: { minRatio: 0.45454545454545453, minMatchupRatio: 0.45454545454545453, partners: 2.8000000000000016, gap: 1, inARow: 4 },
+  6: { minRatio: 0.2727272727272727, minMatchupRatio: 0.3, partners: 2.25, gap: 1, inARow: 2 },
+  7: { minRatio: 1, minMatchupRatio: 1, partners: 4.023809523809523, gap: 1, inARow: 2 },
+  8: { minRatio: 0.7777777777777778, minMatchupRatio: 0.8888888888888888, partners: 4.35, gap: 1, inARow: 2 },
+  9: { minRatio: 1, minMatchupRatio: 1, partners: 3.818518518518519, gap: 1, inARow: 1 },
+};
+
+/** The same nights in roster order. Roster order hides the 6-player problem (4 partners each, a
+ * new matchup in 60% of matches), so it is guarded too but is not what the review measured. */
+const SMALL_ROSTER_ORDER: Record<number, SmallFloor> = {
+  5: { minRatio: 0.5, minMatchupRatio: 0.5, partners: 2.8000000000000016, gap: 1, inARow: 4 },
+  6: { minRatio: 0.3, minMatchupRatio: 0.6, partners: 4, gap: 1, inARow: 2 },
+  7: { minRatio: 1, minMatchupRatio: 1, partners: 4.742857142857145, gap: 1, inARow: 2 },
+  8: { minRatio: 0.75, minMatchupRatio: 1, partners: 4.65, gap: 1, inARow: 2 },
+  9: { minRatio: 1, minMatchupRatio: 1, partners: 4.1333333333333355, gap: 1, inARow: 1 },
+};
+
+describe("small groups on 1 court", () => {
+  for (let players = 5; players <= 9; players++) {
+    for (const shuffled of [true, false]) {
+      it(`${players} players${shuffled ? " (roster shuffled)" : ""}: no worse than today`, () => {
+        const r = summarize({ players, courts: oneCourt, planAhead: true }, NIGHTS, shuffled);
+        const floor = (shuffled ? SMALL : SMALL_ROSTER_ORDER)[players];
+        expect(r.minRatio).toBeGreaterThanOrEqual(floor.minRatio);
+        expect(r.minMatchupRatio).toBeGreaterThanOrEqual(floor.minMatchupRatio);
+        expect(r.partners).toBeGreaterThanOrEqual(floor.partners);
+        expect(r.gap).toBeLessThanOrEqual(floor.gap);
+        expect(r.inARow).toBeLessThanOrEqual(floor.inARow);
+      });
+    }
+  }
+});
+
+describe("queue reasons", () => {
+  // at every match start, each waiting player the plan passed over (someone ranked after them is
+  // planned) gets a reason from queueReasons, the same one the Waiting list shows. Passed-over
+  // players seen over 60 nights, roster order / shuffled: 7x1 234 / 319, 12x2 619 / 863, 16x2 1547 / 1657.
+  for (const [label, players, courts] of [["7 players, 1 court", 7, oneCourt], ["12 players, 2 courts", 12, twoCourts], ["16 players, 2 courts", 16, twoCourts]] as const) {
+    for (const shuffled of [false, true]) {
+      it(`${label}${shuffled ? " (roster shuffled)" : ""}: every passed-over player has a reason`, () => {
+        const r = summarize({ players, courts: [...courts], planAhead: true }, NIGHTS, shuffled);
+        expect(r.unexplained).toBe(0);
+      });
+    }
+  }
+});
+
+// SIM_REPORT=1 npx vitest run src/lib/matchmaking.sim.test.ts -t report (SIM_NIGHTS sets the nights)
+describe("sim report", () => {
+  it.runIf(process.env.SIM_REPORT)("report", () => {
+    const rows: [string, Scenario][] = [
+      ["5 players, 1 court", { players: 5, courts: oneCourt, planAhead: true }],
+      ["6 players, 1 court", { players: 6, courts: oneCourt, planAhead: true }],
+      ["7 players, 1 court", { players: 7, courts: oneCourt, planAhead: true }],
+      ["12 players, 2 courts", { players: 12, courts: twoCourts, planAhead: true }],
+      ["16 players, 2 courts", { players: 16, courts: twoCourts, planAhead: true }],
+      ["16 players, 4 arrive at 20:00", { players: 16, courts: twoCourts, planAhead: true, late: { count: 4, at: "20:00" } }],
+    ];
+    const pct = (x: number) => Math.round(x * 100) + "%";
+    const lines = [
+      `${REPORT_NIGHTS} evenings per setup, roster shuffled`,
+      "| Setup | Most games behind | Most in a row | Longest wait (min) | Partners per person | New group each match (worst night) | New matchup each match (worst night) | Queue order skipped | Passed over with no reason |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ];
+    for (const [label, scenario] of rows) {
+      const r = summarize(scenario, REPORT_NIGHTS, true);
+      lines.push(`| ${label} | ${r.gap} | ${r.inARow} | ${r.maxWaitMin} | ${r.partners.toFixed(2)} | ${pct(r.minRatio)} | ${pct(r.minMatchupRatio)} | ${pct(r.skipShare)} | ${r.unexplained} |`);
+    }
+    console.log(lines.join("\n"));
   });
 });
