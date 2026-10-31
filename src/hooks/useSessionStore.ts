@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MATCHES_INIT, PAUSE_LABELS, PLAYERS_INIT } from "../data/seed";
 import { auth, ensureAnonymousAuth, firebaseConfigured } from "../lib/firebase";
 import { claimUmpireAccess, fetchSessionLabel, type FirebasePayload, pushSessionOwnership, pushSessionToFirebase, subscribeToRemoteSession } from "../lib/firebaseSync";
-import { load, loadIdentity, save, saveIdentity, type PersistedState } from "../lib/persistence";
-import { generateSessionPin } from "../lib/pin";
+import { load, loadIdentity, loadUmpireSession, save, saveIdentity, saveUmpireSession, type PersistedState } from "../lib/persistence";
+import { generateSessionPin, needsPinUpgrade } from "../lib/pin";
 import {
   applyLiveScore,
   applyAfterMatch,
@@ -225,7 +225,10 @@ export function useSessionStore() {
   const [viewSessionId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("view"));
   const isRemoteMode = viewSessionId !== null;
   const [authReady, setAuthReady] = useState(false);
-  const [remoteRole, setRemoteRole] = useState<"player" | "umpire" | null>(null);
+  // An umpire who already claimed access for this session on this device
+  // (see saveUmpireSession) skips the gate on reload instead of spending
+  // another PIN try; the database rules still decide whether edits land.
+  const [remoteRole, setRemoteRole] = useState<"player" | "umpire" | null>(() => (viewSessionId !== null && loadUmpireSession(viewSessionId) ? "umpire" : null));
   const [remoteRoleStep, setRemoteRoleStep] = useState<"choose" | "pin">("choose");
   const [remotePinError, setRemotePinError] = useState("");
   const [remoteChecking, setRemoteChecking] = useState(false);
@@ -290,8 +293,9 @@ export function useSessionStore() {
 
   // Stamp this device's own session's pin/ownerUid to Firebase once auth is
   // ready, so the security rules have something to resolve a share link
-  // against. Both nodes are write-once, so re-running this is a harmless
-  // no-op rejection — safe to fire on every relevant render.
+  // against. `ownerUid` is write-once and `pin` can only be rewritten by the
+  // owner, so re-running this is either a no-op or a harmless rejection —
+  // safe to fire on every relevant render.
   useEffect(() => {
     if (!authReady || isRemoteMode || !firebaseConfigured) return;
     const uid = auth?.currentUser?.uid;
@@ -326,7 +330,10 @@ export function useSessionStore() {
       setRemotePinError("");
       const result = await claimUmpireAccess(viewSessionId, pin.trim());
       setRemoteChecking(false);
-      if (result === "ok") setRemoteRole("umpire");
+      if (result === "ok") {
+        saveUmpireSession(viewSessionId);
+        setRemoteRole("umpire");
+      }
       else if (result === "unavailable") setRemotePinError(copy.gate.syncUnavailable);
       else if (result === "locked") setRemotePinError(copy.gate.locked);
       else setRemotePinError(copy.gate.wrongPin);
@@ -1655,7 +1662,7 @@ export function useSessionStore() {
     // A 4-digit PIN from before is replaced by a 6-digit one when the next
     // session starts. The ownership effect pushes it to Firebase, which the
     // rules allow for the owner.
-    const freshPin = state.sessionPin.length === 4 ? generateSessionPin() : null;
+    const freshPin = needsPinUpgrade(state.sessionPin) ? generateSessionPin() : null;
     if (freshPin) saveIdentity({ sessionId: state.sessionId, sessionPin: freshPin });
     setState((s) => ({
       ...s,

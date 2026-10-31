@@ -33,3 +33,10 @@ export function nextAttempt(prev: { count: number; at: number } | null, nowMs: n
 export function isLocked(prev: { count: number; at: number } | null, nowMs: number): boolean {
   return prev !== null && nowMs - prev.at < PIN_LOCK_MS && prev.count >= MAX_PIN_TRIES;
 }
+
+/** True for a PIN this device's own session should replace with a fresh
+ * 6-digit one when the next session starts: a 4-digit PIN from before, or
+ * anything else that isn't 6 digits. */
+export function needsPinUpgrade(pin: string): boolean {
+  return !/^\d{6}$/.test(pin);
+}

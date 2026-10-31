@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { generateSessionPin, isLocked, isPinLength, nextAttempt } from "./pin";
+import { generateSessionPin, isLocked, isPinLength, needsPinUpgrade, nextAttempt } from "./pin";
 
 describe("umpire PIN", () => {
   afterEach(() => {
@@ -30,5 +30,8 @@ describe("umpire PIN", () => {
     expect(isLocked({ count: 5, at: t - 1000 }, t)).toBe(true);
     expect(isLocked({ count: 5, at: t - 599_999 }, t)).toBe(true);
     expect(isLocked({ count: 5, at: t - 600_000 }, t)).toBe(false);
+  });
+  it("upgrades any PIN that isn't 6 digits", () => {
+    expect(["1234", "123456", "", "12345a"].map(needsPinUpgrade)).toEqual([true, false, true, true]);
   });
 });

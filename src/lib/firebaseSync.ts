@@ -1,4 +1,4 @@
-import { get, off, onValue, ref, serverTimestamp, set } from "firebase/database";
+import { type Database, get, off, onValue, ref, serverTimestamp, set } from "firebase/database";
 import { auth, database, firebaseConfigured } from "./firebase";
 import type { PersistedState } from "./persistence";
 import { isLocked, MAX_PIN_TRIES, nextAttempt } from "./pin";
@@ -109,12 +109,39 @@ function readAttempt(value: unknown): { count: number; at: number } | null {
   return typeof count === "number" && typeof at === "number" ? { count, at } : null;
 }
 
+/** How far this device's clock is behind the server's, in ms (add it to
+ * `Date.now()` for the server's time). 0 when it can't be read in time. */
+function serverTimeOffset(db: Database): Promise<number> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(0), 2000);
+    const done = (offset: number) => {
+      clearTimeout(timer);
+      resolve(offset);
+    };
+    try {
+      onValue(
+        ref(db, ".info/serverTimeOffset"),
+        (snap) => {
+          const v = snap.val();
+          done(typeof v === "number" ? v : 0);
+        },
+        () => done(0),
+        { onlyOnce: true },
+      );
+    } catch {
+      done(0);
+    }
+  });
+}
+
 /**
  * Attempts to claim Umpire (edit) access for this device by submitting a
  * PIN. Every guess is first counted at `attempts/{uid}`; the claim at
  * `editorClaims/{uid}` only succeeds if it matches both the session's PIN and
  * the guess just counted, and the count is within `MAX_PIN_TRIES` — all
  * enforced by the Realtime Database security rules, not by this function.
+ * This function only avoids writes the rules would refuse, and never writes
+ * a try while locked, so pressing again can't extend the lock.
  */
 export async function claimUmpireAccess(sessionId: string, enteredPin: string): Promise<UmpireClaimResult> {
   if (!firebaseConfigured || !database) return "unavailable";
@@ -129,29 +156,27 @@ export async function claimUmpireAccess(sessionId: string, enteredPin: string): 
     return "unavailable";
   }
 
-  // Out of tries: say so without counting another one, so pressing again
-  // never pushes the end of the lock further out.
-  const nowMs = Date.now();
+  // The rules time the lock by the server's clock, so this does too.
+  const nowMs = Date.now() + (await serverTimeOffset(database));
   if (isLocked(prev, nowMs)) return "locked";
 
-  // The rules check the count against the server's clock, not this device's.
-  // If the two disagree about whether the lock period has passed, the first
-  // write is rejected; the other count is then the one the server expects.
+  // If the estimate of the server's clock is still off near the end of the
+  // lock period, the first write is rejected; the other count is then the
+  // one the server expects. If that one is over the limit, the device is
+  // still locked: say so without writing it.
   const first = nextAttempt(prev, nowMs);
   const other = first === 1 ? (prev ? prev.count + 1 : 1) : 1;
-  let count = first;
   try {
-    await set(attemptRef, { count, at: serverTimestamp(), guess: enteredPin });
+    await set(attemptRef, { count: first, at: serverTimestamp(), guess: enteredPin });
   } catch {
     if (other === first) return "unavailable";
-    count = other;
+    if (other > MAX_PIN_TRIES) return "locked";
     try {
-      await set(attemptRef, { count, at: serverTimestamp(), guess: enteredPin });
+      await set(attemptRef, { count: other, at: serverTimestamp(), guess: enteredPin });
     } catch {
       return "unavailable";
     }
   }
-  if (count > MAX_PIN_TRIES) return "locked";
 
   try {
     await set(ref(database, `sessions/${sessionId}/editorClaims/${uid}`), enteredPin);

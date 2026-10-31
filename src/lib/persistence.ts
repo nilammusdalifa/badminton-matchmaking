@@ -58,6 +58,28 @@ export function saveIdentity(identity: LocalSessionIdentity): void {
   }
 }
 
+/** "This device is an umpire for session X", so a reload (or a phone evicting
+ * the tab) doesn't send a working umpire back through the PIN gate, where
+ * every claim costs one of their tries. Only a hint for the UI: the database
+ * rules decide who can actually edit, so a stale flag grants nothing. */
+const UMPIRE_KEY_PREFIX = "smashmatch.umpire.v1.";
+
+export function loadUmpireSession(sessionId: string): boolean {
+  try {
+    return localStorage.getItem(UMPIRE_KEY_PREFIX + sessionId) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function saveUmpireSession(sessionId: string): void {
+  try {
+    localStorage.setItem(UMPIRE_KEY_PREFIX + sessionId, "1");
+  } catch {
+    // Storage full or unavailable: the next reload asks for the PIN again.
+  }
+}
+
 /** A refresh, crash, or backgrounded phone tab must never lose a live
  * session — but a corrupt or stale-shape blob must never crash the app
  * either, so every read is guarded and simply falls back to "nothing saved". */
