@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { copy } from "../lib/copy";
+import { isPinLength, PIN_DIGITS } from "../lib/pin";
 import type { SessionStore } from "../hooks/useSessionStore";
 import styles from "./RemoteGate.module.css";
 
@@ -50,14 +51,14 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
                 className={styles.pinInput}
                 type="text"
                 inputMode="numeric"
-                maxLength={4}
+                maxLength={PIN_DIGITS}
                 placeholder={copy.gate.pinPlaceholder}
                 aria-label={copy.gate.pinLabel}
                 value={pin}
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
               />
               {pinError && <div className={styles.error}>{pinError}</div>}
-              <button className={styles.primaryBtn} disabled={pin.length !== 4 || checking} onClick={() => submitPin(pin)}>
+              <button className={styles.primaryBtn} disabled={!isPinLength(pin) || checking} onClick={() => submitPin(pin)}>
                 {checking ? copy.gate.checking : copy.gate.continueAsUmpire}
               </button>
               <button className={styles.backBtn} onClick={back}>

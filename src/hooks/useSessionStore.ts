@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MATCHES_INIT, PAUSE_LABELS, PLAYERS_INIT } from "../data/seed";
 import { auth, ensureAnonymousAuth, firebaseConfigured } from "../lib/firebase";
-import { claimUmpireAccess, fetchSessionLabel, type FirebasePayload, generateSessionPin, pushSessionOwnership, pushSessionToFirebase, subscribeToRemoteSession } from "../lib/firebaseSync";
+import { claimUmpireAccess, fetchSessionLabel, type FirebasePayload, pushSessionOwnership, pushSessionToFirebase, subscribeToRemoteSession } from "../lib/firebaseSync";
 import { load, loadIdentity, save, saveIdentity, type PersistedState } from "../lib/persistence";
+import { generateSessionPin } from "../lib/pin";
 import {
   applyLiveScore,
   applyAfterMatch,
@@ -327,6 +328,7 @@ export function useSessionStore() {
       setRemoteChecking(false);
       if (result === "ok") setRemoteRole("umpire");
       else if (result === "unavailable") setRemotePinError(copy.gate.syncUnavailable);
+      else if (result === "locked") setRemotePinError(copy.gate.locked);
       else setRemotePinError(copy.gate.wrongPin);
     },
     [viewSessionId],
@@ -1650,8 +1652,14 @@ export function useSessionStore() {
   const onSetupScheduleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setState((s) => ({ ...s, setupSchedule: e.target.value })), []);
   const setSetupResultMode = useCallback((mode: ResultMode) => setState((s) => ({ ...s, setupResultMode: mode })), []);
   const finishSetup = useCallback(() => {
+    // A 4-digit PIN from before is replaced by a 6-digit one when the next
+    // session starts. The ownership effect pushes it to Firebase, which the
+    // rules allow for the owner.
+    const freshPin = state.sessionPin.length === 4 ? generateSessionPin() : null;
+    if (freshPin) saveIdentity({ sessionId: state.sessionId, sessionPin: freshPin });
     setState((s) => ({
       ...s,
+      ...(freshPin ? { sessionPin: freshPin } : {}),
       setupOpen: false,
       setupStep: 0,
       setupName: "",
@@ -1663,7 +1671,7 @@ export function useSessionStore() {
       sessionResultMode: s.setupResultMode,
     }));
     showToast(copy.toast.newSessionStarted);
-  }, [showToast]);
+  }, [showToast, state.sessionId, state.sessionPin]);
   const onStartNewFromReview = useCallback(() => {
     setState((s) => ({ ...s, sessionEnded: false }));
     openSetup();

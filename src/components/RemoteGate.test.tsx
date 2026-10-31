@@ -1,3 +1,4 @@
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { SessionStore } from "../hooks/useSessionStore";
 import { renderText } from "../test/renderText";
@@ -38,5 +39,18 @@ describe("RemoteGate join screen", () => {
     const text = renderText(<RemoteGate {...props({ sessionLabel: { name: "GoBadmin", schedule: "" } })} />);
     expect(text).toContain("Join GoBadmin");
     expect(text).toContain("How are you joining?");
+  });
+});
+
+describe("RemoteGate PIN step", () => {
+  it("takes up to 6 digits and keeps its screen-reader label", () => {
+    const html = renderToStaticMarkup(<RemoteGate {...props({ roleStep: "pin" })} />);
+    expect(html).toContain('maxLength="6"');
+    expect(html).toContain('placeholder="PIN"');
+    expect(html).toContain('aria-label="Umpire PIN"');
+  });
+  it("shows the lock message it is given", () => {
+    const text = renderText(<RemoteGate {...props({ roleStep: "pin", pinError: "Too many tries. Wait 10 minutes, then try again." })} />);
+    expect(text).toContain("Too many tries. Wait 10 minutes, then try again.");
   });
 });

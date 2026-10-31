@@ -8,15 +8,22 @@
           ".validate": "!data.exists() || newData.child('rev').val() > data.child('rev').val()"
         },
         "pin": {
-          ".write": "!data.exists()"
+          ".write": "!data.exists() || auth.uid === root.child('sessions').child($sessionId).child('ownerUid').val()",
+          ".validate": "newData.isString() && newData.val().matches(/^([0-9]{4}|[0-9]{6})$/)"
         },
         "ownerUid": {
           ".write": "!data.exists()"
         },
+        "attempts": {
+          "$uid": {
+            ".write": "auth.uid === $uid",
+            ".validate": "newData.hasChildren(['count', 'at', 'guess']) && newData.child('at').val() === now && newData.child('count').val() === ((!data.exists() || data.child('at').val() <= now - 600000) ? 1 : data.child('count').val() + 1)"
+          }
+        },
         "editorClaims": {
           "$uid": {
             ".write": "auth.uid === $uid",
-            ".validate": "newData.val() === root.child('sessions').child($sessionId).child('pin').val()"
+            ".validate": "newData.val() === root.child('sessions').child($sessionId).child('pin').val() && newData.val() === root.child('sessions').child($sessionId).child('attempts').child($uid).child('guess').val() && root.child('sessions').child($sessionId).child('attempts').child($uid).child('count').val() <= 5"
           }
         }
       }

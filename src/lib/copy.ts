@@ -36,7 +36,7 @@ export const copy = {
     watchSub: "Courts, queue & rankings",
     umpire: "Umpire",
     umpireSub: "Enter scores · PIN needed",
-    pinPlaceholder: "4-digit PIN",
+    pinPlaceholder: "PIN",
     pinLabel: "Umpire PIN",
     checking: "Checking…",
     continueAsUmpire: "Continue as umpire",
@@ -45,6 +45,7 @@ export const copy = {
     notFoundTitle: "Session not found",
     notFoundBody: "This link is no longer valid. Ask for a new one.",
     wrongPin: "Wrong PIN. Ask the umpire.",
+    locked: "Too many tries. Wait 10 minutes, then try again.",
     syncUnavailable: "Live sync isn't available. Try again shortly.",
   },
 

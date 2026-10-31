@@ -1,10 +1,7 @@
-import { get, off, onValue, ref, set } from "firebase/database";
+import { get, off, onValue, ref, serverTimestamp, set } from "firebase/database";
 import { auth, database, firebaseConfigured } from "./firebase";
 import type { PersistedState } from "./persistence";
-
-export function generateSessionPin(): string {
-  return Math.floor(1000 + Math.random() * 9000).toString();
-}
+import { MAX_PIN_TRIES, nextAttempt } from "./pin";
 
 /** What actually lives at `sessions/{id}/data` — the shared game data plus a
  * `rev` counter used purely to detect stale writes (see useSessionStore's
@@ -41,9 +38,11 @@ export function pushSessionToFirebase(sessionId: string, data: PersistedState, r
 }
 
 /**
- * Writes this session's `pin` and `ownerUid` to their own Firebase paths —
- * both write-once per the deployed security rules, so calling this again
- * for an already-stamped session is a harmless no-op rejection.
+ * Writes this session's `pin` and `ownerUid` to their own Firebase paths.
+ * `ownerUid` is write-once, so calling this again for an already-stamped
+ * session is a harmless no-op rejection for it. `pin` can be rewritten by
+ * the owner (a 4-digit PIN from before is replaced by a 6-digit one when the
+ * next session starts); for anyone else it is write-once too.
  */
 export function pushSessionOwnership(sessionId: string, pin: string, ownerUid: string): void {
   if (!firebaseConfigured || !database) return;
@@ -95,23 +94,60 @@ export async function fetchSessionLabel(sessionId: string): Promise<{ name: stri
 /**
  * Outcome of an Umpire access claim.
  * - `ok`          — the PIN matched and this device now holds an editor claim.
- * - `wrong-pin`   — the database rejected the write, i.e. the PIN was wrong.
- * - `unavailable` — live sync isn't usable right now (not configured, or no
- *                   anonymous auth uid yet) — not the user's fault, must not
- *                   read as a bad PIN.
+ * - `wrong-pin`   — the database rejected the claim, i.e. the PIN was wrong.
+ * - `locked`      — this device used up its tries; it has to wait out the lock.
+ * - `unavailable` — live sync isn't usable right now (not configured, no
+ *                   anonymous auth uid yet, or the try couldn't be counted) —
+ *                   not the user's fault, must not read as a bad PIN.
  */
-export type UmpireClaimResult = "ok" | "wrong-pin" | "unavailable";
+export type UmpireClaimResult = "ok" | "wrong-pin" | "locked" | "unavailable";
+
+/** The stored try at `attempts/{uid}`, or null when there is none or it has an unexpected shape. */
+function readAttempt(value: unknown): { count: number; at: number } | null {
+  if (!value || typeof value !== "object") return null;
+  const { count, at } = value as { count?: unknown; at?: unknown };
+  return typeof count === "number" && typeof at === "number" ? { count, at } : null;
+}
 
 /**
  * Attempts to claim Umpire (edit) access for this device by submitting a
- * PIN. The write only succeeds if the PIN matches the one stored on the
- * session — enforced by the Realtime Database security rules, not by this
- * function.
+ * PIN. Every guess is first counted at `attempts/{uid}`; the claim at
+ * `editorClaims/{uid}` only succeeds if it matches both the session's PIN and
+ * the guess just counted, and the count is within `MAX_PIN_TRIES` — all
+ * enforced by the Realtime Database security rules, not by this function.
  */
 export async function claimUmpireAccess(sessionId: string, enteredPin: string): Promise<UmpireClaimResult> {
   if (!firebaseConfigured || !database) return "unavailable";
   const uid = auth?.currentUser?.uid;
   if (!uid) return "unavailable";
+  const attemptRef = ref(database, `sessions/${sessionId}/attempts/${uid}`);
+
+  let prev: { count: number; at: number } | null;
+  try {
+    prev = readAttempt((await get(attemptRef)).val());
+  } catch {
+    return "unavailable";
+  }
+
+  // The rules check the count against the server's clock, not this device's.
+  // If the two disagree about whether the lock period has passed, the first
+  // write is rejected; the other count is then the one the server expects.
+  const first = nextAttempt(prev, Date.now());
+  const other = first === 1 ? (prev ? prev.count + 1 : 1) : 1;
+  let count = first;
+  try {
+    await set(attemptRef, { count, at: serverTimestamp(), guess: enteredPin });
+  } catch {
+    if (other === first) return "unavailable";
+    count = other;
+    try {
+      await set(attemptRef, { count, at: serverTimestamp(), guess: enteredPin });
+    } catch {
+      return "unavailable";
+    }
+  }
+  if (count > MAX_PIN_TRIES) return "locked";
+
   try {
     await set(ref(database, `sessions/${sessionId}/editorClaims/${uid}`), enteredPin);
     return "ok";
