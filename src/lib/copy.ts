@@ -96,7 +96,9 @@ export const copy = {
 
     queueTitle: (n: number) => `Queue (${n})`,
     queueEmpty: "No one in the queue right now.",
-    queueHint: "Skip next sits a player out of 1 match. Rest pauses them.",
+    queueHint: "Tap a player to sit them out of one match or give them a rest.",
+    /** Accessible name of a queue row that opens its actions. */
+    rowActions: (name: string) => `Actions for ${name}`,
     upNext: "Up next",
     mayChange: "may change",
     upNextFirstCourt: "Up next · first court to free",

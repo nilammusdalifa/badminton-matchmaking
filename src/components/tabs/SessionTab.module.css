@@ -154,22 +154,6 @@
   gap: 8px;
 }
 
-.waitingRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 9px 12px;
-  background: var(--sm-scrim);
-  border-radius: var(--radius-md);
-}
-.waitingLeft {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-}
 .avatar {
   width: 36px;
   height: 36px;
@@ -184,16 +168,68 @@
   font-size: 14px;
   flex-shrink: 0;
 }
-.waitingText { min-width: 0; }
-.waitingPos { font-weight: 800; font-size: 16px; color: var(--sm-text); }
-.waitingName { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
 .waitingLevel { font-weight: 500; color: var(--sm-text-3); font-size: 14px; }
-.waitingMeta { font-size: 14px; color: var(--sm-text-3); }
-/* why the plan put them where it did: its own line under the stats */
-.waitingReason { font-size: 14px; color: var(--sm-text-2); overflow-wrap: anywhere; }
-.waitingActions { display: flex; gap: 8px; flex-shrink: 0; }
+/* A compact queue row: line 1 is position, avatar, name and stats; line 2 is
+   the tag and the reason, left out when there is neither. 4 + 28 + 20 + 4 = 56px. */
+.queueRow {
+  display: flex;
+  flex-direction: column;
+  background: var(--sm-scrim);
+  border-radius: var(--radius-md);
+}
+.queueMain {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 12px;
+  margin: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.queueMainBtn { cursor: pointer; }
+.queueLine { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 28px; line-height: 20px; }
+.queuePos { flex: none; font-weight: 800; font-size: 16px; color: var(--sm-text); }
+.queueAvatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: var(--sm-fill);
+  color: var(--sm-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-heading);
+  font-size: 14px;
+  line-height: 1;
+}
+.queueName { flex: 0 1 auto; min-width: 0; font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queueStats { flex: 1 2 auto; min-width: 0; text-align: right; font-size: 14px; color: var(--sm-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queueLine .youTag { flex: none; margin-left: 0; }
+.queueLine2 { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 20px; line-height: 20px; }
+.queueTagInline {
+  flex: none;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--sm-accent-soft);
+  color: var(--sm-accent-hover);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.queueDetailText { flex: 1 1 auto; min-width: 0; font-size: 14px; color: var(--sm-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.waitingActions { display: flex; gap: 8px; padding: 0 12px 8px; }
 .pillBtn {
-  padding: 6px 11px;
+  min-height: 44px;
+  padding: 6px 14px;
   border-radius: 999px;
   border: 1px solid var(--sm-border);
   background: transparent;
@@ -345,17 +381,6 @@
 
 .queueDetail { font-weight: 600; text-transform: none; letter-spacing: 0; }
 .queueActions { display: flex; gap: 8px; }
-.queueTag {
-  margin-left: 6px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--sm-accent-soft);
-  color: var(--sm-accent-hover);
-  font-size: 14px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
 .chevron {
   display: inline-block;
   font-size: 20px;

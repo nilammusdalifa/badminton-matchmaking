@@ -55,6 +55,8 @@ export function SessionTab({
   // Waiting opens it and brings it into view.
   const [gamesOpen, setGamesOpen] = useState(false);
   const gamesRef = useRef<HTMLDivElement>(null);
+  // The umpire opens one queue row at a time to reach Skip next and Rest.
+  const [openRowId, setOpenRowId] = useState<string | null>(null);
   const showGames = () => {
     setGamesOpen(true);
     requestAnimationFrame(() => gamesRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
@@ -312,34 +314,67 @@ export function SessionTab({
             {waitingVM.map((w, i) => {
               const position = copy.session.position(i);
               const stats = copy.session.queueMeta(w.skipped, w.games, w.hasStreak ? w.consec : 0);
-              return (
-                <div className={`${styles.waitingRow} ${w.id === you?.id ? styles.youRowHighlight : ""}`} key={w.id}>
-                  <div className={styles.waitingLeft}>
-                    <div className={styles.avatar} style={avatarStyle(w.name)}>
+              const isYou = w.id === you?.id;
+              const open = !readOnly && openRowId === w.id;
+              // "Plays next" repeats the tag beside it, so only the other reasons get words
+              const reasonText = w.reason && w.reason !== w.note && w.reason !== copy.session.why.next && w.reason !== copy.session.why.after ? w.reason : null;
+              const tagText = w.queueTag ? (w.queueTag === copy.session.upNext ? copy.session.inNextMatch : copy.session.inMatchAfter) : null;
+              const detail = [w.note, reasonText].filter(Boolean).join(" · ");
+              const content = (
+                <>
+                  <span className={styles.queueLine}>
+                    <span className={styles.queuePos}>{position}</span>
+                    <span className={styles.queueAvatar} style={avatarStyle(w.name)}>
                       {w.initials}
-                    </div>
-                    <div className={styles.waitingText}>
-                      <div className={styles.waitingPos}>
-                        {position}
-                        {w.queueTag && (
-                          <span className={styles.queueTag}>{w.queueTag === copy.session.upNext ? copy.session.inNextMatch : copy.session.inMatchAfter}</span>
-                        )}
-                      </div>
-                      <div className={styles.waitingName}>
-                        {w.name} {!hideTier && <span className={styles.waitingLevel}>Â· Tier {w.level}</span>}
-                        {w.id === you?.id && <span className={styles.youTag}>{copy.session.youTag}</span>}
-                      </div>
-                      <div className={styles.waitingMeta}>{stats}</div>
-                      {w.note && <div className={styles.waitingMeta}>{w.note}</div>}
-                      {w.reason && w.reason !== w.note && <div className={styles.waitingReason}>{w.reason}</div>}
-                    </div>
-                  </div>
-                  {!readOnly && (
+                    </span>
+                    <span className={styles.queueName}>
+                      {w.name}
+                      {!hideTier && <span className={styles.waitingLevel}> · Tier {w.level}</span>}
+                    </span>
+                    {isYou && <span className={styles.youTag}>{copy.session.youTag}</span>}
+                    <span className={styles.queueStats}>{stats}</span>
+                  </span>
+                  {(tagText || detail) && (
+                    <span className={styles.queueLine2}>
+                      {tagText && <span className={styles.queueTagInline}>{tagText}</span>}
+                      {detail && <span className={styles.queueDetailText}>{detail}</span>}
+                    </span>
+                  )}
+                </>
+              );
+              return (
+                <div className={`${styles.queueRow} ${isYou ? styles.youRowHighlight : ""}`} data-queue-row key={w.id}>
+                  {readOnly ? (
+                    <div className={styles.queueMain}>{content}</div>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`${styles.queueMain} ${styles.queueMainBtn}`}
+                      aria-expanded={open}
+                      aria-label={copy.session.rowActions(w.name)}
+                      onClick={() => setOpenRowId(open ? null : w.id)}
+                    >
+                      {content}
+                    </button>
+                  )}
+                  {open && (
                     <div className={styles.waitingActions}>
-                      <button className={styles.pillBtn} onClick={w.onSkip}>
+                      <button
+                        className={styles.pillBtn}
+                        onClick={() => {
+                          setOpenRowId(null);
+                          w.onSkip();
+                        }}
+                      >
                         {copy.session.skipNext}
                       </button>
-                      <button className={styles.pillBtn} onClick={w.onPause}>
+                      <button
+                        className={styles.pillBtn}
+                        onClick={() => {
+                          setOpenRowId(null);
+                          w.onPause();
+                        }}
+                      >
                         {copy.session.rest}
                       </button>
                     </div>
