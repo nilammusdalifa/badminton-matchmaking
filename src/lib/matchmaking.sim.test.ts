@@ -675,8 +675,10 @@ describe("fourth tier (D)", () => {
   // The same nights and hidden skills, with the organizer's tiers in 3 or 4 groups (0.4 sd
   // misjudged). Lopsided matches (favourite >70% by true skill), 3 -> 4 tiers: 15 players
   // 27.1% -> 20.6%, 16 players 25.9% -> 21.4%, 8 on 2 courts 27.1% -> 21.5%, 8 on 1 court
-  // 32.8% -> 21.0%, 6 on 1 court 23.4% -> 22.9%. Games gap, back-to-back, skips and new
-  // groups were identical; the 90th-percentile wait the same or shorter.
+  // 32.8% -> 21.0%, 6 on 1 court 23.4% -> 22.9% (23.4% -> 23.05% since variety for small
+  // groups: a thin margin, held only because its look-ahead comes after the even split). Games
+  // gap, back-to-back, skips and new groups were identical; the 90th-percentile wait the same or
+  // shorter.
   const cases: [string, Scenario][] = [
     ["15 players, 2 courts", { players: 15, courts: twoCourts, planAhead: true }],
     ["16 players, 2 courts", { players: 16, courts: twoCourts, planAhead: true }],
@@ -816,28 +818,30 @@ const VARIETY_TARGET: Record<number, VarietyTarget> = {
 };
 
 describe("variety for small groups on 1 court", () => {
-  // With 9 or fewer ready players (smallGroup) the split goes first to a matchup the four haven't
+  // With 5–9 ready players (smallGroup) the split goes first to a matchup the four haven't
   // played, then fewer repeated partners, then the gap, within 1 tier point of the best as always.
-  // With 6 or fewer on one court (tinyGroup) a split 2 points off may be taken, at most once a night
-  // per player and only for a new partner; with exactly 6, groups still tied after the most even
-  // split look one pick ahead, since early picks pair off who sits out together all night (ahead of
-  // the even split it raised the lopsided share with 4 tiers and failed "fourth tier (D)"). 7–9
-  // already met the targets and are unchanged.
+  // With 5 or 6 on one court (tinyGroup) a split 2 points off the best, its teams at most 2 points
+  // apart, may be taken, at most once a night per player and only for a new partner. With exactly
+  // 6, groups still tied after the most even split look one pick ahead, since early picks pair off
+  // who sits out together all night (placed before the even split, it raised the lopsided share
+  // with 4 tiers and failed "fourth tier (D)"). 7–9 already met the targets and are unchanged.
   //
-  // Measured, roster shuffled; new matchup on the worst night / partners each / average tier gap /
-  // share of matches 2+ tier points apart, for 5 | 6 | 7 | 8 | 9 players:
-  //   before        .45/2.80/.43/0%    | .30/2.25/0/0%     | 1/4.02/.37/1.1% | .89/4.35/.53/2.0% | 1/3.82/.45/0%
-  //   B (+2 slack)  1/4.00/1.00/32%    | .73/4.50/.79/40%  | 1/5.09/1.07/30% | 1/4.70/.72/12%    | 1/4.15/.69/12%
-  //   chosen        .82/3.20/.57/10.7% | .64/4.67/.22/10.8% | as before       | as before         | as before
-  // The matchup tie-break alone (A) leaves 5 at 2.80 partners (with 1 point of slack, A+A+B+B+C, the
-  // C only ever partners an A) and 6 at .40 / 2.25 (Bs sat out together, so A+C, A+C and B+B were
-  // paired off, and A+C+B+B splits evenly one way only). Neither can meet its targets without some
-  // uneven matches (5: no other way to a 3rd partner on average; 6: at most 6 even matchups exist and
-  // some nights have 11 matches). The rules above take about one a night, so 10.7% / 10.8% sit just
-  // above a 10% ceiling. Other variants measured are in the Task 12 report. Roster order: 5 .50/2.80 -> .88/3.20, 6 .60/4.00 ->
-  // .70/4.67, 7–9 as before. New groups, games gap, back-to-back and waits are unchanged everywhere;
-  // queue order is skipped more with 5 (shuffled 24% -> 29%, roster order 11% -> 22%) and 6 shuffled
-  // (12% -> 18%).
+  // New matchup on the worst night / partners each / average tier gap / share of matches 2+ tier
+  // points apart, before -> after:
+  //   players  roster shuffled                       roster order
+  //   5        .45/2.80/.43/0% -> .82/3.20/.57/10.7%  .50/2.80/.43/0% -> .88/3.20/.58/10.8%
+  //   6        .30/2.25/0/0% -> .64/4.67/.22/10.8%    .60/4.00/0/0% -> .70/4.67/.22/10.8%
+  //   7        1/4.02/.37/1.1%, unchanged             1/4.74/.36/0%, unchanged
+  //   8        .89/4.35/.53/2.0%, unchanged           1/4.65/.61/3.8%, unchanged
+  //   9        1/3.82/.45/0%, unchanged               1/4.13/.43/0%, unchanged
+  // The matchup tie-break alone leaves 5 at 2.80 partners (A+A+B+B+C: within 1 point the C only
+  // ever partners an A) and 6 at .40 / 2.25 (A+C, A+C and B+B paired off to sit out, and A+C+B+B
+  // splits evenly one way only). Neither can meet its targets without some uneven matches (5: no
+  // other way to a 3rd partner on average; 6: at most 6 even matchups exist and some nights have
+  // 11 matches). The rules above take about one a night, so 10.7% / 10.8% sit just above a 10%
+  // ceiling; allowing a 2-point split whenever it gave a new matchup reached 12–40% instead. New
+  // groups, games gap, back-to-back and waits are unchanged everywhere; queue order is skipped more
+  // with 5 (shuffled 24% -> 29%, roster order 11% -> 22%) and 6 shuffled (12% -> 18%).
   for (let players = 5; players <= 9; players++) {
     it(`${players} players (roster shuffled): a new matchup in 60% of matches, 3+ partners each`, () => {
       const r = summarize({ players, courts: oneCourt, planAhead: true }, NIGHTS, true);

@@ -1503,7 +1503,7 @@ describe("partner variety", () => {
     expect(teams(pickBalancedFoursome(four, partner))).toEqual(new Set(["ad", "bc"]));
   });
 
-  it("small groups are 9 or fewer ready players, counting those on court", () => {
+  it("small groups are 5 to 9 ready players, counting those on court", () => {
     const roster = (n: number) => Array.from({ length: n }, (_, i) => B("p" + i));
     expect(smallGroup(roster(9))).toBe(true);
     expect(smallGroup(roster(10))).toBe(false);
@@ -1511,6 +1511,24 @@ describe("partner variety", () => {
     expect(smallGroup([...roster(9), { ...B("x"), status: "paused" }, { ...B("y"), status: "expected" }])).toBe(true);
     expect(tinyGroup(roster(6))).toBe(true);
     expect(tinyGroup(roster(7))).toBe(false);
+    // the rules are for 5–9: with 4, all four play every match
+    expect(smallGroup(roster(4))).toBe(false);
+    expect(tinyGroup(roster(4))).toBe(false);
+  });
+
+  it("tiny groups: an uneven split is never more than 2 tier points apart", () => {
+    // every pair of a1/a2 with b/c has partnered, so only a1+a2 vs b+c (3 points apart) is fresh
+    const four = [B("a1", "A"), B("a2", "A"), B("b"), B("c", "C")];
+    const partner = new Map([[pk("a1", "b"), 1], [pk("a1", "c"), 1], [pk("a2", "b"), 1], [pk("a2", "c"), 1]]);
+    const { team1, team2 } = pickBalancedFoursome(four, partner, new Map(), new Set());
+    expect([team1, team2].map((t) => t.map((p) => p.level).sort().join("")).sort()).not.toEqual(["AA", "BC"]);
+  });
+
+  it("4 players on one court split exactly as before", () => {
+    // A+C and B+B (the only even split) partnered already; A+B vs B+C would be a new partner for C
+    const four = [B("a", "A"), B("b1"), B("b2"), B("c", "C")];
+    const sug = buildSuggestion(four, [completed("m1", ["a", "c"], ["b1", "b2"], 21, 15)], [], [], 0, { singleCourt: true })!;
+    expect([sug.team1, sug.team2].map((t) => t.map((p) => p.level).sort().join("")).sort()).toEqual(["AC", "BB"]);
   });
 
   it("tiny groups: one uneven split a night each, only for a new partner", () => {

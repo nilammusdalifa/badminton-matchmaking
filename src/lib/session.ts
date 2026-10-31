@@ -430,20 +430,39 @@ export function pairCounts(matches: Match[]): { meet: Map<string, number>; partn
   return { meet, partner, matchup };
 }
 
-/** 9 or fewer ready players, counting those on court (they stay "ready" while
- * they play). On one court such a group meets the same few foursomes again and
- * again, so matchmaking also steers them into matchups they haven't played. */
-export function smallGroup(players: Player[]): boolean {
-  return players.filter((p) => p.status === "ready").length <= 9;
+/** Fewest ready players the small-group rules apply to (with 4, all four play every match). */
+const MIN_VARIETY_PLAYERS = 5;
+/** Most ready players, counting those on court, that make a small group. */
+const SMALL_GROUP_MAX = 9;
+/** Most ready players that make a tiny group (uneven splits allowed on one court). */
+const TINY_GROUP_MAX = 6;
+/** With this many on one court two sit out at a time, in pairs, so `pickFour` looks ahead. */
+const LOOKAHEAD_PLAYERS = 6;
+/** Most tier points apart the teams of an uneven split may be (A+B vs B+C, A+A vs B+B). */
+const UNEVEN_MAX_GAP = 2;
+
+/** Ready players, counting those on court (they stay "ready" while they play). */
+function readyCount(players: Player[]): number {
+  return players.filter((p) => p.status === "ready").length;
 }
 
-/** 6 or fewer ready players, counting those on court. On one court the
+const isSmall = (ready: number) => ready >= MIN_VARIETY_PLAYERS && ready <= SMALL_GROUP_MAX;
+const isTiny = (ready: number) => isSmall(ready) && ready <= TINY_GROUP_MAX;
+
+/** 5 to 9 ready players, counting those on court. On one court such a group
+ * meets the same few foursomes again and again, so matchmaking also steers
+ * them into matchups they haven't played. */
+export function smallGroup(players: Player[]): boolean {
+  return isSmall(readyCount(players));
+}
+
+/** 5 or 6 ready players, counting those on court. On one court the
  * 3-in-a-row rule all but decides who sits out (6 players sit out in fixed
  * pairs), so the same three to five foursomes come round all night: variety
  * has to come from how they are split (`pickBalancedFoursome`'s `uneven`) and,
  * with 6, from who is paired off early (`pickFour`'s `lookahead`). */
 export function tinyGroup(players: Player[]): boolean {
-  return players.filter((p) => p.status === "ready").length <= 6;
+  return isTiny(readyCount(players));
 }
 
 /** Players who have played an uneven match tonight (teams 2+ tier points
@@ -478,8 +497,9 @@ function unevenPlayers(players: Player[], matches: Match[]): Set<string> {
  * Tiny groups on one court (`tinyGroup`) also pass `uneven`, the players who
  * have already played an uneven match tonight (`unevenPlayers`). When no
  * split within one point gives anyone a new partner, a split 2 points off the
- * best (A+B vs B+C, A+A vs B+B) may then be taken if it is a matchup not yet
- * played, gives someone a new partner, and none of the four has played an
+ * best may then be taken if its teams are at most `UNEVEN_MAX_GAP` (2) points
+ * apart (A+B vs B+C, A+A vs B+B; never A+A vs B+C), it is a matchup not yet
+ * played, it gives someone a new partner, and none of the four has played an
  * uneven match tonight: at most one a night each, and only for a new partner
  * (with 5 players, A+A+B+B+C, the C could otherwise only ever partner an A).
  * With neither given, nothing changes. */
@@ -505,10 +525,9 @@ export function pickBalancedFoursome(
   const near = scored.filter((x) => x.gap <= bestGap + 1);
   const isNew = (team: [Player, Player]) => !partnerCount.get(pairKey(team[0].id, team[1].id));
   const newPartner = (x: (typeof scored)[number]) => isNew(x.team1) || isNew(x.team2);
-  const allowed =
-    uneven && !near.some(newPartner)
-      ? [...near, ...scored.filter((x) => x.gap === bestGap + 2 && x.matchups === 0 && newPartner(x) && ![...x.team1, ...x.team2].some((p) => uneven.has(p.id)))]
-      : near;
+  const unevenOk = (x: (typeof scored)[number]) =>
+    x.gap === bestGap + 2 && x.gap <= UNEVEN_MAX_GAP && x.matchups === 0 && newPartner(x) && ![...x.team1, ...x.team2].some((p) => uneven!.has(p.id));
+  const allowed = uneven && !near.some(newPartner) ? [...near, ...scored.filter(unevenOk)] : near;
   const best = allowed.sort((x, y) => x.matchups - y.matchups || x.repeats - y.repeats || x.gap - y.gap)[0];
   return { team1: best.team1, team2: best.team2 };
 }
@@ -624,8 +643,9 @@ export function groupCost(
  *     matchups not yet played, as even as the best split, in this four plus
  *     the four expected to play next (the next pick, as if this one had
  *     played), since early picks pair off who sits out together all night.
- *     `seed` (Shuffle) steps through the next-best few. So four people who just finished together get split up
- *     rather than sent straight back out as the same group, and neither
+ *     `seed` (Shuffle) steps through the next-best few. So four people who
+ *     just finished together get split up rather than sent straight back out
+ *     as the same group, and neither
  *     balance nor variety ever costs anyone a turn: they only choose between
  *     groups that are otherwise equal. */
 export function pickFour(
@@ -762,13 +782,14 @@ export function buildSuggestion(
   const counts = pairCounts(matches);
   const { meet, partner } = counts;
   // small groups keep meeting the same four: steer them into matchups they haven't played; tiny
-  // groups on one court also pair off who sits out with variety in mind, and may take one uneven
-  // split each a night for a new partner (see pickBalancedFoursome and pickFour)
-  const matchup = smallGroup(players) ? counts.matchup : undefined;
-  const tiny = !!options.singleCourt && tinyGroup(players);
+  // groups on one court may also take one uneven split each a night for a new partner, and with
+  // exactly 6 (two sit out each match, paired off all night by the 3-in-a-row rule) pair off who
+  // sits out with variety in mind (see pickBalancedFoursome and pickFour)
+  const ready = readyCount(players);
+  const matchup = isSmall(ready) ? counts.matchup : undefined;
+  const tiny = !!options.singleCourt && isTiny(ready);
   const uneven = tiny ? unevenPlayers(players, matches) : undefined;
-  // with exactly 6, two sit out each match and stay paired off all night (3-in-a-row rule)
-  const lookahead = tiny && players.filter((p) => p.status === "ready").length === 6;
+  const lookahead = tiny && ready === LOOKAHEAD_PLAYERS;
 
   const reqPair = requestedPairs.find(
     ([a, b]) => ordered.some((p) => p.id === a) && ordered.some((p) => p.id === b),
