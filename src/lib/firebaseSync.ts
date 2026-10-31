@@ -1,4 +1,4 @@
-import { off, onValue, ref, set } from "firebase/database";
+import { get, off, onValue, ref, set } from "firebase/database";
 import { auth, database, firebaseConfigured } from "./firebase";
 import type { PersistedState } from "./persistence";
 
@@ -70,6 +70,26 @@ export function subscribeToRemoteSession(sessionId: string, callback: (payload: 
   };
   onValue(sessionRef, handleValue);
   return () => off(sessionRef, "value", handleValue);
+}
+
+/**
+ * One-shot read of a session's name and schedule, so the join screen can say
+ * which session the link opens before anyone picks a role. Both live inside
+ * the world-readable `data` node. Never throws: with no Firebase, no such
+ * session, no name, or a failed read (offline), it resolves `null` and the
+ * join screen keeps its generic title.
+ */
+export async function fetchSessionLabel(sessionId: string): Promise<{ name: string; schedule: string } | null> {
+  if (!firebaseConfigured || !database) return null;
+  try {
+    const [nameSnap, scheduleSnap] = await Promise.all([get(ref(database, `sessions/${sessionId}/data/sessionName`)), get(ref(database, `sessions/${sessionId}/data/sessionSchedule`))]);
+    const name = nameSnap.val();
+    if (typeof name !== "string" || !name.trim()) return null;
+    const schedule = scheduleSnap.val();
+    return { name, schedule: typeof schedule === "string" ? schedule : "" };
+  } catch {
+    return null;
+  }
 }
 
 /**

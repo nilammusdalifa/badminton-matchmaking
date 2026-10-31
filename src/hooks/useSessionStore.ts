@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MATCHES_INIT, PAUSE_LABELS, PLAYERS_INIT } from "../data/seed";
 import { auth, ensureAnonymousAuth, firebaseConfigured } from "../lib/firebase";
-import { claimUmpireAccess, type FirebasePayload, generateSessionPin, pushSessionOwnership, pushSessionToFirebase, subscribeToRemoteSession } from "../lib/firebaseSync";
+import { claimUmpireAccess, fetchSessionLabel, type FirebasePayload, generateSessionPin, pushSessionOwnership, pushSessionToFirebase, subscribeToRemoteSession } from "../lib/firebaseSync";
 import { load, loadIdentity, save, saveIdentity, type PersistedState } from "../lib/persistence";
 import {
   applyLiveScore,
@@ -230,6 +230,7 @@ export function useSessionStore() {
   const [remoteChecking, setRemoteChecking] = useState(false);
   const [remoteConnected, setRemoteConnected] = useState(false);
   const [remoteMissing, setRemoteMissing] = useState(false);
+  const [remoteSessionLabel, setRemoteSessionLabel] = useState<{ name: string; schedule: string } | null>(null);
 
   // Merge-guard for two-way sync: every device that can write (the
   // organizer, or an Umpire elsewhere) tags its own pushes with a `rev` that
@@ -295,6 +296,20 @@ export function useSessionStore() {
     const uid = auth?.currentUser?.uid;
     if (uid) pushSessionOwnership(state.sessionId, state.sessionPin, uid);
   }, [authReady, isRemoteMode, state.sessionId, state.sessionPin]);
+
+  // Name the session on the join screen: one read on mount, before a role is
+  // chosen. Public data, so it doesn't wait for auth. Any failure leaves the
+  // label null and the screen on its generic "Join session" title.
+  useEffect(() => {
+    if (!isRemoteMode || !viewSessionId) return;
+    let cancelled = false;
+    fetchSessionLabel(viewSessionId).then((label) => {
+      if (!cancelled) setRemoteSessionLabel(label);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isRemoteMode, viewSessionId]);
 
   const chooseRemoteRole = useCallback((role: "player" | "umpire") => {
     if (role === "player") {
@@ -2197,6 +2212,7 @@ export function useSessionStore() {
       checking: remoteChecking,
       connected: remoteConnected,
       missing: remoteMissing,
+      sessionLabel: remoteSessionLabel,
       chooseRole: chooseRemoteRole,
       submitPin: submitUmpirePin,
       back: backToRoleChoice,

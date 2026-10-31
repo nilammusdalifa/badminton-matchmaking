@@ -30,6 +30,7 @@ export const copy = {
     notSetUpTitle: "Live sharing isn't set up",
     notSetUpBody: "The umpire needs to set up live sharing, then resend the link.",
     joinTitle: "Join session",
+    joinNamed: (name: string) => `Join ${name}`,
     joinBody: "How are you joining?",
     watch: "Watch",
     watchSub: "Courts, queue & rankings",

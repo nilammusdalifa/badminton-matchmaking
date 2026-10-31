@@ -9,7 +9,7 @@ type RemoteProps = SessionStore["remote"];
  * a shared `?view=` link: choosing Player vs. Umpire, entering the Umpire
  * PIN, and the brief "connecting" window while the first Firebase snapshot
  * arrives. Returns null once there's nothing left to gate on. */
-export function RemoteGate({ role, roleStep, pinError, checking, connected, missing, chooseRole, submitPin, back, firebaseConfigured }: RemoteProps) {
+export function RemoteGate({ role, roleStep, pinError, checking, connected, missing, sessionLabel, chooseRole, submitPin, back, firebaseConfigured }: RemoteProps) {
   const [pin, setPin] = useState("");
 
   if (!firebaseConfigured) {
@@ -24,10 +24,14 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
   }
 
   if (!role) {
+    const name = sessionLabel?.name.trim() ?? "";
+    const named = name !== "" && name !== copy.defaultSessionName;
+    const schedule = sessionLabel?.schedule.trim() ?? "";
     return (
       <div className={styles.wrap}>
         <div className={styles.card}>
-          <div className={styles.title}>{copy.gate.joinTitle}</div>
+          <div className={styles.title}>{named ? copy.gate.joinNamed(name) : copy.gate.joinTitle}</div>
+          {named && schedule && <div className={styles.body}>{schedule}</div>}
           <div className={styles.body}>{copy.gate.joinBody}</div>
           {roleStep === "choose" ? (
             <div className={styles.buttons}>
