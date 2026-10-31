@@ -357,7 +357,11 @@ export function summarize(scenario: Scenario, nights: number, shuffleRoster: boo
   };
 }
 
-const NIGHTS = Number(process.env.SIM_NIGHTS ?? 60);
+/** Every asserting test plays exactly 60 nights: the thresholds were calibrated on 60 nights
+ * from rng(12345), and fewer nights change the worst-night numbers (with SIM_NIGHTS=20, three
+ * tests failed). SIM_NIGHTS only sets how many nights the printed report plays. */
+const NIGHTS = 60;
+export const REPORT_NIGHTS = Number(process.env.SIM_NIGHTS ?? 60);
 const both = (open: string, close: string) => ({ opens: open, closes: close });
 const twoCourts = [both("19:00", "22:00"), both("19:00", "21:00")];
 const threeCourts = [both("19:00", "22:00"), both("19:00", "22:00"), both("19:00", "22:00")];
