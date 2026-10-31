@@ -98,7 +98,18 @@ export function CourtCard({ court, readOnly }: CourtCardProps) {
           <>
             <div className={styles.availableLabel}>{copy.court.open}</div>
             {court.keptOpen && <div className={styles.keptOpen}>{copy.court.keptOpen}</div>}
-            {readOnly ? null : suggestion ? (
+            {readOnly ? (
+              suggestion && (
+                <div className={styles.suggestion}>
+                  <div className={styles.upNextLabel}>{suggestion.locked ? copy.court.upNext : `${copy.court.upNext} · ${copy.session.mayChange}`}</div>
+                  <div>
+                    <span className={styles.suggestionTeam1}>{suggestion.team1Label}</span>{" "}
+                    <span className={styles.suggestionVs}>{copy.matches.vs}</span>{" "}
+                    <span className={styles.suggestionTeam2}>{suggestion.team2Label}</span>
+                  </div>
+                </div>
+              )
+            ) : suggestion ? (
               <>
                 <div className={styles.suggestion}>
                   <div>

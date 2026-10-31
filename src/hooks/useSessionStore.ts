@@ -1824,6 +1824,7 @@ export function useSessionStore() {
               team1Label: suggestion.team1.map((p) => p.name).join(" & "),
               team2Label: suggestion.team2.map((p) => p.name).join(" & "),
               reason: suggestionReason(suggestion),
+              locked: suggestion.queueIndex !== undefined && suggestion.queueIndex < state.queue.length,
               onStart: () => startMatch(court.id),
               onRegenerate: suggestion.queueIndex !== undefined ? () => shuffleQueue(suggestion.queueIndex as number) : () => rerollSuggestion(court.id),
             }
@@ -1838,6 +1839,7 @@ export function useSessionStore() {
   }, [
     state.courts,
     state.matches,
+    state.queue.length,
     livePlayers,
     suggestions,
     state.tick,

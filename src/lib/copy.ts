@@ -153,6 +153,7 @@ export const copy = {
     keepOpenAndStart: "Keep open and start a match",
     pauseCourt: "Pause this court",
     open: "Court is open",
+    upNext: "Up next",
     keptOpen: "Kept open for 1 more match",
     startMatch: "Start match",
     inQueueNeedMore: (inQueue: number, missing: number) => `${inQueue} in queue · need ${missing} more to start`,

@@ -217,6 +217,11 @@
   padding: 11px 13px;
   font-size: 14px;
 }
+.upNextLabel {
+  margin-bottom: 4px;
+  font-size: 14px;
+  color: var(--sm-text-3);
+}
 .suggestionTeam1 { color: var(--sm-accent-hover); font-weight: 700; }
 .suggestionVs { color: var(--sm-text-3); }
 .suggestionTeam2 { color: var(--color-accent-2-300); font-weight: 700; }

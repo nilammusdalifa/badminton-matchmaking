@@ -95,6 +95,8 @@ export interface CourtViewModel {
     team1Label: string;
     team2Label: string;
     reason: string;
+    /** Starts exactly as shown; otherwise a preview that may change. */
+    locked: boolean;
     onStart: () => void;
     onRegenerate: () => void;
   } | null;
