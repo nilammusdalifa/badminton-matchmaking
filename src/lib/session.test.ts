@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player, ResultMode, SkillLevel, Suggestion } from "../types";
-import { bestSplitGap, tierPointsOf, buildCounterSnapshot, cancelMatchPlayers, buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, openCourts, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, buildSessionSummary, expectedValue, gameValue, performanceScore, pointsShare, scoreLabel, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, syncFingerprint, withListDefaults } from "./session";
+import { bestSplitGap, tierPointsOf, buildCounterSnapshot, cancelMatchPlayers, buildHighlights, shortName, dropStarted, planQueue, lockedCount, lockableWaiting, openCourts, resetPlayersForNewSession, applyAfterMatch, playerPriority, markReady, applyLiveScore, buildGamesPlayed, hostSwitchLocked, buildStandings, buildSessionSummary, expectedValue, gameValue, performanceScore, pointsShare, scoreLabel, winRate, applyMatchStart, buildSuggestion, canRemovePlayer, courtCloseReminders, courtsDueToPause, courtSuggestions, fewPlayersHint, hostsHolding, initialsFor, isCourtClosingSoon, isCourtKeptOpen, isCourtPastClosing, keepCourtOpen, pairCounts, pickBalancedFoursome, pickFour, resetCourtsForNewSession, resumeCourt, scheduleEndTime, isFirstRun, liveScoreFor, makeBlankPlayer, nameTaken, photoReminderMinutes, rankPlayers, recomputePlayerStats, smallGroup, syncFingerprint, withListDefaults } from "./session";
 
 const player = (name: string): Player => makeBlankPlayer(name.toLowerCase(), name, "B", "ready");
 
@@ -1487,6 +1487,28 @@ describe("partner variety", () => {
     const history = [completed("m1", ["p1", "p2"], ["p3", "p4"], 21, 15), completed("m2", ["p1", "p3"], ["p2", "p4"], 21, 15), completed("m3", ["p1", "p4"], ["p2", "p3"], 21, 15)];
     const sug = buildSuggestion(players.map((p) => ({ ...p, games: 3 })), history, [], [], 0)!;
     expect(sug.four.map((p) => p.id)).toEqual(expect.arrayContaining(["p5", "p6"]));
+  });
+
+  it("small groups: the same four are split into a matchup they haven't played", () => {
+    // a+d vs b+c has been played, and every pair of the four has partnered once, so partner repeats
+    // tie across the three splits; all four are tier B, so every split is equally even too
+    const four = ["a", "b", "c", "d"].map((id) => B(id));
+    const match = (t1: [string, string], t2: [string, string]) => completed("m", t1, t2, 21, 15);
+    const done = [match(["a", "d"], ["b", "c"]), match(["a", "b"], ["x", "y"]), match(["c", "d"], ["x", "y"]), match(["a", "c"], ["x", "y"]), match(["b", "d"], ["x", "y"])];
+    const { partner, matchup } = pairCounts(done);
+    expect(matchup.get("a|d v b|c")).toBe(1);
+    const teams = (split: { team1: Player[]; team2: Player[] }) => new Set([split.team1, split.team2].map((t) => t.map((p) => p.id).sort().join("")));
+    expect(teams(pickBalancedFoursome(four, partner, matchup))).not.toEqual(new Set(["ad", "bc"]));
+    // without the matchup counts nothing changes: the first split listed wins the tie
+    expect(teams(pickBalancedFoursome(four, partner))).toEqual(new Set(["ad", "bc"]));
+  });
+
+  it("small groups are 9 or fewer ready players, counting those on court", () => {
+    const roster = (n: number) => Array.from({ length: n }, (_, i) => B("p" + i));
+    expect(smallGroup(roster(9))).toBe(true);
+    expect(smallGroup(roster(10))).toBe(false);
+    // someone resting or not yet here doesn't count
+    expect(smallGroup([...roster(9), { ...B("x"), status: "paused" }, { ...B("y"), status: "expected" }])).toBe(true);
   });
 });
 

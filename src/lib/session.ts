@@ -404,20 +404,37 @@ function pairKey(aId: string, bId: string): string {
   return [aId, bId].sort().join("|");
 }
 
+/** One key per matchup, whichever team is listed first: "a|b v c|d". */
+function matchupKey(t1: readonly [string, string], t2: readonly [string, string]): string {
+  return [pairKey(t1[0], t1[1]), pairKey(t2[0], t2[1])].sort().join(" v ");
+}
+
 /** How many times each pair has shared a match this session, as opponents or
- * partners (`meet`) and as partners only (`partner`). Counts matches that are
- * still being played too — they're part of tonight's history already. */
-export function pairCounts(matches: Match[]): { meet: Map<string, number>; partner: Map<string, number> } {
+ * partners (`meet`) and as partners only (`partner`), and how many times each
+ * exact matchup (the same two teams) has been played (`matchup`). Counts
+ * matches that are still being played too — they're part of tonight's history
+ * already. */
+export function pairCounts(matches: Match[]): { meet: Map<string, number>; partner: Map<string, number>; matchup: Map<string, number> } {
   const meet = new Map<string, number>();
   const partner = new Map<string, number>();
+  const matchup = new Map<string, number>();
   const bump = (map: Map<string, number>, a: string, b: string) => map.set(pairKey(a, b), (map.get(pairKey(a, b)) || 0) + 1);
   for (const m of matches) {
     const four = [...m.t1, ...m.t2];
     for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) bump(meet, four[i], four[j]);
     bump(partner, m.t1[0], m.t1[1]);
     bump(partner, m.t2[0], m.t2[1]);
+    const key = matchupKey(m.t1, m.t2);
+    matchup.set(key, (matchup.get(key) || 0) + 1);
   }
-  return { meet, partner };
+  return { meet, partner, matchup };
+}
+
+/** 9 or fewer ready players, counting those on court (they stay "ready" while
+ * they play). On one court such a group meets the same few foursomes again and
+ * again, so matchmaking also steers them into matchups they haven't played. */
+export function smallGroup(players: Player[]): boolean {
+  return players.filter((p) => p.status === "ready").length <= 9;
 }
 
 /** Splits a foursome into two teams by skill tier so the average skill on
@@ -430,13 +447,22 @@ export function pairCounts(matches: Match[]): { meet: Map<string, number>; partn
  * `partnerCount` — how often each pair (by id, order-independent) has been
  * partners this session. Of the 3 ways to split 4 people into two pairs, this
  * picks whichever repeats the fewest partnerships, then the smallest skill
- * gap. Only splits within one tier point of the best balance are considered,
- * so avoiding a repeat never means putting both strongest players against
- * both weakest. The extremes-vs-middle split is listed first so it still wins
- * a full tie. */
+ * gap. Only splits within `slack` tier points of the best balance are
+ * considered (1 by default), so avoiding a repeat never means putting both
+ * strongest players against both weakest. The extremes-vs-middle split is
+ * listed first so it still wins a full tie.
+ *
+ * Small groups (see `smallGroup`) also pass `matchupCount` — how often each
+ * exact matchup has been played (`pairCounts`) — and a `slack` of 2. The
+ * split that repeats a matchup the fewest times then comes first, then
+ * partner repeats, then the gap; and a split 2 points off the best may be
+ * taken (A+B vs B+C, or A+A vs B+B), so a C can partner a B, not only an A.
+ * With neither given, nothing changes. */
 export function pickBalancedFoursome(
   four: Player[],
   partnerCount: Map<string, number> = new Map(),
+  matchupCount: Map<string, number> = new Map(),
+  slack = 1,
 ): { team1: [Player, Player]; team2: [Player, Player] } {
   const [a, b, c, d] = [...four].sort((x, y) => tierPointsOf(y.level) - tierPointsOf(x.level));
   const candidates: [[Player, Player], [Player, Player]][] = [
@@ -448,9 +474,10 @@ export function pickBalancedFoursome(
     Math.abs(tierPointsOf(t1[0].level) + tierPointsOf(t1[1].level) - (tierPointsOf(t2[0].level) + tierPointsOf(t2[1].level)));
   const repeatCount = (t1: [Player, Player], t2: [Player, Player]) =>
     (partnerCount.get(pairKey(t1[0].id, t1[1].id)) || 0) + (partnerCount.get(pairKey(t2[0].id, t2[1].id)) || 0);
-  const scored = candidates.map(([team1, team2]) => ({ team1, team2, repeats: repeatCount(team1, team2), gap: skillGap(team1, team2) }));
+  const matchupRepeats = (t1: [Player, Player], t2: [Player, Player]) => matchupCount.get(matchupKey([t1[0].id, t1[1].id], [t2[0].id, t2[1].id])) || 0;
+  const scored = candidates.map(([team1, team2]) => ({ team1, team2, matchups: matchupRepeats(team1, team2), repeats: repeatCount(team1, team2), gap: skillGap(team1, team2) }));
   const bestGap = Math.min(...scored.map((x) => x.gap));
-  const best = scored.filter((x) => x.gap <= bestGap + 1).sort((x, y) => x.repeats - y.repeats || x.gap - y.gap)[0];
+  const best = scored.filter((x) => x.gap <= bestGap + slack).sort((x, y) => x.matchups - y.matchups || x.repeats - y.repeats || x.gap - y.gap)[0];
   return { team1: best.team1, team2: best.team2 };
 }
 
@@ -549,7 +576,8 @@ export function groupCost(
  *     skipped while `opts.avoidAC` holds, when even groups like A+C vs A+C are
  *     just what it steers away from); (b) fewer partnerships repeated when
  *     the four are split (`opts.partner`, the split `pickBalancedFoursome`
- *     will make); (c) the more even split. `seed` (Shuffle) steps through the
+ *     will make, given `opts.matchup` and `opts.splitSlack` too for small
+ *     groups); (c) the more even split. `seed` (Shuffle) steps through the
  *     next-best few. So four people who just finished together get split up
  *     rather than sent straight back out as the same group, and neither
  *     balance nor variety ever costs anyone a turn: they only choose between
@@ -560,7 +588,7 @@ export function pickFour(
   seed = 0,
   singleCourt = false,
   extraReady = 0,
-  opts: { forced?: Player[]; avoidAC?: boolean; partner?: Map<string, number> } = {},
+  opts: { forced?: Player[]; avoidAC?: boolean; partner?: Map<string, number>; matchup?: Map<string, number>; splitSlack?: number } = {},
 ): Player[] | null {
   if (pool.length < 4) return null;
   const waitWeight = singleCourt ? SINGLE_COURT_WAIT_WEIGHT : 1;
@@ -579,7 +607,7 @@ export function pickFour(
       const four = [...must, ...combo];
       const { cost, familiarity } = groupCost(four, meet, minGames, waitWeight, opts.avoidAC);
       // how the four would be split, for the tie-breaks: unsplittable, repeated partnerships, tier gap
-      const split = pickBalancedFoursome(four, opts.partner);
+      const split = pickBalancedFoursome(four, opts.partner, opts.matchup, opts.splitSlack);
       const repeats =
         (opts.partner?.get(pairKey(split.team1[0].id, split.team1[1].id)) || 0) + (opts.partner?.get(pairKey(split.team2[0].id, split.team2[1].id)) || 0);
       const points = (team: [Player, Player]) => tierPointsOf(team[0].level) + tierPointsOf(team[1].level);
@@ -650,7 +678,13 @@ export function buildSuggestion(
   }
   if (pool.length < 4) return null;
   const ordered = playerPriority(pool);
-  const { meet, partner } = pairCounts(matches);
+  const counts = pairCounts(matches);
+  const { meet, partner } = counts;
+  // small groups on one court keep meeting the same four: steer them into matchups they haven't
+  // played, allowing splits up to 2 tier points off the best balance (instead of 1) to find them
+  const small = smallGroup(players);
+  const matchup = small ? counts.matchup : undefined;
+  const splitSlack = small ? 2 : 1;
 
   const reqPair = requestedPairs.find(
     ([a, b]) => ordered.some((p) => p.id === a) && ordered.some((p) => p.id === b),
@@ -694,7 +728,7 @@ export function buildSuggestion(
       hardActive,
     });
     if (pick) {
-      four = pickFour(pick.candidates, meet, seed, options.singleCourt, extraReady, { forced: pick.forced, partner });
+      four = pickFour(pick.candidates, meet, seed, options.singleCourt, extraReady, { forced: pick.forced, partner, matchup, splitSlack });
       if (four) {
         const due = pick.due.filter((p) => four!.some((q) => q.id === p.id));
         const carried = pick.kind === "mid" ? dCarries : carries;
@@ -706,12 +740,12 @@ export function buildSuggestion(
             : copy.reason.plain(label);
       }
     }
-    four ??= pickFour(pool, meet, seed, options.singleCourt, extraReady, { avoidAC: hardActive || !!options.avoidAC, partner });
+    four ??= pickFour(pool, meet, seed, options.singleCourt, extraReady, { avoidAC: hardActive || !!options.avoidAC, partner, matchup, splitSlack });
   } else {
-    four = pickFour(pool, meet, seed, options.singleCourt, extraReady, { partner });
+    four = pickFour(pool, meet, seed, options.singleCourt, extraReady, { partner, matchup, splitSlack });
   }
   if (!four) return null;
-  const split = pickBalancedFoursome(four, partner);
+  const split = pickBalancedFoursome(four, partner, matchup, splitSlack);
 
   // What actually drove the pick, not how the teams were split.
   const lead = playerPriority(four)[0];

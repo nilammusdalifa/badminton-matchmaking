@@ -399,7 +399,7 @@ export function summarize(scenario: Scenario, nights: number, shuffleRoster: boo
  * from rng(12345), and fewer nights change the worst-night numbers (with SIM_NIGHTS=20, three
  * tests failed). SIM_NIGHTS only sets how many nights the printed report plays. */
 const NIGHTS = 60;
-const REPORT_NIGHTS =Number(process.env.SIM_NIGHTS ?? 60);
+const REPORT_NIGHTS = Number(process.env.SIM_NIGHTS ?? 60);
 const both = (open: string, close: string) => ({ opens: open, closes: close });
 const twoCourts = [both("19:00", "22:00"), both("19:00", "21:00")];
 const threeCourts = [both("19:00", "22:00"), both("19:00", "22:00"), both("19:00", "22:00")];
@@ -756,25 +756,27 @@ describe("relief games: a C who has carried a D", () => {
 
 type SmallFloor = { minRatio: number; minMatchupRatio: number; partners: number; gap: number; inARow: number };
 
-/** Today's numbers for 5–9 players on 1 court (planAhead: true, 60 nights), roster shuffled: the
- * runs the review measured (6 players: new group 27% on the worst night, 2.25 partners each). These
- * are floors against regressions, not targets; variety for small groups raises them. */
+/** The numbers for 5–9 players on 1 court (planAhead: true, 60 nights), roster shuffled: the runs
+ * the review measured (6 players, before variety for small groups: new group 27% on the worst
+ * night, 2.25 partners each). Measured with variety for small groups, rounded down to 4 decimals.
+ * These are floors against regressions; the targets are `VARIETY_TARGET`. */
 const SMALL: Record<number, SmallFloor> = {
-  5: { minRatio: 0.45454545454545453, minMatchupRatio: 0.45454545454545453, partners: 2.8000000000000016, gap: 1, inARow: 4 },
-  6: { minRatio: 0.2727272727272727, minMatchupRatio: 0.3, partners: 2.25, gap: 1, inARow: 2 },
-  7: { minRatio: 1, minMatchupRatio: 1, partners: 4.023809523809523, gap: 1, inARow: 2 },
-  8: { minRatio: 0.7777777777777778, minMatchupRatio: 0.8888888888888888, partners: 4.35, gap: 1, inARow: 2 },
-  9: { minRatio: 1, minMatchupRatio: 1, partners: 3.818518518518519, gap: 1, inARow: 1 },
+  5: { minRatio: 0.4545, minMatchupRatio: 1, partners: 4, gap: 1, inARow: 4 },
+  6: { minRatio: 0.2727, minMatchupRatio: 0.7272, partners: 4.5, gap: 1, inARow: 2 },
+  7: { minRatio: 1, minMatchupRatio: 1, partners: 5.0857, gap: 1, inARow: 2 },
+  8: { minRatio: 0.7777, minMatchupRatio: 1, partners: 4.6958, gap: 1, inARow: 2 },
+  9: { minRatio: 1, minMatchupRatio: 1, partners: 4.1518, gap: 1, inARow: 1 },
 };
 
-/** The same nights in roster order. Roster order hides the 6-player problem (4 partners each, a
- * new matchup in 60% of matches), so it is guarded too but is not what the review measured. */
+/** The same nights in roster order. Roster order hid the 6-player problem (4 partners each and a
+ * new matchup in 60% of matches already before), so it is guarded too but is not what the review
+ * measured. */
 const SMALL_ROSTER_ORDER: Record<number, SmallFloor> = {
-  5: { minRatio: 0.5, minMatchupRatio: 0.5, partners: 2.8000000000000016, gap: 1, inARow: 4 },
-  6: { minRatio: 0.3, minMatchupRatio: 0.6, partners: 4, gap: 1, inARow: 2 },
-  7: { minRatio: 1, minMatchupRatio: 1, partners: 4.742857142857145, gap: 1, inARow: 2 },
+  5: { minRatio: 0.5, minMatchupRatio: 1, partners: 4, gap: 1, inARow: 4 },
+  6: { minRatio: 0.3, minMatchupRatio: 0.8, partners: 4.9833, gap: 1, inARow: 2 },
+  7: { minRatio: 1, minMatchupRatio: 1, partners: 5.2142, gap: 1, inARow: 2 },
   8: { minRatio: 0.75, minMatchupRatio: 1, partners: 4.65, gap: 1, inARow: 2 },
-  9: { minRatio: 1, minMatchupRatio: 1, partners: 4.1333333333333355, gap: 1, inARow: 1 },
+  9: { minRatio: 1, minMatchupRatio: 1, partners: 4.1333, gap: 1, inARow: 1 },
 };
 
 describe("small groups on 1 court", () => {
@@ -793,10 +795,52 @@ describe("small groups on 1 court", () => {
   }
 });
 
+type VarietyTarget = { minMatchupRatio: number; minRatio: number | null; partners: number; gap: number; inARow: number };
+
+/** Targets for 5–9 players on 1 court (planAhead: true, 60 nights, roster shuffled). With 5–6
+ * players a new group can't come up much more often while nobody plays 3 in a row (6 players sit
+ * out in pairs, so only 3 foursomes exist), so variety there is a new matchup: the same four split
+ * into different teams counts as new. Never bought by breaking the 3-in-a-row rule. */
+const VARIETY_TARGET: Record<number, VarietyTarget> = {
+  5: { minMatchupRatio: 0.6, minRatio: null, partners: 3, gap: 1, inARow: 4 },
+  6: { minMatchupRatio: 0.6, minRatio: null, partners: 3, gap: 1, inARow: 2 },
+  7: { minMatchupRatio: 0.6, minRatio: 0.6, partners: 3, gap: SMALL[7].gap, inARow: 2 },
+  8: { minMatchupRatio: 0.6, minRatio: 0.6, partners: 3, gap: SMALL[8].gap, inARow: 2 },
+  9: { minMatchupRatio: 0.6, minRatio: 0.6, partners: 3, gap: SMALL[9].gap, inARow: 2 },
+};
+
+describe("variety for small groups on 1 court", () => {
+  // With 9 or fewer ready players (smallGroup), the split goes first to a matchup the four haven't
+  // played, then to fewer repeated partners, and may be up to 2 tier points off the best balance
+  // instead of 1 (candidate B; A, the matchup tie-break alone, left 5 players at 2.8 partners and
+  // 6 players at 0.40 / 2.25: with 1 point of slack a C could only ever partner an A). New matchup
+  // on the worst night / partners each, roster shuffled, before -> after: 5 players 0.45 / 2.80 ->
+  // 1.00 / 4.00, 6 players 0.30 / 2.25 -> 0.73 / 4.50, 7 players 1.00 / 4.02 -> 1.00 / 5.09,
+  // 8 players 0.89 / 4.35 -> 1.00 / 4.70, 9 players 1.00 / 3.82 -> 1.00 / 4.15. Roster order: 5
+  // 0.50 / 2.80 -> 1.00 / 4.00, 6 0.60 / 4.00 -> 0.80 / 4.98, 7 1.00 / 4.74 -> 1.00 / 5.21, 8 and 9
+  // unchanged. New groups, games gap, back-to-back and waits are unchanged in every row; queue order
+  // is skipped more often with 5 players (shuffled 24% -> 29%, roster order 11% -> 22%) and with 7 in
+  // roster order (32% -> 36%). The price is balance: matches 2+ tier points apart, shuffled, 0% / 0% / 1.1% / 2.0% / 0% -> 32% / 40% /
+  // 30% / 12% / 12% (average gap 0.43 / 0 / 0.37 / 0.53 / 0.45 -> 1.00 / 0.79 / 1.07 / 0.72 / 0.69).
+  for (let players = 5; players <= 9; players++) {
+    it(`${players} players (roster shuffled): a new matchup in 60% of matches, 3+ partners each`, () => {
+      const r = summarize({ players, courts: oneCourt, planAhead: true }, NIGHTS, true);
+      const target = VARIETY_TARGET[players];
+      expect(r.minMatchupRatio).toBeGreaterThanOrEqual(target.minMatchupRatio);
+      if (target.minRatio !== null) expect(r.minRatio).toBeGreaterThanOrEqual(target.minRatio);
+      expect(r.partners).toBeGreaterThanOrEqual(target.partners);
+      expect(r.gap).toBeLessThanOrEqual(target.gap);
+      expect(r.inARow).toBeLessThanOrEqual(target.inARow);
+    });
+  }
+});
+
 describe("queue reasons", () => {
   // at every match start, each waiting player the plan passed over (someone ranked after them is
   // planned) gets a reason from queueReasons, the same one the Waiting list shows. Passed-over
   // players seen over 60 nights, roster order / shuffled: 7x1 234 / 319, 12x2 619 / 863, 16x2 1547 / 1657.
+  // It passes by construction while queueReasons' rules 3–6 never return null, and guards that, as
+  // well as queueReasons not throwing on real states.
   for (const [label, players, courts] of [["7 players, 1 court", 7, oneCourt], ["12 players, 2 courts", 12, twoCourts], ["16 players, 2 courts", 16, twoCourts]] as const) {
     for (const shuffled of [false, true]) {
       it(`${label}${shuffled ? " (roster shuffled)" : ""}: every passed-over player has a reason`, () => {
