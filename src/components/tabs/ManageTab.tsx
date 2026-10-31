@@ -62,144 +62,6 @@ export function ManageTab({
       </div>
 
       <div className={styles.panel}>
-        <div className={styles.panelTitle}>{copy.manage.walkIn}</div>
-        <div className={styles.panelHint}>{copy.manage.walkInHint}</div>
-        <PlayerAddForm
-          newPlayerName={newPlayerName}
-          newPlayerLevel={newPlayerLevel}
-          onNewPlayerNameChange={onNewPlayerNameChange}
-          setNewPlayerLevel={setNewPlayerLevel}
-          onAddPlayer={onAddPlayer}
-          onAddPlayers={onAddPlayers}
-          addLabel={copy.manage.addPlayer}
-        />
-      </div>
-
-      {isOwner && (
-        <div className={styles.courtsPanel}>
-          <div className={styles.courtsHead}>
-            <div>
-              <div className={styles.panelTitle}>{copy.manage.courts}</div>
-              <div className={styles.courtsSub}>
-                {copy.manage.courtsSub(courtsCount, rulesLabel)}
-              </div>
-            </div>
-            <div className={styles.courtsBtns}>
-              <button className={styles.roundBtn} onClick={onRemoveCourt} aria-label={copy.manage.removeCourt}>
-                –
-              </button>
-              <button className={styles.roundBtn} onClick={onAddCourt} aria-label={copy.manage.addCourt}>
-                +
-              </button>
-            </div>
-          </div>
-          <label className={styles.hostToggle}>
-            <input type="checkbox" checked={planAhead} onChange={onTogglePlanAhead} />
-            <span>
-              <span className={styles.hostToggleTitle}>{copy.manage.lockPlanned}</span>
-              <span className={styles.hostToggleHint}>{copy.manage.lockPlannedHint}</span>
-            </span>
-          </label>
-          <label className={styles.hostToggle}>
-            <input type="checkbox" checked={hardGames} onChange={onToggleHardGames} />
-            <span>
-              <span className={styles.hostToggleTitle}>{copy.manage.hardMatches}</span>
-              <span className={styles.hostToggleHint}>{copy.manage.hardHint}</span>
-            </span>
-          </label>
-          {courtHours.length > 0 && (
-            <>
-              <div className={styles.panelHint}>{copy.manage.closingHint}</div>
-              {courtHours.map((c) => (
-                <label className={styles.courtHoursRow} key={c.id}>
-                  <span>{copy.manage.courtCloses(c.name)}</span>
-                  <input
-                    className={styles.timeInput}
-                    type="time"
-                    aria-label={copy.manage.courtCloses(c.name)}
-                    value={c.closesAt}
-                    onChange={(e) => onSetCourtClosesAt(c.id, e.target.value)}
-                  />
-                </label>
-              ))}
-            </>
-        )}
-      </div>
-      )}
-
-      {isOwner && (
-        <div className={styles.panel}>
-          <div className={styles.panelTitle}>{copy.manage.session}</div>
-          <div className={styles.dangerZone}>
-            <button className={styles.zoneBtn} onClick={onOpenSetup}>
-              {copy.manage.newSession}
-            </button>
-            <button className={`${styles.zoneBtn} ${styles.danger}`} onClick={onEndSession}>
-              {copy.manage.endAndSee}
-            </button>
-            <button className={`${styles.zoneBtn} ${styles.dangerSolid}`} onClick={onResetSession}>
-              {copy.manage.eraseAndRestart}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {shareEnabled && (
-        <div className={styles.panel}>
-          <div className={styles.panelTitle}>{copy.manage.liveSharing}</div>
-          <div className={styles.panelHint}>
-            {isOwner ? copy.manage.shareWithPin : copy.manage.shareNoPin}
-          </div>
-          <div className={styles.shareRow}>
-            <button className={styles.addBtn} onClick={onCopyShareLink}>
-              {copy.manage.copyLink}
-            </button>
-            {isOwner && <div className={styles.pinBadge}>{copy.manage.pin(sessionPin)}</div>}
-          </div>
-          {isOwner && <div className={styles.pinHint}>{copy.manage.pinHint}</div>}
-          <div className={styles.shareUrl}>{shareUrl}</div>
-        </div>
-      )}
-
-      <div className={styles.panel}>
-        <div className={styles.panelTitle}>{copy.manage.partnerRequests}</div>
-        <div className={styles.panelHint}>{copy.manage.partnerHint}</div>
-        <div className={styles.formRow}>
-          <select className={styles.select} aria-label={copy.manage.playerA} value={requestA} onChange={onRequestAChange}>
-            <option value="">{copy.manage.playerA}</option>
-            {players.map((p) => (
-              <option value={p.id} key={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <select className={styles.select} aria-label={copy.manage.playerB} value={requestB} onChange={onRequestBChange}>
-            <option value="">{copy.manage.playerB}</option>
-            {players.map((p) => (
-              <option value={p.id} key={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <button className={styles.addBtn} onClick={onAddPartnerRequest}>
-            {copy.manage.pairThem}
-          </button>
-        </div>
-        {hasRequestedPairs && (
-          <div className={styles.requestedList}>
-            {requestedPairsVM.map((rp, i) => (
-              <div className={styles.requestedRow} key={i}>
-                <span>{rp.label}</span>
-                <button className={styles.removeBtn} onClick={rp.onRemove}>
-                  {copy.common.remove}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className={styles.panel}>
         <div className={styles.rosterTitle}>{copy.manage.roster(playersCount)}</div>
         <div className={styles.rosterList}>
           {managePlayersVM.map((p) => {
@@ -312,6 +174,144 @@ export function ManageTab({
           })}
         </div>
       </div>
+
+      <div className={styles.panel}>
+        <div className={styles.panelTitle}>{copy.manage.walkIn}</div>
+        <div className={styles.panelHint}>{copy.manage.walkInHint}</div>
+        <PlayerAddForm
+          newPlayerName={newPlayerName}
+          newPlayerLevel={newPlayerLevel}
+          onNewPlayerNameChange={onNewPlayerNameChange}
+          setNewPlayerLevel={setNewPlayerLevel}
+          onAddPlayer={onAddPlayer}
+          onAddPlayers={onAddPlayers}
+          addLabel={copy.manage.addPlayer}
+        />
+      </div>
+
+      <div className={styles.panel}>
+        <div className={styles.panelTitle}>{copy.manage.partnerRequests}</div>
+        <div className={styles.panelHint}>{copy.manage.partnerHint}</div>
+        <div className={styles.formRow}>
+          <select className={styles.select} aria-label={copy.manage.playerA} value={requestA} onChange={onRequestAChange}>
+            <option value="">{copy.manage.playerA}</option>
+            {players.map((p) => (
+              <option value={p.id} key={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <select className={styles.select} aria-label={copy.manage.playerB} value={requestB} onChange={onRequestBChange}>
+            <option value="">{copy.manage.playerB}</option>
+            {players.map((p) => (
+              <option value={p.id} key={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <button className={styles.addBtn} onClick={onAddPartnerRequest}>
+            {copy.manage.pairThem}
+          </button>
+        </div>
+        {hasRequestedPairs && (
+          <div className={styles.requestedList}>
+            {requestedPairsVM.map((rp, i) => (
+              <div className={styles.requestedRow} key={i}>
+                <span>{rp.label}</span>
+                <button className={styles.removeBtn} onClick={rp.onRemove}>
+                  {copy.common.remove}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {isOwner && (
+        <div className={styles.courtsPanel}>
+          <div className={styles.courtsHead}>
+            <div>
+              <div className={styles.panelTitle}>{copy.manage.courts}</div>
+              <div className={styles.courtsSub}>
+                {copy.manage.courtsSub(courtsCount, rulesLabel)}
+              </div>
+            </div>
+            <div className={styles.courtsBtns}>
+              <button className={styles.roundBtn} onClick={onRemoveCourt} aria-label={copy.manage.removeCourt}>
+                –
+              </button>
+              <button className={styles.roundBtn} onClick={onAddCourt} aria-label={copy.manage.addCourt}>
+                +
+              </button>
+            </div>
+          </div>
+          <label className={styles.hostToggle}>
+            <input type="checkbox" checked={planAhead} onChange={onTogglePlanAhead} />
+            <span>
+              <span className={styles.hostToggleTitle}>{copy.manage.lockPlanned}</span>
+              <span className={styles.hostToggleHint}>{copy.manage.lockPlannedHint}</span>
+            </span>
+          </label>
+          <label className={styles.hostToggle}>
+            <input type="checkbox" checked={hardGames} onChange={onToggleHardGames} />
+            <span>
+              <span className={styles.hostToggleTitle}>{copy.manage.hardMatches}</span>
+              <span className={styles.hostToggleHint}>{copy.manage.hardHint}</span>
+            </span>
+          </label>
+          {courtHours.length > 0 && (
+            <>
+              <div className={styles.panelHint}>{copy.manage.closingHint}</div>
+              {courtHours.map((c) => (
+                <label className={styles.courtHoursRow} key={c.id}>
+                  <span>{copy.manage.courtCloses(c.name)}</span>
+                  <input
+                    className={styles.timeInput}
+                    type="time"
+                    aria-label={copy.manage.courtCloses(c.name)}
+                    value={c.closesAt}
+                    onChange={(e) => onSetCourtClosesAt(c.id, e.target.value)}
+                  />
+                </label>
+              ))}
+            </>
+        )}
+      </div>
+      )}
+
+      {shareEnabled && (
+        <div className={styles.panel}>
+          <div className={styles.panelTitle}>{copy.manage.liveSharing}</div>
+          <div className={styles.panelHint}>
+            {isOwner ? copy.manage.shareWithPin : copy.manage.shareNoPin}
+          </div>
+          <div className={styles.shareRow}>
+            <button className={styles.addBtn} onClick={onCopyShareLink}>
+              {copy.manage.copyLink}
+            </button>
+            {isOwner && <div className={styles.pinBadge}>{copy.manage.pin(sessionPin)}</div>}
+          </div>
+          {isOwner && <div className={styles.pinHint}>{copy.manage.pinHint}</div>}
+          <div className={styles.shareUrl}>{shareUrl}</div>
+        </div>
+      )}
+
+      {isOwner && (
+        <div className={styles.panel}>
+          <div className={styles.panelTitle}>{copy.manage.session}</div>
+          <div className={styles.dangerZone}>
+            <button className={styles.zoneBtn} onClick={onOpenSetup}>
+              {copy.manage.newSession}
+            </button>
+            <button className={`${styles.zoneBtn} ${styles.danger}`} onClick={onEndSession}>
+              {copy.manage.endAndSee}
+            </button>
+            <button className={`${styles.zoneBtn} ${styles.dangerSolid}`} onClick={onResetSession}>
+              {copy.manage.eraseAndRestart}
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
