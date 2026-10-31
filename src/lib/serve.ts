@@ -14,10 +14,13 @@ export interface ServeState {
 const other = (team: Team): Team => (team === "t1" ? "t2" : "t1");
 const flip = (i: 0 | 1): 0 | 1 => (i === 0 ? 1 : 0);
 
-/** The first serve of a match: `server` stands right and serves; on the
- * receiving team, index 0 stands right (fix a wrong guess with swapReceivers). */
-export function startServe(team: Team, server: 0 | 1): ServeState {
-  return { serving: team, right: team === "t1" ? { t1: server, t2: 0 } : { t1: 0, t2: server } };
+/** The umpire says who serves at `score` (0–0 at the start of a match, or
+ * any score once the sheet is reopened): `server` stands on the side that
+ * score serves from, right when their team's score is even, left when odd.
+ * On the receiving team, index 0 stands right, a guess fixed with swapReceivers. */
+export function startServe(team: Team, server: 0 | 1, score: { t1: number; t2: number } = { t1: 0, t2: 0 }): ServeState {
+  const right = score[team] % 2 === 0 ? server : flip(server);
+  return { serving: team, right: team === "t1" ? { t1: right, t2: 0 } : { t1: 0, t2: right } };
 }
 
 /** After a rally: when the serving team wins it, its two players swap
@@ -37,6 +40,25 @@ export function serverOf(s: ServeState, score: { t1: number; t2: number }): { te
 
 /** Flips the receiving team's positions (a wrong guess of who receives first). */
 export function swapReceivers(s: ServeState): ServeState {
-  const r = other(s.serving);
-  return { serving: s.serving, right: { ...s.right, [r]: flip(s.right[r]) } };
+  return flipTeam(s, other(s.serving));
+}
+
+function flipTeam(s: ServeState, team: Team): ServeState {
+  return { serving: s.serving, right: { ...s.right, [team]: flip(s.right[team]) } };
+}
+
+/** Swap receivers applied to the scorekeeper's Undo history, so stepping
+ * back past the correction doesn't bring the wrong guess back. The guess was
+ * made when the server was picked, so every step since then (back to the
+ * step marked `picked`, or to the first step that knows who serves) gets that
+ * team flipped. That is exactly replaying from a corrected pick: no rule
+ * depends on where a player stands, only on who won. Steps from before the
+ * pick are left alone. */
+export function swapReceiversInSteps<T extends { serve?: ServeState; picked?: boolean }>(steps: T[]): T[] {
+  const latest = steps[steps.length - 1]?.serve;
+  if (!latest) return steps;
+  const team = other(latest.serving);
+  let from = steps.length - 1;
+  while (from > 0 && !steps[from].picked && steps[from - 1].serve) from--;
+  return steps.map((step, i) => (i >= from && step.serve ? { ...step, serve: flipTeam(step.serve, team) } : step));
 }

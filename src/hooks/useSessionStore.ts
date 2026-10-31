@@ -62,7 +62,7 @@ import {
   withListDefaults,
 } from "../lib/session";
 import { formatAgo } from "../lib/locale";
-import { afterRally, serverOf, startServe, swapReceivers, type ServeState, type Team } from "../lib/serve";
+import { afterRally, serverOf, startServe, swapReceiversInSteps, type ServeState, type Team } from "../lib/serve";
 import { copy } from "../lib/copy";
 import { queueReasons } from "../lib/queueReasons";
 import { SHARE_CARD_H, SHARE_CARD_W, SHARE_TOP_COUNT } from "../lib/shareCard";
@@ -216,7 +216,8 @@ function initialState(): AppState {
   };
 }
 
-type ScorekeeperStep = { t1: number; t2: number; serve?: ServeState };
+/** `picked`: the umpire picked the server at this score (see swapReceiversInSteps). */
+type ScorekeeperStep = { t1: number; t2: number; serve?: ServeState; picked?: true };
 /** A history entry without a `serve` key when the server isn't known. */
 const skStep = (t1: number, t2: number, serve: ServeState | null): ScorekeeperStep => (serve ? { t1, t2, serve } : { t1, t2 });
 
@@ -697,22 +698,32 @@ export function useSessionStore() {
     });
   }, []);
   // Picking the server (or fixing who receives) changes who serves at the
-  // current score, not the score: it rewrites the latest history entry, so
-  // Undo still steps back one point at a time.
-  const skSetServe = useCallback((change: (current: ServeState | null) => ServeState | null) => {
+  // current score, not the score: it rewrites history entries instead of
+  // adding one, so Undo still steps back one point at a time.
+  const skSetServeHistory = useCallback((change: (s: AppState) => ScorekeeperStep[]) => {
     setState((s) => {
-      const serve = change(s.scorekeeperServe);
+      const h = change(s);
+      const serve = h[h.length - 1]?.serve ?? null;
       if (!serve) return s;
       return {
         ...s,
         scorekeeperServe: serve,
-        scorekeeperHistory: [...s.scorekeeperHistory.slice(0, -1), skStep(s.scorekeeperT1, s.scorekeeperT2, serve)],
+        scorekeeperHistory: h,
         matches: applyLiveScore(s.matches, s.scorekeeperMatchId ?? "", s.scorekeeperT1, s.scorekeeperT2, serve),
       };
     });
   }, []);
-  const skPickServer = useCallback((team: Team, index: 0 | 1) => skSetServe(() => startServe(team, index)), [skSetServe]);
-  const skSwapReceivers = useCallback(() => skSetServe((cur) => (cur ? swapReceivers(cur) : null)), [skSetServe]);
+  // The picked player goes on the side the current score serves from.
+  const skPickServer = useCallback(
+    (team: Team, index: 0 | 1) =>
+      skSetServeHistory((s) => [
+        ...s.scorekeeperHistory.slice(0, -1),
+        { ...skStep(s.scorekeeperT1, s.scorekeeperT2, startServe(team, index, { t1: s.scorekeeperT1, t2: s.scorekeeperT2 })), picked: true },
+      ]),
+    [skSetServeHistory],
+  );
+  // The correction reaches back to the pick, so Undo can't bring the wrong guess back.
+  const skSwapReceivers = useCallback(() => skSetServeHistory((s) => swapReceiversInSteps(s.scorekeeperHistory)), [skSetServeHistory]);
   // "final": the result counts. "early": the match stopped before it finished
   // (injury, time up) — the score so far is kept for the log, but nothing about
   // it counts towards wins, losses or points; it still counts as a game played
@@ -2193,7 +2204,7 @@ export function useSessionStore() {
   // Server unknown (sheet reopened, page reloaded, score typed): the four
   // players to pick from, instead of a guess.
   const skServerChoices =
-    sk && !skServe
+    sk?.status === "in_progress" && !skServe
       ? ([["t1", 0], ["t1", 1], ["t2", 0], ["t2", 1]] as const).map(([team, index]) => ({
           label: (team === "t1" ? skT1Names : skT2Names)[index],
           onPick: () => skPickServer(team, index),
