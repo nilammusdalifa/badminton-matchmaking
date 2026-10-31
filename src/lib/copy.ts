@@ -15,6 +15,8 @@ export const courtCount = (n: number) => count(n, "court", "courts");
 /** "2–7", or just "2" when the two are the same. */
 export const range = (min: number, max: number) => (min === max ? String(min) : `${min}–${max}`);
 
+const hostLater = "Host · plays after round 1";
+
 export const copy = {
   common: {
     cancel: "Cancel",
@@ -108,7 +110,21 @@ export const copy = {
     inMatchAfter: "In match after",
     /** "Sat out 2 · Played 5 · 2 in a row" */
     queueMeta: (satOut: number, played: number, inARow: number) => [`Sat out ${satOut}`, `Played ${played}`, ...(inARow >= 2 ? [`${inARow} in a row`] : [])].join(" · "),
-    hostLater: "Host · plays after round 1",
+    hostLater,
+    /** Why a waiting player is where they are, by `QueueReason` (see `queueReasons`). */
+    why: {
+      next: "Plays next",
+      after: "Plays in the match after",
+      streak: "Played 2 in a row · sits one out",
+      host: hostLater,
+      request: "A partner request comes first",
+      relief: "A hard match is planned",
+      manual: "The umpire set the next match",
+      mix: "Mixing groups · avoids a repeat",
+      fair: "Others have played fewer matches",
+      balance: "Balancing teams",
+      courtMix: "Next match mixes in players coming off court",
+    },
     skipNext: "Skip next",
     rest: "Rest",
     backToQueue: "Back to queue",

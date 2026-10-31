@@ -476,7 +476,7 @@ function combinations<T>(items: T[], k: number): T[][] {
 }
 
 /** Nobody is picked for a third match in a row while others are available. */
-const MAX_CONSECUTIVE = 2;
+export const MAX_CONSECUTIVE = 2;
 /** How many of the highest-priority players are weighed against each other. */
 const CANDIDATE_WINDOW = 8;
 /** How many of the best-scoring groups Shuffle cycles through. */
@@ -493,7 +493,7 @@ function mustPlayAfter(readyCount: number): number {
 
 /** With a single court open, a waiting player's turn is a whole match away, so
  * waiting counts double against the other terms. */
-const SINGLE_COURT_WAIT_WEIGHT = 2;
+export const SINGLE_COURT_WAIT_WEIGHT = 2;
 
 /** Added to the cost of a foursome holding both an A and a C while a hard game
  * is planned or on court (same scale as `8 × familiarity`). A preference, not a
@@ -512,6 +512,26 @@ function mustPlayers(pool: Player[], extraReady: number): Player[] {
   return playerPriority(pool)
     .filter((p) => p.skipped >= mustAfter)
     .slice(0, 4);
+}
+
+/** What `pickFour` weighs a foursome by (rule 3 there): `cost` =
+ * `8 × familiarity − waitWeight × Σ priority + 6 × spread`, plus
+ * `AVOID_AC_PENALTY` for an A with a C when `avoidAC`. `familiarity` is how
+ * often each pair of the four has shared a match tonight (`meet`), `spread` is
+ * `Σ (games − minGames)`. Lower is better. */
+export function groupCost(
+  four: Player[],
+  meet: Map<string, number>,
+  minGames: number,
+  waitWeight: number,
+  avoidAC?: boolean,
+): { cost: number; familiarity: number; spread: number } {
+  let familiarity = 0;
+  for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) familiarity += meet.get(pairKey(four[i].id, four[j].id)) || 0;
+  const mixesAC = avoidAC && four.some((p) => p.level === "A") && four.some((p) => isLower(p.level));
+  const spread = four.reduce((sum, p) => sum + (p.games - minGames), 0);
+  const cost = 8 * familiarity - waitWeight * four.reduce((sum, p) => sum + priorityScore(p), 0) + 6 * spread + (mixesAC ? AVOID_AC_PENALTY : 0);
+  return { cost, familiarity, spread };
 }
 
 /** Picks who plays next from the ready pool. Rules, in order:
@@ -557,14 +577,7 @@ export function pickFour(
   const ranked = combinations(rest, 4 - must.length)
     .map((combo) => {
       const four = [...must, ...combo];
-      let familiarity = 0;
-      for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) familiarity += meet.get(pairKey(four[i].id, four[j].id)) || 0;
-      const mixesAC = opts.avoidAC && four.some((p) => p.level === "A") && four.some((p) => isLower(p.level));
-      const cost =
-        8 * familiarity -
-        waitWeight * four.reduce((sum, p) => sum + priorityScore(p), 0) +
-        6 * four.reduce((sum, p) => sum + (p.games - minGames), 0) +
-        (mixesAC ? AVOID_AC_PENALTY : 0);
+      const { cost, familiarity } = groupCost(four, meet, minGames, waitWeight, opts.avoidAC);
       // how the four would be split, for the tie-breaks: unsplittable, repeated partnerships, tier gap
       const split = pickBalancedFoursome(four, opts.partner);
       const repeats =

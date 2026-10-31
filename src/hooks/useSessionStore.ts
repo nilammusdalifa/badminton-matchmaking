@@ -63,6 +63,7 @@ import {
 } from "../lib/session";
 import { formatAgo } from "../lib/locale";
 import { copy } from "../lib/copy";
+import { queueReasons } from "../lib/queueReasons";
 import { SHARE_CARD_H, SHARE_CARD_W, SHARE_TOP_COUNT } from "../lib/shareCard";
 import { prepareSharePhoto } from "../lib/sharePhoto";
 import type { Court, Match, PauseReason, Player, QueueItem, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion, Tab } from "../types";
@@ -2005,6 +2006,19 @@ export function useSessionStore() {
       const index = plan.findIndex((item) => [...item.team1, ...item.team2].includes(id));
       return index === -1 ? undefined : index === 0 ? copy.session.upNext : copy.session.then;
     };
+    const reasons = queueReasons({
+      ordered: orderedReady,
+      plan,
+      matches: state.matches,
+      requestedPairs: state.requestedPairs,
+      holdingHosts,
+      singleCourt: openCourts(state.courts, state.matches, new Date()).length === 1,
+    });
+    // a watcher never learns tiers: "A hard match is planned" reads as balancing to them
+    const reasonText = (id: string) => {
+      const r = reasons.get(id) ?? null;
+      return r === null ? null : copy.session.why[hideTiers && r === "relief" ? "balance" : r];
+    };
     return orderedReady.map((p) => ({
         id: p.id,
         name: p.name,
@@ -2017,12 +2031,13 @@ export function useSessionStore() {
         waitMin: p.idleSince ? Math.max(0, Math.floor((now - p.idleSince) / 60000)) : null,
         note: p.isHost && holdingHosts ? copy.session.hostLater : undefined,
         queueTag: queueTagFor(p.id),
+        reason: reasonText(p.id),
         onSkip: () => skipNext(p.id),
         onPause: () => pausePlayer(p.id, "rest"),
       }));
     // state.tick keeps the minutes waited current
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderedReady, holdingHosts, plan, state.tick, skipNext, pausePlayer]);
+  }, [orderedReady, holdingHosts, plan, state.matches, state.requestedPairs, state.courts, hideTiers, state.tick, skipNext, pausePlayer]);
 
   const notInRotationVM = useMemo<NotInRotationEntry[]>(() => {
     const notInRotation = state.players.filter((p) => p.status === "paused" || (p.skipNextRound && p.status === "ready" && !isPlaying(p.id)));

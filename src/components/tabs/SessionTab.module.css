@@ -189,6 +189,8 @@
 .waitingName { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
 .waitingLevel { font-weight: 500; color: var(--sm-text-3); font-size: 14px; }
 .waitingMeta { font-size: 14px; color: var(--sm-text-3); }
+/* why the plan put them where it did: its own line under the stats */
+.waitingReason { font-size: 14px; color: var(--sm-text-2); overflow-wrap: anywhere; }
 .waitingActions { display: flex; gap: 8px; flex-shrink: 0; }
 .pillBtn {
   padding: 6px 11px;

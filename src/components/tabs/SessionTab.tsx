@@ -65,8 +65,11 @@ export function SessionTab({
   const ended = Boolean(readOnly && scheduleOver);
   const you = readOnly && youId ? playerOptions.find((p) => p.id === youId) : undefined;
   const yourCourt = you ? courtsVM.find((c) => c.match && [c.match.t1p1, c.match.t1p2, c.match.t2p1, c.match.t2p2].includes(you.name)) : undefined;
+  // why the plan skipped them; "Plays next" / "Plays in the match after" aren't a reason for being passed over
+  const yourReason = you ? waitingVM.find((w) => w.id === you.id)?.reason : null;
   const yourStatus = you
     ? youStatus(you.id, {
+        ...(yourReason && yourReason !== copy.session.why.next && yourReason !== copy.session.why.after ? { reason: yourReason } : {}),
         waitingIds: waitingVM.map((w) => w.id),
         plannedIds,
         playingCourt: yourCourt?.name ?? null,
@@ -328,6 +331,7 @@ export function SessionTab({
                       </div>
                       <div className={styles.waitingMeta}>{stats}</div>
                       {w.note && <div className={styles.waitingMeta}>{w.note}</div>}
+                      {w.reason && w.reason !== w.note && <div className={styles.waitingReason}>{w.reason}</div>}
                     </div>
                   </div>
                   {!readOnly && (

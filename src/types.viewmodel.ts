@@ -16,6 +16,9 @@ export interface WaitingEntry {
   /** In a planned match, locked or a preview: "Up next" for the first, "Then"
    * for any later one. */
   queueTag?: string;
+  /** Why they are where they are in the plan (`copy.session.why`); null for a
+   * plain wait (nobody below them is planned). */
+  reason: string | null;
   onSkip: () => void;
   onPause: () => void;
 }
