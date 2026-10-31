@@ -116,6 +116,7 @@ export function ManageTab({
                   <input
                     className={styles.timeInput}
                     type="time"
+                    aria-label={copy.manage.courtCloses(c.name)}
                     value={c.closesAt}
                     onChange={(e) => onSetCourtClosesAt(c.id, e.target.value)}
                   />
@@ -164,7 +165,7 @@ export function ManageTab({
         <div className={styles.panelTitle}>{copy.manage.partnerRequests}</div>
         <div className={styles.panelHint}>{copy.manage.partnerHint}</div>
         <div className={styles.formRow}>
-          <select className={styles.select} value={requestA} onChange={onRequestAChange}>
+          <select className={styles.select} aria-label={copy.manage.playerA} value={requestA} onChange={onRequestAChange}>
             <option value="">{copy.manage.playerA}</option>
             {players.map((p) => (
               <option value={p.id} key={p.id}>
@@ -172,7 +173,7 @@ export function ManageTab({
               </option>
             ))}
           </select>
-          <select className={styles.select} value={requestB} onChange={onRequestBChange}>
+          <select className={styles.select} aria-label={copy.manage.playerB} value={requestB} onChange={onRequestBChange}>
             <option value="">{copy.manage.playerB}</option>
             {players.map((p) => (
               <option value={p.id} key={p.id}>

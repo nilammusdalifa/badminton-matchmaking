@@ -130,7 +130,7 @@ export function SetupWizardModal({
                 {courtHours.map((c) => (
                   <label className={styles.hoursRow} key={c.id}>
                     <span>{copy.setup.courtCloses(c.name)}</span>
-                    <input className={styles.timeInput} type="time" value={c.closesAt} onChange={(e) => onSetCourtClosesAt(c.id, e.target.value)} />
+                    <input className={styles.timeInput} type="time" aria-label={copy.setup.courtCloses(c.name)} value={c.closesAt} onChange={(e) => onSetCourtClosesAt(c.id, e.target.value)} />
                   </label>
                 ))}
                 <div className={styles.rulesNote}>{copy.setup.closingRule}</div>

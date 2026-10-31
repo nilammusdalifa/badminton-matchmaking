@@ -52,6 +52,7 @@ export function RemoteGate({ role, roleStep, pinError, checking, connected, miss
                 inputMode="numeric"
                 maxLength={4}
                 placeholder={copy.gate.pinPlaceholder}
+                aria-label={copy.gate.pinLabel}
                 value={pin}
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
               />

@@ -70,7 +70,7 @@ export function ScorekeeperSheet({
             <div className={styles.teamNames}>
               {t1p1} &amp; {t1p2}
             </div>
-            <input type="number" min={0} max={99} className={styles.scoreInput} value={t1} onChange={setT1} onFocus={focusSelect} />
+            <input type="number" min={0} max={99} className={styles.scoreInput} aria-label={copy.scorekeeper.scoreFor(copy.court.teamA)} value={t1} onChange={setT1} onFocus={focusSelect} />
             <button className={`${styles.plusBtn} ${styles.a}`} onClick={addT1} disabled={isGameOver}>
               {copy.scorekeeper.plusOne}
             </button>
@@ -80,7 +80,7 @@ export function ScorekeeperSheet({
             <div className={styles.teamNames}>
               {t2p1} &amp; {t2p2}
             </div>
-            <input type="number" min={0} max={99} className={styles.scoreInput} value={t2} onChange={setT2} onFocus={focusSelect} />
+            <input type="number" min={0} max={99} className={styles.scoreInput} aria-label={copy.scorekeeper.scoreFor(copy.court.teamB)} value={t2} onChange={setT2} onFocus={focusSelect} />
             <button className={`${styles.plusBtn} ${styles.b}`} onClick={addT2} disabled={isGameOver}>
               {copy.scorekeeper.plusOne}
             </button>

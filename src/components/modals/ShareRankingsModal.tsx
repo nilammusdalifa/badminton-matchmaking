@@ -196,6 +196,7 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
             ref={fileInput}
             type="file"
             accept="image/*"
+            aria-label={copy.share.addPhoto}
             hidden
             onChange={(e) => {
               const file = e.target.files?.[0];

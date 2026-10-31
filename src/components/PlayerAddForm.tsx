@@ -44,6 +44,7 @@ export function PlayerAddForm({
           value={bulkText}
           onChange={(e) => setBulkText(e.target.value)}
           placeholder={copy.manage.namesPlaceholder}
+          aria-label={copy.manage.playerNames}
         />
         <div className={styles.formRow}>
           <span className={styles.tierGroup}>
@@ -76,6 +77,7 @@ export function PlayerAddForm({
           value={newPlayerName}
           onChange={onNewPlayerNameChange}
           placeholder={copy.manage.playerName}
+          aria-label={copy.manage.playerName}
           autoCapitalize="words"
           autoComplete="off"
           enterKeyHint="done"

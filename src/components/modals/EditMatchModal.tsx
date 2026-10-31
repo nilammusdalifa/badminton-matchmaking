@@ -40,7 +40,11 @@ export function EditMatchModal({
         <div className={styles.grid}>
           <div className={styles.teamCol}>
             <span className={`${styles.teamLabel} ${styles.a}`}>{copy.court.teamA}</span>
-            <select className={styles.select} value={t1A} onChange={onT1AChange}>
+            <select
+              className={styles.select}
+              aria-label={copy.editMatch.slotLabel(copy.court.teamA, 1)}
+              value={t1A}
+              onChange={onT1AChange}>
               <option value="">{copy.editMatch.choose}</option>
               {editablePlayers.map((ep) => (
                 <option value={ep.id} key={ep.id}>
@@ -48,7 +52,11 @@ export function EditMatchModal({
                 </option>
               ))}
             </select>
-            <select className={styles.select} value={t1B} onChange={onT1BChange}>
+            <select
+              className={styles.select}
+              aria-label={copy.editMatch.slotLabel(copy.court.teamA, 2)}
+              value={t1B}
+              onChange={onT1BChange}>
               <option value="">{copy.editMatch.choose}</option>
               {editablePlayers.map((ep) => (
                 <option value={ep.id} key={ep.id}>
@@ -59,7 +67,11 @@ export function EditMatchModal({
           </div>
           <div className={styles.teamCol}>
             <span className={`${styles.teamLabel} ${styles.b}`}>{copy.court.teamB}</span>
-            <select className={styles.select} value={t2A} onChange={onT2AChange}>
+            <select
+              className={styles.select}
+              aria-label={copy.editMatch.slotLabel(copy.court.teamB, 1)}
+              value={t2A}
+              onChange={onT2AChange}>
               <option value="">{copy.editMatch.choose}</option>
               {editablePlayers.map((ep) => (
                 <option value={ep.id} key={ep.id}>
@@ -67,7 +79,11 @@ export function EditMatchModal({
                 </option>
               ))}
             </select>
-            <select className={styles.select} value={t2B} onChange={onT2BChange}>
+            <select
+              className={styles.select}
+              aria-label={copy.editMatch.slotLabel(copy.court.teamB, 2)}
+              value={t2B}
+              onChange={onT2BChange}>
               <option value="">{copy.editMatch.choose}</option>
               {editablePlayers.map((ep) => (
                 <option value={ep.id} key={ep.id}>
