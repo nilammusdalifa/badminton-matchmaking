@@ -303,6 +303,8 @@ export const copy = {
     walkIn: "Add a walk-in player",
     walkInHint: "Added straight to the queue.",
     addPlayer: "Add player",
+    addPlayerOpen: "+ Add player",
+    addPlayerDone: "Done",
     courts: "Courts",
     removeCourt: "Remove a court",
     addCourt: "Add a court",

@@ -57,6 +57,29 @@
   text-transform: none;
   color: var(--sm-text-2);
 }
+.rosterHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+.rosterAddBtn {
+  min-height: 44px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: none;
+  background: var(--sm-accent);
+  color: var(--sm-accent-on);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-body), sans-serif;
+}
+.rosterAddBtn[aria-expanded="true"] {
+  background: transparent;
+  color: var(--sm-text-2);
+  border: 1px solid var(--sm-border);
+}
+.rosterAdd {
+  padding: 12px;
+  background: var(--sm-scrim);
+  border-radius: var(--radius-md);
+}
 .rosterList {
   display: flex;
   flex-direction: column;

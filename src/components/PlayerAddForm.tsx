@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { SkillLevel } from "../types";
 import { copy } from "../lib/copy";
 import { LevelPicker } from "./LevelPicker";
@@ -12,6 +12,9 @@ interface PlayerAddFormProps {
   onAddPlayer: () => void;
   onAddPlayers: (names: string[]) => void;
   addLabel?: string;
+  /** Focus the name field when the form appears (and the paste box after "Paste a list instead"),
+   * and again after each add so the next walk-in can be typed straight away. */
+  autoFocus?: boolean;
 }
 
 /** One-by-one add (existing flow) plus a "paste a list" mode for onboarding
@@ -25,7 +28,9 @@ export function PlayerAddForm({
   onAddPlayer,
   onAddPlayers,
   addLabel = copy.manage.addPlayer,
+  autoFocus = false,
 }: PlayerAddFormProps) {
+  const nameRef = useRef<HTMLInputElement>(null);
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkText, setBulkText] = useState("");
 
@@ -45,6 +50,7 @@ export function PlayerAddForm({
           onChange={(e) => setBulkText(e.target.value)}
           placeholder={copy.manage.namesPlaceholder}
           aria-label={copy.manage.playerNames}
+          autoFocus={autoFocus}
         />
         <div className={styles.formRow}>
           <span className={styles.tierGroup}>
@@ -69,15 +75,18 @@ export function PlayerAddForm({
         onSubmit={(e) => {
           e.preventDefault();
           onAddPlayer();
+          if (autoFocus) nameRef.current?.focus();
         }}
       >
         <input
+          ref={nameRef}
           type="text"
           className={styles.nameInput}
           value={newPlayerName}
           onChange={onNewPlayerNameChange}
           placeholder={copy.manage.playerName}
           aria-label={copy.manage.playerName}
+          autoFocus={autoFocus}
           autoCapitalize="words"
           autoComplete="off"
           enterKeyHint="done"

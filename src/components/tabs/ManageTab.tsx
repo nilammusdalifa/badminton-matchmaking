@@ -54,6 +54,9 @@ export function ManageTab({
   const [draftLevel, setDraftLevel] = useState<SkillLevel>("B");
   const [draftHost, setDraftHost] = useState(false);
   const [draftCounted, setDraftCounted] = useState(true);
+  // The roster header's "+ Add player" opens the add form right under it, so a walk-in
+  // never means scrolling past a long roster to the form further down.
+  const [addOpen, setAddOpen] = useState(false);
 
   return (
     <>
@@ -62,7 +65,32 @@ export function ManageTab({
       </div>
 
       <div className={styles.panel}>
-        <div className={styles.rosterTitle}>{copy.manage.roster(playersCount)}</div>
+        <div className={styles.rosterHead}>
+          <div className={styles.rosterTitle}>{copy.manage.roster(playersCount)}</div>
+          <button
+            type="button"
+            className={styles.rosterAddBtn}
+            aria-expanded={addOpen}
+            aria-controls="roster-add"
+            onClick={() => setAddOpen((open) => !open)}
+          >
+            {addOpen ? copy.manage.addPlayerDone : copy.manage.addPlayerOpen}
+          </button>
+        </div>
+        {addOpen && (
+          <div className={styles.rosterAdd} id="roster-add">
+            <PlayerAddForm
+              newPlayerName={newPlayerName}
+              newPlayerLevel={newPlayerLevel}
+              onNewPlayerNameChange={onNewPlayerNameChange}
+              setNewPlayerLevel={setNewPlayerLevel}
+              onAddPlayer={onAddPlayer}
+              onAddPlayers={onAddPlayers}
+              addLabel={copy.manage.addPlayer}
+              autoFocus
+            />
+          </div>
+        )}
         <div className={styles.rosterList}>
           {managePlayersVM.map((p) => {
             const editing = editingId === p.id;
