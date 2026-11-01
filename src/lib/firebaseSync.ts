@@ -2,6 +2,7 @@ import { type Database, get, off, onValue, ref, serverTimestamp, set } from "fir
 import { auth, database, firebaseConfigured } from "./firebase";
 import type { PersistedState } from "./persistence";
 import { isLocked, MAX_PIN_TRIES, nextAttempt } from "./pin";
+import type { PushResult } from "./umpireAccess";
 
 /** What actually lives at `sessions/{id}/data` — the shared game data plus a
  * `rev` counter used purely to detect stale writes (see useSessionStore's
@@ -11,29 +12,46 @@ import { isLocked, MAX_PIN_TRIES, nextAttempt } from "./pin";
  * something this app can do for you. */
 export type FirebasePayload = PersistedState & { rev: number };
 
+/** Firebase's error code for a failed write, upper case ("PERMISSION_DENIED"),
+ * read from `err.code` or, failing that, the "CODE: message" text; "UNKNOWN"
+ * when there is neither. */
+export function pushErrorCode(err: unknown): string {
+  if (err && typeof err === "object") {
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === "string" && code) return code.toUpperCase();
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string" && /^PERMISSION_DENIED\b/i.test(message)) return "PERMISSION_DENIED";
+  }
+  return "UNKNOWN";
+}
+
 /**
  * Mirrors this device's session to Firebase so anyone subscribed to
  * `sessions/{id}/data` sees it live. Fire-and-forget: localStorage remains
  * the source of truth for the organizer's own device even if this fails
- * (e.g. offline, or Firebase never configured at all).
+ * (e.g. offline, or Firebase never configured at all). `onResult`, if given,
+ * hears whether the write landed or was refused (a remote umpire uses it to
+ * notice its access stopped working); without it nothing changes.
  *
  * `pin`/`ownerUid` live at their own sibling paths (see
  * `pushSessionOwnership`), not inside this blob — the security rules read
  * them from there, and duplicating the PIN inside the world-readable `data`
  * node would leak it to every viewer.
  */
-export function pushSessionToFirebase(sessionId: string, data: PersistedState, rev: number): void {
+export function pushSessionToFirebase(sessionId: string, data: PersistedState, rev: number, onResult?: (result: PushResult) => void): void {
   if (!firebaseConfigured || !database || !auth?.currentUser) return;
+  const fail = (err: unknown) => {
+    console.error("Failed to sync session to Firebase:", err);
+    onResult?.({ ok: false, code: pushErrorCode(err) });
+  };
   try {
     const payload: FirebasePayload = { ...data, rev };
     // JSON round-trip drops `undefined`-valued properties, which Firebase's
     // synchronous `set()` validation rejects outright (throws, not rejects).
     const clean = JSON.parse(JSON.stringify(payload));
-    set(ref(database, `sessions/${sessionId}/data`), clean).catch((err) => {
-      console.error("Failed to sync session to Firebase:", err);
-    });
+    set(ref(database, `sessions/${sessionId}/data`), clean).then(() => onResult?.({ ok: true }), fail);
   } catch (err) {
-    console.error("Failed to sync session to Firebase:", err);
+    fail(err);
   }
 }
 
@@ -42,7 +60,11 @@ export function pushSessionToFirebase(sessionId: string, data: PersistedState, r
  * `ownerUid` is write-once, so calling this again for an already-stamped
  * session is a harmless no-op rejection for it. `pin` can be rewritten by
  * the owner (a 4-digit PIN from before is replaced by a 6-digit one when the
- * next session starts); for anyone else it is write-once too.
+ * next session starts). On a session that has no owner yet, anyone signed in
+ * can write the first PIN; once `ownerUid` exists, only the owner can.
+ *
+ * Order matters: `pin` goes first, while `ownerUid` is still absent, so a
+ * brand-new session can stamp both. Swapping them would leave it with no PIN.
  */
 export function pushSessionOwnership(sessionId: string, pin: string, ownerUid: string): void {
   if (!firebaseConfigured || !database) return;

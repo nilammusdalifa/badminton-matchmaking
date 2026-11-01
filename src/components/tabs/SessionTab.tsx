@@ -355,10 +355,10 @@ export function SessionTab({
                       type="button"
                       className={`${styles.queueMain} ${styles.queueMainBtn}`}
                       aria-expanded={open}
-                      aria-label={copy.session.rowActions(w.name)}
                       onClick={() => setOpenRowId(open ? null : w.id)}
                     >
                       {content}
+                      <span className="srOnly">{copy.session.rowActionsHint}</span>
                     </button>
                   )}
                   {open && (

@@ -23,7 +23,7 @@ vi.mock("firebase/database", () => ({
 }));
 vi.mock("./firebase", () => ({ auth: { currentUser: { uid: "u1" } }, database: {}, firebaseConfigured: true }));
 
-const { claimUmpireAccess } = await import("./firebaseSync");
+const { claimUmpireAccess, pushErrorCode, pushSessionToFirebase } = await import("./firebaseSync");
 
 const NOW = 50_000_000;
 const ATTEMPT = "sessions/s1/attempts/u1";
@@ -93,5 +93,40 @@ describe("claimUmpireAccess", () => {
     expect(await claimUmpireAccess("s1", "123456")).toBe("locked");
     expect(fake.writes).toHaveLength(1);
     expect(fake.writes[0].value).toMatchObject({ count: 1 });
+  });
+});
+
+describe("pushSessionToFirebase result", () => {
+  beforeEach(() => {
+    fake.writes = [];
+    fake.reject = [];
+  });
+  const data = { sessionName: "x" } as unknown as Parameters<typeof pushSessionToFirebase>[1];
+
+  it("reports a write that landed", async () => {
+    const results: unknown[] = [];
+    pushSessionToFirebase("s1", data, 3, (r) => results.push(r));
+    await vi.waitFor(() => expect(results).toEqual([{ ok: true }]));
+    expect(fake.writes[0]).toEqual({ path: "sessions/s1/data", value: { sessionName: "x", rev: 3 } });
+  });
+  it("reports a refused write with its code", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    fake.reject = [true];
+    const results: unknown[] = [];
+    pushSessionToFirebase("s1", data, 3, (r) => results.push(r));
+    await vi.waitFor(() => expect(results).toEqual([{ ok: false, code: "PERMISSION_DENIED" }]));
+  });
+  it("still works fire-and-forget with no callback", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    fake.reject = [true];
+    expect(() => pushSessionToFirebase("s1", data, 3)).not.toThrow();
+    await vi.waitFor(() => expect(fake.writes).toHaveLength(1));
+  });
+  it("reads the error code from Firebase errors", () => {
+    expect(pushErrorCode(Object.assign(new Error("PERMISSION_DENIED: Permission denied"), { code: "PERMISSION_DENIED" }))).toBe("PERMISSION_DENIED");
+    expect(pushErrorCode(new Error("PERMISSION_DENIED: Permission denied"))).toBe("PERMISSION_DENIED");
+    expect(pushErrorCode(Object.assign(new Error("x"), { code: "permission_denied" }))).toBe("PERMISSION_DENIED");
+    expect(pushErrorCode(new Error("offline"))).toBe("UNKNOWN");
+    expect(pushErrorCode("nope")).toBe("UNKNOWN");
   });
 });

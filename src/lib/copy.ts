@@ -48,6 +48,7 @@ export const copy = {
     notFoundBody: "This link is no longer valid. Ask for a new one.",
     wrongPin: "Wrong PIN. Ask the umpire.",
     locked: "Too many tries. Wait 10 minutes, then try again.",
+    pinChanged: "The PIN changed. Enter the new one.",
     syncUnavailable: "Live sync isn't available. Try again shortly.",
   },
 
@@ -101,8 +102,8 @@ export const copy = {
     nameTier: (level: string) => ` \u00b7 Tier ${level}`,
     /** Joins the parts of one line ("note · reason"). */
     dotJoin: (parts: string[]) => parts.join(" \u00b7 "),
-    /** Accessible name of a queue row that opens its actions. */
-    rowActions: (name: string) => `Actions for ${name}`,
+    /** Screen-reader-only end of a queue row button, after the row's own text: the row opens its actions. */
+    rowActionsHint: "Actions",
     upNext: "Up next",
     mayChange: "may change",
     upNextFirstCourt: "Up next · first court to free",

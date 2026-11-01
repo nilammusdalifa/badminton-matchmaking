@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MATCHES_INIT, PAUSE_LABELS, PLAYERS_INIT } from "../data/seed";
 import { auth, ensureAnonymousAuth, firebaseConfigured } from "../lib/firebase";
 import { claimUmpireAccess, fetchSessionLabel, type FirebasePayload, pushSessionOwnership, pushSessionToFirebase, subscribeToRemoteSession } from "../lib/firebaseSync";
-import { load, loadIdentity, loadUmpireSession, save, saveIdentity, saveUmpireSession, type PersistedState } from "../lib/persistence";
+import { clearUmpireSession, load, loadIdentity, loadUmpireSession, save, saveIdentity, saveUmpireSession, type PersistedState } from "../lib/persistence";
+import { nextDenialCount, type PushResult, shouldDropUmpire } from "../lib/umpireAccess";
 import { generateSessionPin, needsPinUpgrade } from "../lib/pin";
 import {
   applyLiveScore,
@@ -260,6 +261,12 @@ export function useSessionStore() {
   // ping-pong forever) or double-count it as a new revision.
   const localRevRef = useRef(0);
   const lastKnownRemoteRevRef = useRef(0);
+  // A remembered umpire whose claim stopped working (the PIN changed, or this
+  // device lost its anonymous uid) gets every push refused. Count refusals in
+  // a row; `umpireGenRef` bumps when the umpire is dropped, so a late result
+  // from a push made before that can't count against the next claim.
+  const umpireDenialsRef = useRef(0);
+  const umpireGenRef = useRef(0);
   const isApplyingRemoteRef = useRef(false);
   // What this device last pushed (or adopted from Firebase), minus live match
   // points — see syncFingerprint. Live-point-only changes are saved locally
@@ -282,6 +289,7 @@ export function useSessionStore() {
   const applyRemoteUpdate = useCallback((payload: FirebasePayload) => {
     if (payload.rev <= localRevRef.current) return; // our own echo, or older than what we already have
     lastKnownRemoteRevRef.current = payload.rev;
+    umpireDenialsRef.current = 0; // a refusal before this newer snapshot was a stale-rev race, not lost access
     isApplyingRemoteRef.current = true;
     setState((s) => {
       const next = { ...s, ...withListDefaults(payload) };
@@ -344,11 +352,34 @@ export function useSessionStore() {
       setRemoteChecking(false);
       if (result === "ok") {
         saveUmpireSession(viewSessionId);
+        umpireDenialsRef.current = 0;
         setRemoteRole("umpire");
       }
       else if (result === "unavailable") setRemotePinError(copy.gate.syncUnavailable);
       else if (result === "locked") setRemotePinError(copy.gate.locked);
       else setRemotePinError(copy.gate.wrongPin);
+    },
+    [viewSessionId],
+  );
+  // Pushes refused twice in a row: the remembered claim no longer works. Forget
+  // it, send the umpire back to the PIN step, and let the next snapshot win:
+  // with the revs reset and hydration cleared, nothing is pushed until the
+  // session is read again, and that read is applied over the edits that were
+  // refused (they never reached anyone).
+  const onUmpirePushResult = useCallback(
+    (result: PushResult, gen: number) => {
+      if (!viewSessionId || gen !== umpireGenRef.current) return;
+      umpireDenialsRef.current = nextDenialCount(umpireDenialsRef.current, result);
+      if (!shouldDropUmpire(umpireDenialsRef.current)) return;
+      umpireGenRef.current += 1;
+      umpireDenialsRef.current = 0;
+      clearUmpireSession(viewSessionId);
+      localRevRef.current = 0;
+      lastKnownRemoteRevRef.current = 0;
+      hasHydratedRef.current = false;
+      setRemoteRole(null);
+      setRemoteRoleStep("pin");
+      setRemotePinError(copy.gate.pinChanged);
     },
     [viewSessionId],
   );
@@ -463,7 +494,8 @@ export function useSessionStore() {
       // real session it hasn't finished loading yet.
       if (remoteRole === "umpire" && viewSessionId && hasHydratedRef.current) {
         lastPushedKeyRef.current = key;
-        pushSessionToFirebase(viewSessionId, persisted, rev);
+        const gen = umpireGenRef.current;
+        pushSessionToFirebase(viewSessionId, persisted, rev, (result) => onUmpirePushResult(result, gen));
       }
       return;
     }
@@ -476,6 +508,7 @@ export function useSessionStore() {
     isRemoteMode,
     remoteRole,
     viewSessionId,
+    onUmpirePushResult,
     state.sessionId,
     state.players,
     state.matches,

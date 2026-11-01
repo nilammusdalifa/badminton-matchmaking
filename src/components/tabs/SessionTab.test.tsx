@@ -57,10 +57,17 @@ describe("SessionTab queue rows", () => {
     expect(html(<SessionTab {...props()} />).match(/data-queue-row/g)).toHaveLength(8);
   });
 
-  it("the umpire's rows are closed buttons named after the player; Skip next and Rest stay hidden", () => {
+  it("the umpire's rows are closed buttons named by their own text; Skip next and Rest stay hidden", () => {
     const markup = html(<SessionTab {...props()} />);
     expect(markup.match(/aria-expanded="false"/g)?.length).toBeGreaterThanOrEqual(8);
-    expect(markup).toContain(`aria-label="${copy.session.rowActions("Ana")}"`);
+    // No aria-label: it would replace the row's text (position, stats, tag, reason) for screen readers.
+    const rowButtons = markup.match(/<button[^>]*aria-expanded="false"[^>]*>[\s\S]*?<\/button>/g) ?? [];
+    expect(rowButtons.length).toBeGreaterThanOrEqual(8);
+    expect(rowButtons.every((b) => !/^<button[^>]*aria-label=/.test(b))).toBe(true);
+    const ana = rowButtons.find((b) => b.includes("Ana"));
+    expect(ana).toBeDefined();
+    expect(ana).toContain("Played");
+    expect(ana).toContain(`<span class="srOnly">${copy.session.rowActionsHint}</span>`);
     const text = renderText(<SessionTab {...props()} />);
     expect(text).not.toContain("Skip next");
     expect(text).not.toMatch(/\bRest\b/);
@@ -68,7 +75,9 @@ describe("SessionTab queue rows", () => {
 
   it("a watcher gets no row button and no Skip next or Rest", () => {
     const markup = html(<SessionTab {...props()} readOnly />);
-    expect(markup).not.toContain(copy.session.rowActions("Ana"));
+    const buttons = markup.match(/<button[\s\S]*?<\/button>/g) ?? [];
+    expect(buttons.some((b) => b.includes("Ana"))).toBe(false);
+    expect(markup).not.toContain(`<span class="srOnly">${copy.session.rowActionsHint}</span>`);
     const text = renderText(<SessionTab {...props()} readOnly />);
     expect(text).not.toContain("Skip next");
     expect(text).not.toMatch(/\bRest\b/);

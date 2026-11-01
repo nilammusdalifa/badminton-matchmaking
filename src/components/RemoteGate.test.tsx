@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { SessionStore } from "../hooks/useSessionStore";
 import { renderText } from "../test/renderText";
+import { copy } from "../lib/copy";
 import { RemoteGate } from "./RemoteGate";
 
 type RemoteProps = SessionStore["remote"];
@@ -52,5 +53,10 @@ describe("RemoteGate PIN step", () => {
   it("shows the lock message it is given", () => {
     const text = renderText(<RemoteGate {...props({ roleStep: "pin", pinError: "Too many tries. Wait 10 minutes, then try again." })} />);
     expect(text).toContain("Too many tries. Wait 10 minutes, then try again.");
+  });
+  it("asks for the new PIN when the old one stopped working", () => {
+    expect(copy.gate.pinChanged).toBe("The PIN changed. Enter the new one.");
+    const text = renderText(<RemoteGate {...props({ roleStep: "pin", pinError: copy.gate.pinChanged })} />);
+    expect(text).toContain("The PIN changed. Enter the new one.");
   });
 });

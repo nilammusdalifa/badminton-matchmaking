@@ -8,7 +8,7 @@
           ".validate": "!data.exists() || newData.child('rev').val() > data.child('rev').val()"
         },
         "pin": {
-          ".write": "auth != null && (!data.exists() || auth.uid === root.child('sessions').child($sessionId).child('ownerUid').val())",
+          ".write": "auth != null && (root.child('sessions').child($sessionId).child('ownerUid').exists() ? auth.uid === root.child('sessions').child($sessionId).child('ownerUid').val() : !data.exists())",
           ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}([0-9]{2})?$/)"
         },
         "ownerUid": {

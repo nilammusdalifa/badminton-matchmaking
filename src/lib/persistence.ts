@@ -80,6 +80,16 @@ export function saveUmpireSession(sessionId: string): void {
   }
 }
 
+/** Forgets the umpire claim for one session, e.g. after the PIN changed and
+ * this device's pushes keep being refused. */
+export function clearUmpireSession(sessionId: string): void {
+  try {
+    localStorage.removeItem(UMPIRE_KEY_PREFIX + sessionId);
+  } catch {
+    // Storage unavailable: nothing was remembered here to forget.
+  }
+}
+
 /** A refresh, crash, or backgrounded phone tab must never lose a live
  * session — but a corrupt or stale-shape blob must never crash the app
  * either, so every read is guarded and simply falls back to "nothing saved". */
