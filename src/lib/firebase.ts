@@ -1,4 +1,5 @@
 import { initializeApp, type FirebaseApp } from "firebase/app";
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 import { getAuth, signInAnonymously, onAuthStateChanged, type Auth } from "firebase/auth";
 import { getDatabase, type Database } from "firebase/database";
 
@@ -18,7 +19,28 @@ const firebaseConfig = {
  * of crashing at import time. */
 export const firebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.databaseURL);
 
-export const app: FirebaseApp | null = firebaseConfigured ? initializeApp(firebaseConfig) : null;
+/** Optional reCAPTCHA v3 site key for Firebase App Check. App Check makes the
+ * database refuse requests that don't come from this app, which blunts the
+ * "sign in as a fresh anonymous user for 5 more PIN tries" trick. With no key
+ * set (local dev, tests, a fresh checkout) it is skipped entirely. */
+const appCheckSiteKey: string | undefined = import.meta.env.VITE_APPCHECK_SITE_KEY || undefined;
+
+function createApp(): FirebaseApp | null {
+  if (!firebaseConfigured) return null;
+  const created = initializeApp(firebaseConfig);
+  // App Check has to be registered right after initializeApp and before any
+  // other service is created, so the first Auth and Database request already
+  // carries a token.
+  if (appCheckSiteKey) {
+    initializeAppCheck(created, {
+      provider: new ReCaptchaV3Provider(appCheckSiteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  }
+  return created;
+}
+
+export const app: FirebaseApp | null = createApp();
 export const auth: Auth | null = app ? getAuth(app) : null;
 export const database: Database | null = app ? getDatabase(app) : null;
 

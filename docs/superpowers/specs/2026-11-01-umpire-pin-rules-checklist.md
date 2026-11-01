@@ -18,10 +18,43 @@ who starts a New session gets a 6-digit PIN the server refuses. New rules before
 
 ## Known limits
 
-- The guess limit is per anonymous uid, not per device. A new uid gets 5 fresh tries.
+- The guess limit is per anonymous uid, not per device. A new uid gets 5 fresh tries. App Check (next
+  section) narrows this by refusing database requests that don't come from the real app.
 - `attempts/{uid}` entries can't be deleted (deletes are denied by design).
 - A correct PIN counts as one of the 5 tries per 10 minutes.
 - Rules never reveal whether a guess was right.
+
+## App Check (guess-limit hardening)
+
+The app registers Firebase App Check with the reCAPTCHA v3 provider in `src/lib/firebase.ts`, **only when
+`VITE_APPCHECK_SITE_KEY` is set**. With no key (local dev, tests) nothing changes. The code does not change
+any enforcement setting; do these console steps yourself, in this order:
+
+1. **Create the reCAPTCHA v3 key.** In the reCAPTCHA admin console create a **v3** site key for the live
+   domain (for example `gobadmin.netlify.app`). Keep the **secret key** for step 2.
+2. **Register the web app.** Firebase Console > Build > App Check > Apps > your web app > reCAPTCHA v3, then
+   paste the **secret key** there.
+3. **Ship the site key.** Set `VITE_APPCHECK_SITE_KEY` (the **site** key, not the secret) in the host's build
+   environment (Netlify > Site configuration > Environment variables) and redeploy. Ask hosts to reload once.
+4. **Monitor, do not enforce yet.** App Check > APIs > Realtime Database shows verified and unverified
+   requests. Leave enforcement off and watch for a few days. Old tabs and any device that has not reloaded show
+   up as unverified; the share should be close to zero before you move on.
+5. **Enforce for Realtime Database.** In the same APIs table choose **Enforce** for Realtime Database. From
+   then on, requests without a valid App Check token are refused, so a script that signs in again as a new
+   anonymous user can no longer reach `attempts/` to get 5 fresh tries. Enforcement can be switched off again
+   from the same screen if something breaks.
+
+Notes:
+
+- Enforcement for other products (Authentication and so on) is a separate switch and is not needed for the
+  guess limit; the database is where the tries are counted.
+- On a local build with a real key set, register a debug token (App Check > Apps > Manage debug tokens) and set
+  `self.FIREBASE_APPCHECK_DEBUG_TOKEN` in the browser console before loading the app. Leaving the key unset is
+  simpler for local work.
+- A wrong key or an unregistered domain shows as token errors in the browser console. While enforcement is off
+  they are warnings only and the app keeps working.
+- The rules file is unchanged by App Check. It cannot be tested in the Rules Playground, because App Check is
+  enforced before the rules run.
 
 ## Cases (authenticated as `u1` unless noted)
 
