@@ -169,8 +169,9 @@
   flex-shrink: 0;
 }
 .waitingLevel { font-weight: 500; color: var(--sm-text-3); font-size: 14px; }
-/* A compact queue row: line 1 is position, avatar, name and stats; line 2 is
-   the tag and the reason, left out when there is neither. 4 + 28 + 20 + 4 = 56px. */
+/* A compact queue row: line 1 is position, avatar, name and tier; line 2 is the
+   tag and the reason on the left and "Sat out · Played" on the right.
+   4 + 28 + 20 + 4 = 56px, so 8 rows fit between the header and the nav at 375 × 667. */
 .queueRow {
   display: flex;
   flex-direction: column;
@@ -211,10 +212,15 @@
   font-size: 14px;
   line-height: 1;
 }
-.queueName { flex: 0 1 auto; min-width: 0; font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.queueStats { flex: 1 2 auto; min-width: 0; text-align: right; font-size: 14px; color: var(--sm-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queueName { display: flex; flex: 0 1 auto; min-width: 0; font-weight: 700; font-size: 14px; white-space: nowrap; }
+.queueNameText { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* white-space: pre keeps the space after the name's "·" once the tier is its own flex item */
+.queueName .waitingLevel { flex: none; white-space: pre; }
+/* Never cut: the numbers (and the tier above) outrank the name and the reason. */
+.queueStats { flex: none; margin-left: auto; text-align: right; font-size: 14px; color: var(--sm-text-3); white-space: nowrap; }
 .queueLine .youTag { flex: none; margin-left: 0; }
-.queueLine2 { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 20px; line-height: 20px; }
+/* Wraps only as a last resort (a tag next to a long "N in a row" count), so the numbers are never cut or pushed out of the row. */
+.queueLine2 { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; min-width: 0; min-height: 20px; line-height: 20px; }
 .queueTagInline {
   flex: none;
   padding: 0 7px;
@@ -225,7 +231,8 @@
   font-weight: 700;
   white-space: nowrap;
 }
-.queueDetailText { flex: 1 1 auto; min-width: 0; font-size: 14px; color: var(--sm-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* flex-basis 0 + a small minimum: the reason takes whatever the tag and the numbers leave, and is cut with "…" before they are. */
+.queueDetailText { flex: 1 1 0; min-width: 3em; font-size: 14px; color: var(--sm-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .waitingActions { display: flex; gap: 8px; padding: 0 12px 8px; }
 .pillBtn {
   min-height: 44px;

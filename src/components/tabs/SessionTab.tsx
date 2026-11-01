@@ -331,19 +331,20 @@ export function SessionTab({
                     <span className={styles.queueAvatar} style={avatarStyle(w.name)}>
                       {w.initials}
                     </span>
+                    {/* Only the name can be cut short; the tier stays whole. */}
                     <span className={styles.queueName}>
-                      {w.name}
+                      <span className={styles.queueNameText}>{w.name}</span>
                       {!hideTier && <span className={styles.waitingLevel}>{copy.session.nameTier(w.level)}</span>}
                     </span>
                     {isYou && <span className={styles.youTag}>{copy.session.youTag}</span>}
+                  </span>
+                  {/* Line 2: the tag and reason on the left (the reason may be cut short),
+                      the numbers on the right (never cut). */}
+                  <span className={styles.queueLine2}>
+                    {tagText && <span className={styles.queueTagInline}>{tagText}</span>}
+                    {detail && <span className={styles.queueDetailText}>{detail}</span>}
                     <span className={styles.queueStats}>{stats}</span>
                   </span>
-                  {(tagText || detail) && (
-                    <span className={styles.queueLine2}>
-                      {tagText && <span className={styles.queueTagInline}>{tagText}</span>}
-                      {detail && <span className={styles.queueDetailText}>{detail}</span>}
-                    </span>
-                  )}
                 </>
               );
               return (

@@ -117,3 +117,65 @@ describe("SessionTab queue rows", () => {
     expect(renderText(<SessionTab {...props({ waitingVM: waitingVM.map((w, i) => (i === 5 ? { ...w, note: copy.session.hostLater, reason: copy.session.why.fair } : w)) })} readOnly />)).toContain(`${copy.session.hostLater} · ${copy.session.why.fair}`);
   });
 });
+
+describe("SessionTab queue row text", () => {
+  const stripTags = (h: string) => h.replace(/<[^>]+>/g, "");
+  /** Each row split into its two lines: line 1 = position, avatar, name, tier; line 2 = tag, reason, numbers. */
+  const lines = (markup: string) =>
+    markup
+      .split('data-queue-row="true"')
+      .slice(1)
+      .map((row) => {
+        const [first, second = ""] = row.split(/<span class="_queueLine2_\w+">/);
+        return { line1: stripTags(first), line2: stripTags(second.split("</span></span>")[0]) };
+      });
+  const longNames = () => {
+    const base = props();
+    return props({ waitingVM: base.waitingVM.map((w, i) => (i === 0 ? { ...w, name: "Bartholomews" } : w)) });
+  };
+
+  it("puts name and tier on line 1 and Sat out / Played on line 2, for every row", () => {
+    const rows = lines(html(<SessionTab {...longNames()} />));
+    expect(rows).toHaveLength(8);
+    for (const { line1, line2 } of rows) {
+      expect(line1).toMatch(/ · Tier B/);
+      expect(line1).not.toContain("Played");
+      expect(line1).not.toContain("Sat out");
+      expect(line2).toContain("Sat out 1 · Played 2");
+    }
+    expect(rows[0].line1).toContain("Bartholomews · Tier B");
+  });
+
+  it("keeps the tier outside the part of the name that may be cut short", () => {
+    const markup = html(<SessionTab {...longNames()} />);
+    expect(markup).toMatch(/<span class="_queueNameText_\w+">Bartholomews<\/span><span class="_waitingLevel_\w+"> · Tier B<\/span>/);
+  });
+
+  it("gives a row with no tag and no reason a line 2 of its own with the numbers", () => {
+    const rows = lines(html(<SessionTab {...props()} />));
+    // rows 6-8 have neither a tag nor a reason in the fixture
+    expect(rows[7].line2).toBe("Sat out 1 · Played 2");
+  });
+
+  it("leaves the status chips and reasons as they were, ahead of the numbers", () => {
+    const rows = lines(html(<SessionTab {...props()} />));
+    expect(rows[0].line2).toBe("In next match" + "Sat out 1 · Played 2");
+    expect(rows[2].line2).toBe("In match after" + "Sat out 1 · Played 2");
+    expect(rows[4].line2).toBe(copy.session.why.fair + "Sat out 1 · Played 2");
+  });
+
+  it("a watcher sees the name without a tier, and still the numbers on line 2", () => {
+    const rows = lines(html(<SessionTab {...longNames()} readOnly hideTier />));
+    expect(rows[0].line1).toContain("Bartholomews");
+    expect(rows[0].line1).not.toContain("Tier");
+    expect(rows[0].line2).toContain("Sat out 1 · Played 2");
+  });
+
+  it("shows the in-a-row count with the other numbers on line 2", () => {
+    const base = props();
+    const waitingVM = base.waitingVM.map((w, i) => (i === 5 ? { ...w, hasStreak: true, consec: 3 } : w));
+    const rows = lines(html(<SessionTab {...props({ waitingVM })} />));
+    expect(rows[5].line2).toContain("Sat out 1 · Played 2 · 3 in a row");
+    expect(rows[5].line1).not.toContain("in a row");
+  });
+});
