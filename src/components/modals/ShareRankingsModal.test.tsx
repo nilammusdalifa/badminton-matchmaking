@@ -61,7 +61,7 @@ describe("ShareRankingsModal: everyone in one list", () => {
     const top = Array.from({ length: 12 }, (_, i) => entry(i + 1, `Rank${String.fromCharCode(65 + i)}`));
     const text = renderText(<ShareRankingsModal {...props({ top })} />);
     expect(text).toContain("RankL");
-    expect(text).not.toContain("TOP");
+    expect(text).toContain("TOP 12");
   });
 });
 

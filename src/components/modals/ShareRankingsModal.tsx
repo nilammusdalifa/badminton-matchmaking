@@ -101,7 +101,7 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
               </div>
               <div className={styles.title}>
                 <span className={styles.titleLine} data-xfix>
-                  {early ? "EARLY" : "FULL"}
+                  {early ? "EARLY" : `TOP ${top.length}`}
                 </span>
                 <span className={`${styles.titleLine} ${styles.titleAccent}`} data-xfix>
                   {early ? "STANDINGS" : "RANKINGS"}
