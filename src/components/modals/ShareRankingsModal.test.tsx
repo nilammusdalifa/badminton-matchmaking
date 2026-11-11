@@ -15,7 +15,6 @@ const entry = (rank: number, name: string, played = 4): Props["top"][number] => 
   wins: Math.min(played, 3),
   losses: Math.max(0, played - 3),
   score: 60,
-  played,
 });
 
 function props(overrides: Partial<Props> = {}): Props {
