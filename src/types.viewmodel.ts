@@ -210,8 +210,6 @@ export interface ShareRankingEntry {
   losses: number;
   /** The Rankings score, 0–100 (50 = as expected). */
   score: number;
-  /** Matches played; 0 means no score to show yet. */
-  played: number;
 }
 
 export interface EditablePlayerOption {

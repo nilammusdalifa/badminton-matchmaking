@@ -432,7 +432,6 @@ export const copy = {
     saveHint: "Press and hold the picture, then choose Save image.",
     back: "Back",
     topAlt: (n: number) => `Rankings of ${n} players`,
-    noMatchesYet: "No matches yet",
     saveImage: "Save image",
     close: "Close",
     removePhoto: "Remove",

@@ -166,12 +166,12 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
                       </div>
                       <div className={styles.winCell}>
                         <Shape points="7,0 100,0 100,100 0,100" fill="#FFFFFF" opacity={0.12} />
-                        {r.played > 0 && r.score > 0 && <Shape points={`7,0 ${fillTo},0 ${fillTo},100 0,100`} fill="#FF4A1A" />}
+                        {r.score > 0 && <Shape points={`7,0 ${fillTo},0 ${fillTo},100 0,100`} fill="#FF4A1A" />}
                         <div className={styles.pct} data-xfix>
-                          {r.played > 0 ? r.score : "–"}
+                          {r.score}
                         </div>
                         <div className={styles.record} data-xfix>
-                          {r.played > 0 ? `${r.wins}W–${r.losses}L` : copy.share.noMatchesYet}
+                          {r.wins}W–{r.losses}L
                         </div>
                       </div>
                     </div>

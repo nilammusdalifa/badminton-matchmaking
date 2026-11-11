@@ -58,11 +58,6 @@ describe("ShareRankingsModal: everyone in one list", () => {
     expect(text).not.toContain("Not enough matches yet");
   });
 
-  it("shows a player with no matches as having none yet", () => {
-    const text = renderText(<ShareRankingsModal {...props({ top: [entry(1, "Ana"), entry(2, "Zed", 0)] })} />);
-    expect(text).toContain("No matches yet");
-  });
-
   it("lists every player, however many", () => {
     const top = Array.from({ length: 12 }, (_, i) => entry(i + 1, `Rank${String.fromCharCode(65 + i)}`));
     const text = renderText(<ShareRankingsModal {...props({ top })} />);
