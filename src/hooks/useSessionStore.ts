@@ -2303,12 +2303,14 @@ export function useSessionStore() {
     [rankingsVM],
   );
 
-  // Players with games but no rank yet: shown under the ranks, never counted in them.
+  // Everyone who has played at least one match but has no rank (too few matches, or switched
+  // out of the rankings like guests): shown under the ranks, last, never counted in them.
+  // rankingsVM is already ordered ranked, too few, then not ranked.
   const shareUnranked = useMemo<ShareUnrankedEntry[]>(
     () =>
       rankingsVM
-        .filter((r) => r.section === "tooFew" && r.played > 0)
-        .map((r) => ({ name: r.name, initials: r.initials, played: r.played, wins: r.wins, losses: r.losses })),
+        .filter((r) => r.section !== "ranked" && r.matchesPlayed > 0)
+        .map((r) => ({ name: r.name, initials: r.initials, played: r.matchesPlayed, wins: r.wins, losses: r.losses })),
     [rankingsVM],
   );
 

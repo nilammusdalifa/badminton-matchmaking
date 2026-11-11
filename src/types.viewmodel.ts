@@ -212,7 +212,7 @@ export interface ShareRankingEntry {
   score: number;
 }
 
-/** A player with games but no rank yet ("not enough matches"): listed under the ranks on the share card. */
+/** A player with at least one match but no rank ("not enough matches yet", or not counted in the rankings): listed under the ranks on the share card. */
 export interface ShareUnrankedEntry {
   name: string;
   initials: string;
