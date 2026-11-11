@@ -431,10 +431,9 @@ export const copy = {
   share: {
     saveHint: "Press and hold the picture, then choose Save image.",
     back: "Back",
-    topAlt: (n: number) => `Top ${n} rankings`,
+    topAlt: (n: number) => `Rankings of ${n} players`,
     unrankedTitle: "Not enough matches yet",
-    unrankedPlayed: (n: number) => `${n} ${n === 1 ? "match" : "matches"}`,
-    unrankedMore: (n: number) => `+${n} more`,
+    unrankedPlayed: (n: number) => (n === 0 ? "No matches yet" : `${n} ${n === 1 ? "match" : "matches"}`),
     saveImage: "Save image",
     close: "Close",
     removePhoto: "Remove",

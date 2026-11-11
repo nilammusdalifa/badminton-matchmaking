@@ -394,15 +394,6 @@
   color: rgba(255, 255, 255, 0.6);
   white-space: nowrap;
 }
-.unrankedMore {
-  padding-left: 24px;
-  color: #6e7e91;
-  font-weight: 700;
-  font-size: 15px;
-  line-height: 22px;
-  white-space: nowrap;
-}
-
 .chip {
   position: absolute;
   bottom: 86px;

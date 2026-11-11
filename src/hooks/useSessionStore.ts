@@ -66,7 +66,7 @@ import { formatAgo } from "../lib/locale";
 import { afterRally, serverOf, startServe, swapReceiversInSteps, type ServeState, type Team } from "../lib/serve";
 import { copy } from "../lib/copy";
 import { queueReasons } from "../lib/queueReasons";
-import { SHARE_CARD_H, SHARE_CARD_W, SHARE_TOP_COUNT } from "../lib/shareCard";
+import { SHARE_CARD_W } from "../lib/shareCard";
 import { prepareSharePhoto } from "../lib/sharePhoto";
 import type { Court, Match, PauseReason, Player, QueueItem, ResultMode, SessionHistoryEntry, SkillLevel, Suggestion, Tab } from "../types";
 import type {
@@ -1403,7 +1403,7 @@ export function useSessionStore() {
     // capturing mid-swap.
     await document.fonts.ready;
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    // The card is laid out at its real SHARE_CARD_W x SHARE_CARD_H and only
+    // The card is laid out at its real size (SHARE_CARD_W wide, as tall as its rows need) and only
     // scaled down by a transform for the preview, so it is drawn at scale 1.
     const canvas = await html2canvas(node, {
       backgroundColor: "#0b1420",
@@ -1419,7 +1419,7 @@ export function useSessionStore() {
         const frame = doc.querySelector<HTMLElement>("[data-share-frame]");
         if (frame) {
           frame.style.width = `${SHARE_CARD_W}px`;
-          frame.style.height = `${SHARE_CARD_H}px`;
+          frame.style.height = `${node.offsetHeight}px`;
           frame.style.overflow = "visible";
           frame.style.borderRadius = "0";
           frame.style.boxShadow = "none";
@@ -2289,7 +2289,6 @@ export function useSessionStore() {
     () =>
       rankingsVM
         .filter((r): r is typeof r & { rank: number } => r.rank !== null)
-        .slice(0, SHARE_TOP_COUNT)
         .map((r) => ({
           rank: r.rank,
           medal: r.medal,
@@ -2303,13 +2302,13 @@ export function useSessionStore() {
     [rankingsVM],
   );
 
-  // Everyone who has played at least one match but has no rank (too few matches, or switched
-  // out of the rankings like guests): shown under the ranks, last, never counted in them.
-  // rankingsVM is already ordered ranked, too few, then not ranked.
+  // Everyone without a rank (too few matches, none yet, or switched out of the rankings like
+  // guests): shown under the ranks, last, never counted in them. rankingsVM is already
+  // ordered ranked, too few, then not ranked.
   const shareUnranked = useMemo<ShareUnrankedEntry[]>(
     () =>
       rankingsVM
-        .filter((r) => r.section !== "ranked" && r.matchesPlayed > 0)
+        .filter((r) => r.section !== "ranked")
         .map((r) => ({ name: r.name, initials: r.initials, played: r.matchesPlayed, wins: r.wins, losses: r.losses })),
     [rankingsVM],
   );

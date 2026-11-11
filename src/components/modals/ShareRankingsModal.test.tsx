@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import { renderText } from "../../test/renderText";
+import { SHARE_CARD_H, shareCardLayout } from "../../lib/shareCard";
 import { ShareRankingsModal } from "./ShareRankingsModal";
 
 type Props = SessionStore["shareRankings"];
@@ -72,14 +73,27 @@ describe("ShareRankingsModal: players without a rank yet", () => {
     expect(renderText(<ShareRankingsModal {...props()} />)).not.toContain("Not enough matches yet");
   });
 
-  it("names everyone up to four, and says how many more beyond that", () => {
-    const four = renderText(<ShareRankingsModal {...props({ unranked: ["A1", "B2", "C3", "D4"].map((n) => unranked(n)) })} />);
-    expect(four).toContain("D4");
-    expect(four).not.toContain("more");
+  it("lists every player, however many, and says so when none has played", () => {
+    const names = Array.from({ length: 9 }, (_, i) => `Player${i}`);
+    const text = renderText(<ShareRankingsModal {...props({ unranked: [...names.map((n) => unranked(n)), unranked("Zed", 0)] })} />);
+    for (const n of names) expect(text).toContain(n);
+    expect(text).not.toContain("more");
+    expect(text).toContain("Zed No matches yet");
+  });
 
-    const six = renderText(<ShareRankingsModal {...props({ unranked: ["A1", "B2", "C3", "D4", "E5", "F6"].map((n) => unranked(n)) })} />);
-    expect(six).toContain("C3");
-    expect(six).not.toContain("D4");
-    expect(six).toContain("+3 more");
+  it("lists every ranked player too, not just the top eight", () => {
+    const top = Array.from({ length: 12 }, (_, i) => ranked(i + 1, `Rank${String.fromCharCode(65 + i)}`));
+    const text = renderText(<ShareRankingsModal {...props({ top })} />);
+    expect(text).toContain("RankL");
+    expect(text).not.toContain("TOP");
+  });
+});
+
+describe("shareCardLayout", () => {
+  it("keeps the base size for up to eight ranked players and grows beyond that", () => {
+    expect(shareCardLayout(8, 0).height).toBe(SHARE_CARD_H);
+    expect(shareCardLayout(3, 0).height).toBe(SHARE_CARD_H);
+    expect(shareCardLayout(12, 0).height).toBeGreaterThan(SHARE_CARD_H);
+    expect(shareCardLayout(8, 10).height).toBeGreaterThan(shareCardLayout(8, 4).height);
   });
 });

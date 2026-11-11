@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { copy } from "../../lib/copy";
 import { shortName } from "../../lib/session";
 import { CROWN_IMAGE } from "../../lib/crownImage";
-import { SHARE_CARD_H, SHARE_CARD_W, SHARE_UNRANKED_COUNT } from "../../lib/shareCard";
+import { SHARE_CARD_W, shareCardLayout } from "../../lib/shareCard";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./ShareRankingsModal.module.css";
 
@@ -49,13 +49,9 @@ export function ShareRankingsModal({ open, top, unranked, early, sessionName, pl
   const date = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   const leader = top[0];
   // fewer players than the design's eight: spread the rows out a little
-  // With players listed below the ranks the rows tighten up to make room for them.
+  // Everyone is on the card; it grows taller (and the rows tighten) to fit them.
+  const { height, rowGap, compact } = shareCardLayout(top.length, unranked.length);
   const hasUnranked = unranked.length > 0;
-  const rowGap = hasUnranked ? 8 : top.length >= 7 ? 16 : top.length >= 6 ? 24 : top.length >= 4 ? 32 : 40;
-  const overflow = unranked.length > SHARE_UNRANKED_COUNT;
-  // when some are left out, the last line says how many instead of a name
-  const unrankedShown = overflow ? unranked.slice(0, SHARE_UNRANKED_COUNT - 1) : unranked;
-  const unrankedLeftOut = unranked.length - unrankedShown.length;
 
   // Where a phone can't save from the page (some browsers, home-screen apps),
   // the picture itself is shown: press and hold it to save.
@@ -82,8 +78,8 @@ export function ShareRankingsModal({ open, top, unranked, early, sessionName, pl
            transform just for this preview. renderRankingsImage undoes the
            transform on the copy it draws from (data-share-frame/-card), so the
            exported picture is full size whatever the phone. */}
-        <div className={styles.frame} data-share-frame style={{ width: SHARE_CARD_W * scale, height: SHARE_CARD_H * scale }}>
-          <div className={styles.card} ref={cardRef} data-share-card style={{ transform: `scale(${scale})` }}>
+        <div className={styles.frame} data-share-frame style={{ width: SHARE_CARD_W * scale, height: height * scale }}>
+          <div className={styles.card} ref={cardRef} data-share-card style={{ height, transform: `scale(${scale})` }}>
             <div className={styles.glow} />
             {photo ? (
               <div className={styles.photo}>
@@ -106,7 +102,7 @@ export function ShareRankingsModal({ open, top, unranked, early, sessionName, pl
               </div>
               <div className={styles.title}>
                 <span className={styles.titleLine} data-xfix>
-                  {early ? "EARLY" : `TOP ${top.length}`}
+                  {early ? "EARLY" : "FULL"}
                 </span>
                 <span className={`${styles.titleLine} ${styles.titleAccent}`} data-xfix>
                   {early ? "STANDINGS" : "RANKINGS"}
@@ -135,7 +131,7 @@ export function ShareRankingsModal({ open, top, unranked, early, sessionName, pl
               </div>
             </div>
 
-            <div className={`${styles.list} ${hasUnranked ? styles.compact : ""}`} style={{ gap: rowGap }}>
+            <div className={`${styles.list} ${compact ? styles.compact : ""}`} style={{ gap: rowGap }}>
               {top.map((r) => {
                 const first = r.rank === 1;
                 // the filled part of the score cell can't start left of its slanted edge
@@ -190,7 +186,7 @@ export function ShareRankingsModal({ open, top, unranked, early, sessionName, pl
                 <div className={styles.unrankedTitle} data-xfix>
                   {copy.share.unrankedTitle}
                 </div>
-                {unrankedShown.map((u, i) => (
+                {unranked.map((u, i) => (
                   <div className={styles.unrankedRow} key={`${u.name}-${i}`}>
                     <span className={styles.unrankedAvatar}>
                       <span className={styles.unrankedAvatarText} data-xfix>
@@ -201,15 +197,10 @@ export function ShareRankingsModal({ open, top, unranked, early, sessionName, pl
                       {shortName(u.name, 18)}
                     </span>
                     <span className={styles.unrankedRecord} data-xfix>
-                      {copy.share.unrankedPlayed(u.played)} · {u.wins}W–{u.losses}L
+                      {u.played > 0 ? `${copy.share.unrankedPlayed(u.played)} · ${u.wins}W–${u.losses}L` : copy.share.unrankedPlayed(0)}
                     </span>
                   </div>
                 ))}
-                {unrankedLeftOut > 0 && (
-                  <div className={styles.unrankedMore} data-xfix>
-                    {copy.share.unrankedMore(unrankedLeftOut)}
-                  </div>
-                )}
               </div>
             )}
 
