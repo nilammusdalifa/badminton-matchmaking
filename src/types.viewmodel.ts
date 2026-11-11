@@ -212,6 +212,15 @@ export interface ShareRankingEntry {
   score: number;
 }
 
+/** A player with games but no rank yet ("not enough matches"): listed under the ranks on the share card. */
+export interface ShareUnrankedEntry {
+  name: string;
+  initials: string;
+  played: number;
+  wins: number;
+  losses: number;
+}
+
 export interface EditablePlayerOption {
   id: string;
   name: string;

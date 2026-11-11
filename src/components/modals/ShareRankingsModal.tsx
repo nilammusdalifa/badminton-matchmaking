@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { copy } from "../../lib/copy";
 import { shortName } from "../../lib/session";
 import { CROWN_IMAGE } from "../../lib/crownImage";
-import { SHARE_CARD_H, SHARE_CARD_W } from "../../lib/shareCard";
+import { SHARE_CARD_H, SHARE_CARD_W, SHARE_UNRANKED_COUNT } from "../../lib/shareCard";
 import type { SessionStore } from "../../hooks/useSessionStore";
 import styles from "./ShareRankingsModal.module.css";
 
@@ -40,7 +40,7 @@ function Shape({ points, fill, opacity = 1 }: { points: string; fill: string; op
   );
 }
 
-export function ShareRankingsModal({ open, top, early, sessionName, playersCount, matchesCompleted, close, download, cardRef, fallbackImageUrl, onOpenImage, onCloseImage, photo, onPickPhoto, onClearPhoto }: ShareRankingsProps) {
+export function ShareRankingsModal({ open, top, unranked, early, sessionName, playersCount, matchesCompleted, close, download, cardRef, fallbackImageUrl, onOpenImage, onCloseImage, photo, onPickPhoto, onClearPhoto }: ShareRankingsProps) {
   const scale = usePreviewScale();
   const fileInput = useRef<HTMLInputElement>(null);
   if (!open) return null;
@@ -49,7 +49,13 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
   const date = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   const leader = top[0];
   // fewer players than the design's eight: spread the rows out a little
-  const rowGap = top.length >= 7 ? 16 : top.length >= 6 ? 24 : top.length >= 4 ? 32 : 40;
+  // With players listed below the ranks the rows tighten up to make room for them.
+  const hasUnranked = unranked.length > 0;
+  const rowGap = hasUnranked ? 8 : top.length >= 7 ? 16 : top.length >= 6 ? 24 : top.length >= 4 ? 32 : 40;
+  const overflow = unranked.length > SHARE_UNRANKED_COUNT;
+  // when some are left out, the last line says how many instead of a name
+  const unrankedShown = overflow ? unranked.slice(0, SHARE_UNRANKED_COUNT - 1) : unranked;
+  const unrankedLeftOut = unranked.length - unrankedShown.length;
 
   // Where a phone can't save from the page (some browsers, home-screen apps),
   // the picture itself is shown: press and hold it to save.
@@ -129,7 +135,7 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
               </div>
             </div>
 
-            <div className={styles.list} style={{ gap: rowGap }}>
+            <div className={`${styles.list} ${hasUnranked ? styles.compact : ""}`} style={{ gap: rowGap }}>
               {top.map((r) => {
                 const first = r.rank === 1;
                 // the filled part of the score cell can't start left of its slanted edge
@@ -178,6 +184,34 @@ export function ShareRankingsModal({ open, top, early, sessionName, playersCount
                 );
               })}
             </div>
+
+            {hasUnranked && (
+              <div className={styles.unranked}>
+                <div className={styles.unrankedTitle} data-xfix>
+                  {copy.share.unrankedTitle}
+                </div>
+                {unrankedShown.map((u, i) => (
+                  <div className={styles.unrankedRow} key={`${u.name}-${i}`}>
+                    <span className={styles.unrankedAvatar}>
+                      <span className={styles.unrankedAvatarText} data-xfix>
+                        {u.initials}
+                      </span>
+                    </span>
+                    <span className={styles.unrankedName} data-xfix>
+                      {shortName(u.name, 18)}
+                    </span>
+                    <span className={styles.unrankedRecord} data-xfix>
+                      {copy.share.unrankedPlayed(u.played)} · {u.wins}W–{u.losses}L
+                    </span>
+                  </div>
+                ))}
+                {unrankedLeftOut > 0 && (
+                  <div className={styles.unrankedMore} data-xfix>
+                    {copy.share.unrankedMore(unrankedLeftOut)}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className={styles.chip}>
               <span data-xfix>

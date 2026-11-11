@@ -82,6 +82,7 @@ import type {
   RequestedPairEntry,
   SessionHealth,
   ShareRankingEntry,
+  ShareUnrankedEntry,
   WaitingEntry,
 } from "../types.viewmodel";
 
@@ -2302,8 +2303,17 @@ export function useSessionStore() {
     [rankingsVM],
   );
 
+  // Players with games but no rank yet: shown under the ranks, never counted in them.
+  const shareUnranked = useMemo<ShareUnrankedEntry[]>(
+    () =>
+      rankingsVM
+        .filter((r) => r.section === "tooFew" && r.played > 0)
+        .map((r) => ({ name: r.name, initials: r.initials, played: r.played, wins: r.wins, losses: r.losses })),
+    [rankingsVM],
+  );
+
   const shareHighlights = useMemo(() => buildHighlights(livePlayers, state.sessionResultMode), [livePlayers, state.sessionResultMode]);
-  const shareCardKey = JSON.stringify([shareRankingsTop, shareHighlights, standings.early, sharePhoto?.id ?? null, state.sessionName, state.sessionSchedule, state.players.length, state.completedCount]);
+  const shareCardKey = JSON.stringify([shareRankingsTop, shareUnranked, shareHighlights, standings.early, sharePhoto?.id ?? null, state.sessionName, state.sessionSchedule, state.players.length, state.completedCount]);
   useEffect(() => {
     if (!state.shareRankingsOpen) {
       shareBlobRef.current = null;
@@ -2554,6 +2564,7 @@ export function useSessionStore() {
     shareRankings: {
       open: state.shareRankingsOpen,
       top: shareRankingsTop,
+      unranked: shareUnranked,
       highlights: shareHighlights,
       early: standings.early,
       sessionName: state.sessionName,

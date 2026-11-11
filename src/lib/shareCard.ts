@@ -11,3 +11,7 @@ export const SHARE_PHOTO_H = 820;
 
 /** How many players the card lists at most. */
 export const SHARE_TOP_COUNT = 8;
+
+/** How many players "not enough matches yet" lists under the ranks, at most;
+ * when there are more, the last line says how many were left out. */
+export const SHARE_UNRANKED_COUNT = 4;
