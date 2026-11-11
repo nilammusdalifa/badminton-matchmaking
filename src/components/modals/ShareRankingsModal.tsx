@@ -40,7 +40,7 @@ function Shape({ points, fill, opacity = 1 }: { points: string; fill: string; op
   );
 }
 
-export function ShareRankingsModal({ open, top, unranked, early, sessionName, playersCount, matchesCompleted, close, download, cardRef, fallbackImageUrl, onOpenImage, onCloseImage, photo, onPickPhoto, onClearPhoto }: ShareRankingsProps) {
+export function ShareRankingsModal({ open, top, early, sessionName, playersCount, matchesCompleted, close, download, cardRef, fallbackImageUrl, onOpenImage, onCloseImage, photo, onPickPhoto, onClearPhoto }: ShareRankingsProps) {
   const scale = usePreviewScale();
   const fileInput = useRef<HTMLInputElement>(null);
   if (!open) return null;
@@ -49,9 +49,8 @@ export function ShareRankingsModal({ open, top, unranked, early, sessionName, pl
   const date = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   const leader = top[0];
   // fewer players than the design's eight: spread the rows out a little
-  // Everyone is on the card; it grows taller (and the rows tighten) to fit them.
-  const { height, rowGap, compact } = shareCardLayout(top.length, unranked.length);
-  const hasUnranked = unranked.length > 0;
+  // Everyone is on the card, one list; it grows taller (and the rows tighten) to fit them.
+  const { height, rowGap, compact } = shareCardLayout(top.length);
 
   // Where a phone can't save from the page (some browsers, home-screen apps),
   // the picture itself is shown: press and hold it to save.
@@ -167,12 +166,12 @@ export function ShareRankingsModal({ open, top, unranked, early, sessionName, pl
                       </div>
                       <div className={styles.winCell}>
                         <Shape points="7,0 100,0 100,100 0,100" fill="#FFFFFF" opacity={0.12} />
-                        {r.score > 0 && <Shape points={`7,0 ${fillTo},0 ${fillTo},100 0,100`} fill="#FF4A1A" />}
+                        {r.played > 0 && r.score > 0 && <Shape points={`7,0 ${fillTo},0 ${fillTo},100 0,100`} fill="#FF4A1A" />}
                         <div className={styles.pct} data-xfix>
-                          {r.score}
+                          {r.played > 0 ? r.score : "–"}
                         </div>
                         <div className={styles.record} data-xfix>
-                          {r.wins}W–{r.losses}L
+                          {r.played > 0 ? `${r.wins}W–${r.losses}L` : copy.share.noMatchesYet}
                         </div>
                       </div>
                     </div>
@@ -180,29 +179,6 @@ export function ShareRankingsModal({ open, top, unranked, early, sessionName, pl
                 );
               })}
             </div>
-
-            {hasUnranked && (
-              <div className={styles.unranked}>
-                <div className={styles.unrankedTitle} data-xfix>
-                  {copy.share.unrankedTitle}
-                </div>
-                {unranked.map((u, i) => (
-                  <div className={styles.unrankedRow} key={`${u.name}-${i}`}>
-                    <span className={styles.unrankedAvatar}>
-                      <span className={styles.unrankedAvatarText} data-xfix>
-                        {u.initials}
-                      </span>
-                    </span>
-                    <span className={styles.unrankedName} data-xfix>
-                      {shortName(u.name, 18)}
-                    </span>
-                    <span className={styles.unrankedRecord} data-xfix>
-                      {u.played > 0 ? `${copy.share.unrankedPlayed(u.played)} · ${u.wins}W–${u.losses}L` : copy.share.unrankedPlayed(0)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
 
             <div className={styles.chip}>
               <span data-xfix>

@@ -82,7 +82,6 @@ import type {
   RequestedPairEntry,
   SessionHealth,
   ShareRankingEntry,
-  ShareUnrankedEntry,
   WaitingEntry,
 } from "../types.viewmodel";
 
@@ -2285,36 +2284,26 @@ export function useSessionStore() {
   const pendingDeleteMatch = state.pendingDeleteMatchId ? state.matches.find((m) => m.id === state.pendingDeleteMatchId) : null;
   const pendingDeleteCourtName = pendingDeleteMatch ? state.courts.find((c) => c.id === pendingDeleteMatch.courtId)?.name || "the court" : "";
 
+  // Everyone, in list order (ranked first, then players still short of a rank, then guests),
+  // numbered by position so the unranked players carry on from the last rank.
   const shareRankingsTop = useMemo<ShareRankingEntry[]>(
     () =>
-      rankingsVM
-        .filter((r): r is typeof r & { rank: number } => r.rank !== null)
-        .map((r) => ({
-          rank: r.rank,
-          medal: r.medal,
-          name: r.name,
-          initials: r.initials,
-          level: r.level,
-          wins: r.wins,
-          losses: r.losses,
-          score: r.score,
-        })),
-    [rankingsVM],
-  );
-
-  // Everyone without a rank (too few matches, none yet, or switched out of the rankings like
-  // guests): shown under the ranks, last, never counted in them. rankingsVM is already
-  // ordered ranked, too few, then not ranked.
-  const shareUnranked = useMemo<ShareUnrankedEntry[]>(
-    () =>
-      rankingsVM
-        .filter((r) => r.section !== "ranked")
-        .map((r) => ({ name: r.name, initials: r.initials, played: r.matchesPlayed, wins: r.wins, losses: r.losses })),
+      rankingsVM.map((r, i) => ({
+        rank: i + 1,
+        medal: r.medal,
+        name: r.name,
+        initials: r.initials,
+        level: r.level,
+        wins: r.wins,
+        losses: r.losses,
+        score: r.score,
+        played: r.matchesPlayed,
+      })),
     [rankingsVM],
   );
 
   const shareHighlights = useMemo(() => buildHighlights(livePlayers, state.sessionResultMode), [livePlayers, state.sessionResultMode]);
-  const shareCardKey = JSON.stringify([shareRankingsTop, shareUnranked, shareHighlights, standings.early, sharePhoto?.id ?? null, state.sessionName, state.sessionSchedule, state.players.length, state.completedCount]);
+  const shareCardKey = JSON.stringify([shareRankingsTop, shareHighlights, standings.early, sharePhoto?.id ?? null, state.sessionName, state.sessionSchedule, state.players.length, state.completedCount]);
   useEffect(() => {
     if (!state.shareRankingsOpen) {
       shareBlobRef.current = null;
@@ -2565,7 +2554,6 @@ export function useSessionStore() {
     shareRankings: {
       open: state.shareRankingsOpen,
       top: shareRankingsTop,
-      unranked: shareUnranked,
       highlights: shareHighlights,
       early: standings.early,
       sessionName: state.sessionName,

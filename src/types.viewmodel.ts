@@ -210,15 +210,8 @@ export interface ShareRankingEntry {
   losses: number;
   /** The Rankings score, 0–100 (50 = as expected). */
   score: number;
-}
-
-/** A player with at least one match but no rank ("not enough matches yet", or not counted in the rankings): listed under the ranks on the share card. */
-export interface ShareUnrankedEntry {
-  name: string;
-  initials: string;
+  /** Matches played; 0 means no score to show yet. */
   played: number;
-  wins: number;
-  losses: number;
 }
 
 export interface EditablePlayerOption {

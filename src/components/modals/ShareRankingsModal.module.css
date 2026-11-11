@@ -327,72 +327,13 @@
   white-space: nowrap;
 }
 
-/* Players without a rank yet sit under the last rank, smaller and dimmer. */
+/* more than eight players: tighter rows */
 .compact .nameBar {
   padding-top: 10px;
   padding-bottom: 10px;
 }
 .compact .winCell {
   padding: 8px 0;
-}
-.unranked {
-  position: relative;
-  margin-top: 22px;
-  padding-left: 64px;
-  /* stops where the list's score cells stop */
-  padding-right: 64px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.unrankedTitle {
-  color: #6e7e91;
-  font-weight: 700;
-  font-size: 16px;
-  line-height: 26px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.unrankedRow {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 4px 24px;
-  background: rgba(255, 255, 255, 0.04);
-}
-.unrankedAvatar {
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: #10263b;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.unrankedAvatarText {
-  font-weight: 700;
-  font-size: 12px;
-  line-height: 16px;
-  color: #ffffff;
-}
-.unrankedName {
-  flex: 1;
-  min-width: 0;
-  font-weight: 700;
-  font-size: 19px;
-  line-height: 26px;
-  color: rgba(255, 255, 255, 0.8);
-  white-space: nowrap;
-}
-.unrankedRecord {
-  flex-shrink: 0;
-  font-weight: 600;
-  font-size: 15px;
-  line-height: 20px;
-  color: rgba(255, 255, 255, 0.6);
-  white-space: nowrap;
 }
 .chip {
   position: absolute;
