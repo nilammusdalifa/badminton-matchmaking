@@ -2284,12 +2284,13 @@ export function useSessionStore() {
   const pendingDeleteMatch = state.pendingDeleteMatchId ? state.matches.find((m) => m.id === state.pendingDeleteMatchId) : null;
   const pendingDeleteCourtName = pendingDeleteMatch ? state.courts.find((c) => c.id === pendingDeleteMatch.courtId)?.name || "the court" : "";
 
-  // Everyone who has played, in list order (ranked first, then players still short of a rank,
-  // then guests), numbered by position so the unranked players carry on from the last rank.
+  // Everyone who has played, in list order (ranked first, then players still short of a rank),
+  // numbered by position so the unranked players carry on from the last rank. Players
+  // excluded from the rankings are left off the card.
   const shareRankingsTop = useMemo<ShareRankingEntry[]>(
     () =>
       rankingsVM
-        .filter((r) => r.matchesPlayed > 0)
+        .filter((r) => r.matchesPlayed > 0 && r.section !== "notRanked")
         .map((r, i) => ({
           rank: i + 1,
           medal: r.medal,
